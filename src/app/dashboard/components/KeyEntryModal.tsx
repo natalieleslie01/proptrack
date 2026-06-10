@@ -43,7 +43,7 @@ export default function KeyEntryModal({ isOpen, onClose, onSaved, editEntry }: K
     held_by: '',
     collected_date: nowLocalISO(),
     returned_date: '',
-    status: 'held' as 'held' | 'returned' | 'missing',
+    status: 'held\' as \'held\' | \'returned\' | \'missing',
     notes: '',
   });
 

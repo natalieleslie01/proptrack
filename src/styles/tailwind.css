@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    --primary: 350 68% 32%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 0 0% 17%;
+    --accent-foreground: 0 0% 100%;
+    --background: 36 40% 95%;
+    --foreground: 215 25% 18%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 18%;
+    --muted: 36 30% 91%;
+    --muted-foreground: 215 15% 52%;
+    --border: 36 25% 84%;
+    --ring: 350 68% 32%;
+    --destructive: 0 72% 51%;
+    --success: 142 71% 35%;
+    --warning: 38 92% 50%;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'DM Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  .font-mono {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .sidebar-nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer;
+  }
+
+  .sidebar-nav-item-active {
+    @apply bg-[#8B1A2B]/10 text-[#8B1A2B] font-semibold;
+  }
+
+  .sidebar-nav-item-inactive {
+    @apply text-[hsl(215,15%,52%)] hover:bg-[hsl(36,30%,91%)] hover:text-[hsl(215,25%,18%)];
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-[#8B1A2B] text-white text-sm font-medium rounded-lg hover:bg-[#6E1522] active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-4 py-2 bg-white border border-[hsl(36,25%,84%)] text-[hsl(215,25%,18%)] text-sm font-medium rounded-lg hover:bg-[hsl(36,30%,91%)] active:scale-95 transition-all duration-150;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-3 py-2 text-[hsl(215,15%,52%)] text-sm font-medium rounded-lg hover:bg-[hsl(36,30%,91%)] hover:text-[hsl(215,25%,18%)] active:scale-95 transition-all duration-150;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+
+  .input-base {
+    @apply w-full px-3 py-2 bg-white border border-[hsl(36,25%,84%)] rounded-lg text-sm text-[hsl(215,25%,18%)] placeholder:text-[hsl(215,15%,62%)] focus:outline-none focus:ring-2 focus:ring-[#8B1A2B]/30 focus:border-[#8B1A2B] transition-all duration-150;
+  }
+
+  .card {
+    @apply bg-white border border-[hsl(36,25%,84%)] rounded-xl shadow-sm;
+  }
+
+  .section-label {
+    @apply text-xs font-semibold tracking-widest uppercase text-[hsl(215,15%,52%)];
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 2px;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.2s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}

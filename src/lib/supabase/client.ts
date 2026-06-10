@@ -12,10 +12,10 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       auth: {
-        // Use a stable storage key scoped to this app
-        storageKey: 'proptrack-auth',
         // Disable the Web Locks API that causes "lock broken by steal" errors
-        // when multiple tabs or concurrent requests compete for the lock
+        // when multiple tabs or concurrent requests compete for the lock.
+        // NOTE: storageKey is intentionally NOT set — using the default Supabase
+        // key ensures existing browser sessions are found correctly.
         lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<unknown>) => {
           return fn();
         },

@@ -85,8 +85,8 @@ export default function LoginClient() {
     } catch (err: any) {
       const msg: string = err?.message || '';
       if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many') || msg.toLowerCase().includes('request rate limit')) {
-        setLoginCooldown(60);
-        toast.error('Too many attempts — please wait 60 seconds before trying again.');
+        setLoginCooldown(300);
+        toast.error('Rate limit reached — Supabase has temporarily blocked sign-in requests. Please wait 5 minutes before trying again.');
       } else if (msg.toLowerCase().includes('email not confirmed')) {
         toast.error('Please confirm your email address before signing in. Check your inbox.');
       } else if (msg.toLowerCase().includes('invalid login credentials') || msg.toLowerCase().includes('invalid credentials')) {
@@ -387,7 +387,7 @@ export default function LoginClient() {
                       ) : loginCooldown > 0 ? (
                         <>
                           <Icon name="ClockIcon" size={16} />
-                          Too many attempts — wait {loginCooldown}s
+                          Rate limited — wait {loginCooldown >= 60 ? `${Math.ceil(loginCooldown / 60)}m ${loginCooldown % 60}s` : `${loginCooldown}s`}
                         </>
                       ) : (
                         <>

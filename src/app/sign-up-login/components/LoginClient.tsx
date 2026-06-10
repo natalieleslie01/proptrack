@@ -35,48 +35,9 @@ export default function LoginClient() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
 
-  // Cooldown state for rate-limit UX
-  const [loginCooldown, setLoginCooldown] = useState(0);
-  const [forgotCooldown, setForgotCooldown] = useState(0);
-
   useEffect(() => {
     setMounted(true);
-    // Restore any persisted login cooldown from localStorage
-    try {
-      const stored = localStorage.getItem('proptrack_login_cooldown_until');
-      if (stored) {
-        const expiresAt = parseInt(stored, 10);
-        const remaining = Math.ceil((expiresAt - Date.now()) / 1000);
-        if (remaining > 0) {
-          setLoginCooldown(remaining);
-        } else {
-          localStorage.removeItem('proptrack_login_cooldown_until');
-        }
-      }
-    } catch {}
   }, []);
-
-  // Login cooldown countdown
-  useEffect(() => {
-    if (loginCooldown <= 0) return;
-    const timer = setTimeout(() => {
-      setLoginCooldown((c) => {
-        const next = c - 1;
-        if (next <= 0) {
-          try { localStorage.removeItem('proptrack_login_cooldown_until'); } catch {}
-        }
-        return next;
-      });
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [loginCooldown]);
-
-  // Forgot password cooldown countdown
-  useEffect(() => {
-    if (forgotCooldown <= 0) return;
-    const timer = setTimeout(() => setForgotCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [forgotCooldown]);
 
   const {
     register,
@@ -97,7 +58,6 @@ export default function LoginClient() {
   });
 
     async function onSubmit(data: LoginFormData) {
-    if (loginCooldown > 0) return;
     setIsLoading(true);
     try {
       await signIn(data.email, data.password);
@@ -105,23 +65,7 @@ export default function LoginClient() {
       window.location.href = '/dashboard';
     } catch (err: any) {
       const msg: string = err?.message || '';
-      if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many') || msg.toLowerCase().includes('request rate limit')) {
-        // Only start a new cooldown if one isn't already running
-        const cooldownSeconds = 300;
-        try {
-          const stored = localStorage.getItem('proptrack_login_cooldown_until');
-          const now = Date.now();
-          if (!stored || parseInt(stored, 10) <= now) {
-            // No active cooldown — start a fresh one
-            localStorage.setItem('proptrack_login_cooldown_until', String(now + cooldownSeconds * 1000));
-            setLoginCooldown(cooldownSeconds);
-          }
-          // If cooldown is already active, don't reset it — let it count down naturally
-        } catch {
-          setLoginCooldown(cooldownSeconds);
-        }
-        toast.error('Rate limit reached — Supabase has temporarily blocked sign-in requests. Please wait 5 minutes before trying again.');
-      } else if (msg.toLowerCase().includes('email not confirmed')) {
+      if (msg.toLowerCase().includes('email not confirmed')) {
         toast.error('Please confirm your email address before signing in. Check your inbox.');
       } else if (msg.toLowerCase().includes('invalid login credentials') || msg.toLowerCase().includes('invalid credentials')) {
         toast.error('Incorrect email or password. Please try again.');
@@ -148,14 +92,11 @@ export default function LoginClient() {
 
   async function handleForgotPassword(e: React.FormEvent) {
     e.preventDefault();
-    if (!forgotEmail || forgotCooldown > 0) return;
+    if (!forgotEmail) return;
     setForgotLoading(true);
     try {
       const { createClient } = await import('@/lib/supabase/client');
       const supabase = createClient();
-      // Always use the published site URL so the reset link works on the correct domain.
-      // window.location.origin may return the preview URL (proptrack7151.builtwithrocket.new)
-      // which is not in Supabase's allowed redirect list, causing "Invalid path" errors.
       const envUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
       const siteUrl = (envUrl && !envUrl.includes('builtwithrocket.new')) ? envUrl : 'https://homesrus-proptrack.com';
       const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
@@ -165,12 +106,7 @@ export default function LoginClient() {
       setForgotSent(true);
     } catch (err: any) {
       const msg: string = err?.message || '';
-      if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many') || msg.toLowerCase().includes('request rate limit')) {
-        setForgotCooldown(60);
-        toast.error('Too many attempts — please wait 60 seconds before trying again.');
-      } else {
-        toast.error(msg || 'Failed to send reset email. Please try again.');
-      }
+      toast.error(msg || 'Failed to send reset email. Please try again.');
     } finally {
       setForgotLoading(false);
     }
@@ -409,7 +345,7 @@ export default function LoginClient() {
                     {/* Submit */}
                     <button
                       type="submit"
-                      disabled={isLoading || loginCooldown > 0}
+                      disabled={isLoading}
                       className="btn-primary w-full justify-center py-2.5 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                       style={{ minHeight: '42px' }}
                     >
@@ -417,11 +353,6 @@ export default function LoginClient() {
                         <>
                           <Icon name="Loader2Icon" size={16} className="animate-spin" />
                           Signing in…
-                        </>
-                      ) : loginCooldown > 0 ? (
-                        <>
-                          <Icon name="ClockIcon" size={16} />
-                          Rate limited — wait {loginCooldown >= 60 ? `${Math.ceil(loginCooldown / 60)}m ${loginCooldown % 60}s` : `${loginCooldown}s`}
                         </>
                       ) : (
                         <>
@@ -654,7 +585,7 @@ export default function LoginClient() {
                   </div>
                   <button
                     type="submit"
-                    disabled={forgotLoading || forgotCooldown > 0}
+                    disabled={forgotLoading}
                     className="btn-primary w-full justify-center py-2.5 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{ minHeight: '42px' }}
                   >
@@ -662,11 +593,6 @@ export default function LoginClient() {
                       <>
                         <Icon name="Loader2Icon" size={16} className="animate-spin" />
                         Sending…
-                      </>
-                    ) : forgotCooldown > 0 ? (
-                      <>
-                        <Icon name="ClockIcon" size={16} />
-                        Too many attempts — wait {forgotCooldown}s
                       </>
                     ) : (
                       <>

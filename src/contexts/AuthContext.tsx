@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 export type UserRole = 'agent' | 'manager' | 'admin';
@@ -35,7 +35,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<UserRole | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = createClient();
 
   const fetchRole = async (userId: string) => {
     setProfileLoading(true);

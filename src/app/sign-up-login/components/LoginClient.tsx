@@ -41,12 +41,33 @@ export default function LoginClient() {
 
   useEffect(() => {
     setMounted(true);
+    // Restore any persisted login cooldown from localStorage
+    try {
+      const stored = localStorage.getItem('proptrack_login_cooldown_until');
+      if (stored) {
+        const expiresAt = parseInt(stored, 10);
+        const remaining = Math.ceil((expiresAt - Date.now()) / 1000);
+        if (remaining > 0) {
+          setLoginCooldown(remaining);
+        } else {
+          localStorage.removeItem('proptrack_login_cooldown_until');
+        }
+      }
+    } catch {}
   }, []);
 
   // Login cooldown countdown
   useEffect(() => {
     if (loginCooldown <= 0) return;
-    const timer = setTimeout(() => setLoginCooldown((c) => c - 1), 1000);
+    const timer = setTimeout(() => {
+      setLoginCooldown((c) => {
+        const next = c - 1;
+        if (next <= 0) {
+          try { localStorage.removeItem('proptrack_login_cooldown_until'); } catch {}
+        }
+        return next;
+      });
+    }, 1000);
     return () => clearTimeout(timer);
   }, [loginCooldown]);
 
@@ -85,7 +106,20 @@ export default function LoginClient() {
     } catch (err: any) {
       const msg: string = err?.message || '';
       if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many') || msg.toLowerCase().includes('request rate limit')) {
-        setLoginCooldown(300);
+        // Only start a new cooldown if one isn't already running
+        const cooldownSeconds = 300;
+        try {
+          const stored = localStorage.getItem('proptrack_login_cooldown_until');
+          const now = Date.now();
+          if (!stored || parseInt(stored, 10) <= now) {
+            // No active cooldown — start a fresh one
+            localStorage.setItem('proptrack_login_cooldown_until', String(now + cooldownSeconds * 1000));
+            setLoginCooldown(cooldownSeconds);
+          }
+          // If cooldown is already active, don't reset it — let it count down naturally
+        } catch {
+          setLoginCooldown(cooldownSeconds);
+        }
         toast.error('Rate limit reached — Supabase has temporarily blocked sign-in requests. Please wait 5 minutes before trying again.');
       } else if (msg.toLowerCase().includes('email not confirmed')) {
         toast.error('Please confirm your email address before signing in. Check your inbox.');

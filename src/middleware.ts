@@ -10,25 +10,7 @@ function isValidUrl(url: string): boolean {
   }
 }
 
-function getProjectRef(): string {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  return url.match(/https:\/\/([^.]+)\./)?.[1] ?? '';
-}
-
-function injectTokenFromHeader(request: NextRequest): void {
-  const token = request.headers.get('x-sb-token');
-  if (!token) return;
-  const hasCookie = request.cookies.getAll().some((c) => c.name.includes('auth-token'));
-  if (hasCookie) return;
-  const ref = getProjectRef();
-  if (ref) {
-    request.cookies.set(`sb-${ref}-auth-token`, token);
-  }
-}
-
 export async function middleware(request: NextRequest) {
-  injectTokenFromHeader(request);
-
   const supabaseResponse = NextResponse.next({ request });
 
   const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\s+/g, '').replace(/\/+$/, '');

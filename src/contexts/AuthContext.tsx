@@ -83,7 +83,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Always use the published site URL for email confirmation redirects.
     // Using window.location.origin would send the preview domain (proptrack7151.builtwithrocket.new)
     // which is NOT in Supabase's allowed redirect list, causing "Invalid path" errors.
-    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://homesrus-proptrack.com').replace(/\/$/, '');
+    const envUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
+    const siteUrl = (envUrl && !envUrl.includes('builtwithrocket.new')) ? envUrl : 'https://homesrus-proptrack.com';
     const { data, error } = await supabase.auth.signUp({
       email,
       password,

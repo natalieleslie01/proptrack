@@ -167,7 +167,8 @@ export default function LoginClient() {
       // Always use the published site URL so the reset link works on the correct domain.
       // window.location.origin may return the preview URL (proptrack7151.builtwithrocket.new)
       // which is not in Supabase's allowed redirect list, causing "Invalid path" errors.
-      const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://homesrus-proptrack.com').replace(/\/$/, '');
+      const envUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
+      const siteUrl = (envUrl && !envUrl.includes('builtwithrocket.new')) ? envUrl : 'https://homesrus-proptrack.com';
       const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
         redirectTo: `${siteUrl}/auth/callback?type=recovery`,
       });

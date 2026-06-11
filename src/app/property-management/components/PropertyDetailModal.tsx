@@ -545,6 +545,24 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   const [complianceError, setComplianceError] = useState<string | null>(null);
   const complianceInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Tenancy Forms docs (Documents tab) ───────────────────────────────────
+  const [tenancyFormDocs, setTenancyFormDocs] = useState<TenancyAgreementDoc[]>([]);
+  const [tenancyFormLoading, setTenancyFormLoading] = useState(false);
+  const [tenancyFormUploading, setTenancyFormUploading] = useState(false);
+  const [tenancyFormError, setTenancyFormError] = useState<string | null>(null);
+  const tenancyFormInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Utility Bills docs (Documents tab) ───────────────────────────────────
+  const [utilityBillDocs, setUtilityBillDocs] = useState<TenancyAgreementDoc[]>([]);
+  const [utilityBillLoading, setUtilityBillLoading] = useState(false);
+  const [utilityBillUploading, setUtilityBillUploading] = useState(false);
+  const [utilityBillError, setUtilityBillError] = useState<string | null>(null);
+  const utilityBillInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Image preview state ───────────────────────────────────────────────────
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewFileName, setPreviewFileName] = useState<string>('');
+
   // ── Real-time: viewings for this property ─────────────────────────────────
   const [viewingsSyncBadge, setViewingsSyncBadge] = useState<string | null>(null);
 
@@ -575,6 +593,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
         loadLeaseAgreementDocs();
         loadInspectionDocs();
         loadComplianceDocs();
+        loadTenancyFormDocs();
+        loadUtilityBillDocs();
       }
     } else if (event === 'DELETE') {
       toast.warning('A document was removed', { id: `modal-doc-delete-${row.id}` });
@@ -583,6 +603,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
         loadLeaseAgreementDocs();
         loadInspectionDocs();
         loadComplianceDocs();
+        loadTenancyFormDocs();
+        loadUtilityBillDocs();
       }
     }
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -685,14 +707,46 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   );
   const handleComplianceDelete = makeDocDeleter(setComplianceDocs);
 
+  // ── Tenancy Forms (Documents tab) ─────────────────────────────────────────
+  const loadTenancyFormDocs = useCallback(
+    makeDocLoader('tenancy-form', setTenancyFormDocs, setTenancyFormLoading, setTenancyFormError),
+    [property.ref, property.unit], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const handleTenancyFormDelete = makeDocDeleter(setTenancyFormDocs);
+
+  // ── Utility Bills (Documents tab) ─────────────────────────────────────────
+  const loadUtilityBillDocs = useCallback(
+    makeDocLoader('utility-bill', setUtilityBillDocs, setUtilityBillLoading, setUtilityBillError),
+    [property.ref, property.unit], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const handleUtilityBillDelete = makeDocDeleter(setUtilityBillDocs);
+
+  // ── Image/PDF preview helper ───────────────────────────────────────────────
+  async function handleDocPreview(doc: TenancyAgreementDoc) {
+    try {
+      const supabase = createClient();
+      // Try documents bucket first (PDFs/Word), then property-photos bucket (images)
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.file_name);
+      const bucket = isImage ? 'property-photos' : 'documents';
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(doc.file_path, 120);
+      if (error) throw error;
+      setPreviewUrl(data.signedUrl);
+      setPreviewFileName(doc.file_name);
+    } catch {
+      toast.error('Could not generate preview link');
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'documents') {
       loadGovValDocs();
       loadLeaseAgreementDocs();
       loadInspectionDocs();
       loadComplianceDocs();
+      loadTenancyFormDocs();
+      loadUtilityBillDocs();
     }
-  }, [activeTab, loadGovValDocs, loadLeaseAgreementDocs, loadInspectionDocs, loadComplianceDocs]);
+  }, [activeTab, loadGovValDocs, loadLeaseAgreementDocs, loadInspectionDocs, loadComplianceDocs, loadTenancyFormDocs, loadUtilityBillDocs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleGovValUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -962,10 +1016,88 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
     };
   }
 
+  // ── Image+PDF capable uploader (for utility bills, tenancy forms) ─────────
+  function makeMediaUploader(
+    docType: string,
+    storagePath: string,
+    setDocs: React.Dispatch<React.SetStateAction<TenancyAgreementDoc[]>>,
+    setUploading: React.Dispatch<React.SetStateAction<boolean>>,
+    setError: React.Dispatch<React.SetStateAction<string | null>>,
+    inputRef: React.RefObject<HTMLInputElement>,
+    loadDocs: () => Promise<void>,
+  ) {
+    return async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const propRef = property.ref || property.unit;
+      if (!propRef) { toast.error('Cannot upload: property reference is missing'); return; }
+      const allowedPdf = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      const allowedImages = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      const isImage = allowedImages.includes(file.type);
+      const isPdf = allowedPdf.includes(file.type);
+      if (!isImage && !isPdf) {
+        toast.error('Only PDF, Word documents, or images (JPG, PNG, WebP) are accepted');
+        return;
+      }
+      if (file.size > 52428800) { toast.error('File size must be under 50 MB'); return; }
+      setUploading(true);
+      setError(null);
+      try {
+        const supabase = createClient();
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const bucket = isImage ? 'property-photos' : 'documents';
+        const filePath = `${storagePath}/${propRef}/${Date.now()}_${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from(bucket)
+          .upload(filePath, file, { contentType: file.type, upsert: false });
+        if (uploadError) throw uploadError;
+        const { error: dbError } = await supabase.from('property_documents').insert({
+          property_ref: propRef,
+          document_type: docType,
+          file_name: file.name,
+          file_path: filePath,
+          file_size_bytes: file.size,
+        });
+        if (dbError) throw dbError;
+        toast.success('File uploaded successfully');
+        await loadDocs();
+      } catch (err: any) {
+        toast.error(err?.message ?? 'Upload failed');
+        setError(err?.message ?? 'Upload failed');
+      } finally {
+        setUploading(false);
+        if (inputRef.current) inputRef.current.value = '';
+      }
+    };
+  }
+
+  // ── Media-aware delete (checks both buckets) ──────────────────────────────
+  function makeMediaDeleter(
+    setDocs: React.Dispatch<React.SetStateAction<TenancyAgreementDoc[]>>,
+  ) {
+    return async (doc: TenancyAgreementDoc) => {
+      if (!confirm(`Delete "${doc.file_name}"? This cannot be undone.`)) return;
+      try {
+        const supabase = createClient();
+        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.file_name);
+        const bucket = isImage ? 'property-photos' : 'documents';
+        const { error: storageError } = await supabase.storage.from(bucket).remove([doc.file_path]);
+        if (storageError) throw storageError;
+        await supabase.from('property_documents').delete().eq('id', doc.id);
+        toast.success('File deleted');
+        setDocs((prev) => prev.filter((d) => d.id !== doc.id));
+      } catch (err: any) {
+        toast.error(err?.message ?? 'Delete failed');
+      }
+    };
+  }
+
   async function handleGenericDocDownload(doc: TenancyAgreementDoc) {
     try {
       const supabase = createClient();
-      const { data, error } = await supabase.storage.from('documents').createSignedUrl(doc.file_path, 60);
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.file_name);
+      const bucket = isImage ? 'property-photos' : 'documents';
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(doc.file_path, 60);
       if (error) throw error;
       window.open(data.signedUrl, '_blank');
     } catch {
@@ -3730,6 +3862,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                                   <p className="text-xs text-[hsl(215,15%,52%)]">{formatFileSize(doc.file_size_bytes)} · {new Date(doc.uploaded_at).toLocaleDateString('en-GB')}</p>
                                 </div>
                                 <div className="flex items-center gap-1">
+                                  <button onClick={() => handleDocPreview(doc)} className="p-2 rounded hover:bg-blue-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Preview"><Icon name="EyeIcon" size={14} className="text-blue-500" /></button>
                                   <button onClick={() => handleGenericDocDownload(doc)} className="p-2 rounded hover:bg-blue-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Download"><Icon name="DownloadIcon" size={14} className="text-blue-600" /></button>
                                   <button onClick={() => handleLeaseAgreementDelete(doc)} className="p-2 rounded hover:bg-red-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Delete"><Icon name="TrashIcon" size={14} className="text-red-400" /></button>
                                 </div>
@@ -3807,6 +3940,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                                   <p className="text-xs text-[hsl(215,15%,52%)]">{formatFileSize(doc.file_size_bytes)} · {new Date(doc.uploaded_at).toLocaleDateString('en-GB')}</p>
                                 </div>
                                 <div className="flex items-center gap-1">
+                                  <button onClick={() => handleDocPreview(doc)} className="p-2 rounded hover:bg-emerald-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Preview"><Icon name="EyeIcon" size={14} className="text-emerald-500" /></button>
                                   <button onClick={() => handleGenericDocDownload(doc)} className="p-2 rounded hover:bg-emerald-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Download"><Icon name="DownloadIcon" size={14} className="text-emerald-600" /></button>
                                   <button onClick={() => handleInspectionDelete(doc)} className="p-2 rounded hover:bg-red-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Delete"><Icon name="TrashIcon" size={14} className="text-red-400" /></button>
                                 </div>
@@ -3884,11 +4018,176 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                                   <p className="text-xs text-[hsl(215,15%,52%)]">{formatFileSize(doc.file_size_bytes)} · {new Date(doc.uploaded_at).toLocaleDateString('en-GB')}</p>
                                 </div>
                                 <div className="flex items-center gap-1">
+                                  <button onClick={() => handleDocPreview(doc)} className="p-2 rounded hover:bg-violet-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Preview"><Icon name="EyeIcon" size={14} className="text-violet-500" /></button>
                                   <button onClick={() => handleGenericDocDownload(doc)} className="p-2 rounded hover:bg-violet-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Download"><Icon name="DownloadIcon" size={14} className="text-violet-600" /></button>
                                   <button onClick={() => handleComplianceDelete(doc)} className="p-2 rounded hover:bg-red-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Delete"><Icon name="TrashIcon" size={14} className="text-red-400" /></button>
                                 </div>
                               </div>
                             ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── Tenancy Forms ─────────────────────────────────────────── */}
+              {(() => {
+                const handleUpload = makeMediaUploader(
+                  'tenancy-form', 'tenancy-forms',
+                  setTenancyFormDocs, setTenancyFormUploading, setTenancyFormError,
+                  tenancyFormInputRef, loadTenancyFormDocs,
+                );
+                const handleDelete = makeMediaDeleter(setTenancyFormDocs);
+                return (
+                  <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
+                    <div className="px-3 sm:px-4 pt-3 pb-3 bg-[hsl(210,20%,98%)]">
+                      <SectionHeader
+                        sectionKey="docs-tenancy-form"
+                        icon="FileSignatureIcon"
+                        iconColor="text-indigo-600"
+                        title="Tenancy Forms"
+                        rightContent={
+                          !collapsedSections['docs-tenancy-form'] ? (
+                            <div className="flex items-center gap-1.5">
+                              <input ref={tenancyFormInputRef} type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" id="tenancy-form-upload" onChange={handleUpload} disabled={tenancyFormUploading} />
+                              <label htmlFor="tenancy-form-upload" className={`btn-primary py-1.5 px-3 text-xs cursor-pointer flex items-center gap-1.5 min-h-[36px] ${tenancyFormUploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                                {tenancyFormUploading ? (
+                                  <><svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg><span className="hidden sm:inline">Uploading…</span></>
+                                ) : (
+                                  <><Icon name="UploadIcon" size={13} /><span className="hidden sm:inline">Upload</span></>
+                                )}
+                              </label>
+                            </div>
+                          ) : undefined
+                        }
+                      />
+                    </div>
+                    {!collapsedSections['docs-tenancy-form'] && (
+                      <div className="px-3 sm:px-4 pb-4 pt-2">
+                        {tenancyFormError && (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 flex items-center gap-2">
+                            <Icon name="AlertCircleIcon" size={14} className="text-red-500 flex-shrink-0" />
+                            <p className="text-xs text-red-600">{tenancyFormError}</p>
+                          </div>
+                        )}
+                        {tenancyFormLoading ? (
+                          <div className="flex items-center justify-center py-8 gap-2 text-[hsl(215,15%,52%)]">
+                            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
+                            <span className="text-sm">Loading…</span>
+                          </div>
+                        ) : tenancyFormDocs.length === 0 ? (
+                          <div className="border-2 border-dashed border-indigo-200 rounded-xl p-6 text-center bg-indigo-50/40">
+                            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mx-auto mb-2">
+                              <Icon name="FileSignatureIcon" size={18} className="text-indigo-500" />
+                            </div>
+                            <p className="text-sm font-medium text-[hsl(215,25%,18%)]">No tenancy forms uploaded</p>
+                            <p className="text-xs text-[hsl(215,15%,52%)] mt-1">Upload tenancy forms (PDF, Word, or images) for {property.ref}</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {tenancyFormDocs.map((doc) => {
+                              const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.file_name);
+                              return (
+                                <div key={doc.id} className="card p-3 sm:p-4 flex items-center gap-3 hover:shadow-card-hover transition-shadow border-l-4 border-l-indigo-400">
+                                  <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                                    <Icon name={isImage ? 'ImageIcon' : 'FileSignatureIcon'} size={16} className="text-indigo-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-[hsl(215,25%,18%)] truncate">{doc.file_name}</p>
+                                    <p className="text-xs text-[hsl(215,15%,52%)]">{isImage ? 'Image' : 'PDF/Doc'} · {formatFileSize(doc.file_size_bytes)} · {new Date(doc.uploaded_at).toLocaleDateString('en-GB')}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button onClick={() => handleDocPreview(doc)} className="p-2 rounded hover:bg-indigo-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Preview"><Icon name="EyeIcon" size={14} className="text-indigo-500" /></button>
+                                    <button onClick={() => handleGenericDocDownload(doc)} className="p-2 rounded hover:bg-indigo-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Download"><Icon name="DownloadIcon" size={14} className="text-indigo-600" /></button>
+                                    <button onClick={() => handleDelete(doc)} className="p-2 rounded hover:bg-red-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Delete"><Icon name="TrashIcon" size={14} className="text-red-400" /></button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── Utility Bills ─────────────────────────────────────────── */}
+              {(() => {
+                const handleUpload = makeMediaUploader(
+                  'utility-bill', 'utility-bills',
+                  setUtilityBillDocs, setUtilityBillUploading, setUtilityBillError,
+                  utilityBillInputRef, loadUtilityBillDocs,
+                );
+                const handleDelete = makeMediaDeleter(setUtilityBillDocs);
+                return (
+                  <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
+                    <div className="px-3 sm:px-4 pt-3 pb-3 bg-[hsl(210,20%,98%)]">
+                      <SectionHeader
+                        sectionKey="docs-utility-bills"
+                        icon="ZapIcon"
+                        iconColor="text-orange-600"
+                        title="Utility Bills"
+                        rightContent={
+                          !collapsedSections['docs-utility-bills'] ? (
+                            <div className="flex items-center gap-1.5">
+                              <input ref={utilityBillInputRef} type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" id="utility-bill-upload" onChange={handleUpload} disabled={utilityBillUploading} />
+                              <label htmlFor="utility-bill-upload" className={`btn-primary py-1.5 px-3 text-xs cursor-pointer flex items-center gap-1.5 min-h-[36px] ${utilityBillUploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                                {utilityBillUploading ? (
+                                  <><svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg><span className="hidden sm:inline">Uploading…</span></>
+                                ) : (
+                                  <><Icon name="UploadIcon" size={13} /><span className="hidden sm:inline">Upload</span></>
+                                )}
+                              </label>
+                            </div>
+                          ) : undefined
+                        }
+                      />
+                    </div>
+                    {!collapsedSections['docs-utility-bills'] && (
+                      <div className="px-3 sm:px-4 pb-4 pt-2">
+                        {utilityBillError && (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 flex items-center gap-2">
+                            <Icon name="AlertCircleIcon" size={14} className="text-red-500 flex-shrink-0" />
+                            <p className="text-xs text-red-600">{utilityBillError}</p>
+                          </div>
+                        )}
+                        {utilityBillLoading ? (
+                          <div className="flex items-center justify-center py-8 gap-2 text-[hsl(215,15%,52%)]">
+                            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
+                            <span className="text-sm">Loading…</span>
+                          </div>
+                        ) : utilityBillDocs.length === 0 ? (
+                          <div className="border-2 border-dashed border-orange-200 rounded-xl p-6 text-center bg-orange-50/40">
+                            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-2">
+                              <Icon name="ZapIcon" size={18} className="text-orange-500" />
+                            </div>
+                            <p className="text-sm font-medium text-[hsl(215,25%,18%)]">No utility bills uploaded</p>
+                            <p className="text-xs text-[hsl(215,15%,52%)] mt-1">Upload electricity, water, gas bills (PDF or images) for {property.ref}</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {utilityBillDocs.map((doc) => {
+                              const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.file_name);
+                              return (
+                                <div key={doc.id} className="card p-3 sm:p-4 flex items-center gap-3 hover:shadow-card-hover transition-shadow border-l-4 border-l-orange-400">
+                                  <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
+                                    <Icon name={isImage ? 'ImageIcon' : 'ZapIcon'} size={16} className="text-orange-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-[hsl(215,25%,18%)] truncate">{doc.file_name}</p>
+                                    <p className="text-xs text-[hsl(215,15%,52%)]">{isImage ? 'Image' : 'PDF/Doc'} · {formatFileSize(doc.file_size_bytes)} · {new Date(doc.uploaded_at).toLocaleDateString('en-GB')}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button onClick={() => handleDocPreview(doc)} className="p-2 rounded hover:bg-orange-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Preview"><Icon name="EyeIcon" size={14} className="text-orange-500" /></button>
+                                    <button onClick={() => handleGenericDocDownload(doc)} className="p-2 rounded hover:bg-orange-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Download"><Icon name="DownloadIcon" size={14} className="text-orange-600" /></button>
+                                    <button onClick={() => handleDelete(doc)} className="p-2 rounded hover:bg-red-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Delete"><Icon name="TrashIcon" size={14} className="text-red-400" /></button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -4629,6 +4928,46 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
             salePrice={property.salePrice ? String(property.salePrice) : ''}
             onClose={() => setShowSaleInvoice(false)}
           />
+        )}
+
+        {/* Document Preview Modal */}
+        {previewUrl && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setPreviewUrl(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(214,20%,88%)] bg-[hsl(210,20%,98%)] flex-shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Icon name="EyeIcon" size={15} className="text-[#1B4F8A] flex-shrink-0" />
+                  <p className="text-sm font-semibold text-[hsl(215,25%,18%)] truncate">{previewFileName}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5">
+                    <Icon name="ExternalLinkIcon" size={12} />
+                    Open in new tab
+                  </a>
+                  <button onClick={() => setPreviewUrl(null)} className="p-1.5 rounded-lg hover:bg-[hsl(210,15%,94%)] transition-colors">
+                    <Icon name="XIcon" size={16} className="text-[hsl(215,15%,52%)]" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-hidden bg-[hsl(210,20%,96%)]">
+                {/\.(jpg|jpeg|png|gif|webp)$/i.test(previewFileName) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewUrl}
+                    alt={previewFileName}
+                    className="w-full h-full object-contain max-h-[75vh]"
+                  />
+                ) : (
+                  <iframe
+                    src={previewUrl}
+                    title={previewFileName}
+                    className="w-full h-full min-h-[60vh]"
+                    style={{ border: 'none' }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Modal Footer */}

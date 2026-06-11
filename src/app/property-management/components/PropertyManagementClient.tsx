@@ -7,6 +7,7 @@ import { Property, ContactStatus, PROPERTY_STATUS_OPTIONS } from './mockData';
 import PropertyDetailModal from './PropertyDetailModal';
 import ViewingSchedule from './ViewingSchedule';
 import BulkViewingSchedule from './BulkViewingSchedule';
+import AddPropertyModal from './AddPropertyModal';
 import { toast } from 'sonner';
 import { usePropertiesRealtime, useViewingsRealtime, RealtimeEvent } from '@/hooks/useRealtimeSync';
 import { useRole } from '@/hooks/useRole';
@@ -1034,6 +1035,7 @@ export default function PropertyManagementClient() {
   const [quickViewingProp, setQuickViewingProp] = useState<Property | null>(null);
   const [batchEditOpen, setBatchEditOpen] = useState(false);
   const [bulkViewingOpen, setBulkViewingOpen] = useState(false);
+  const [addPropertyOpen, setAddPropertyOpen] = useState(false);
   const [assignAgentOpen, setAssignAgentOpen] = useState(false);
   const [agents, setAgents] = useState<Array<{ id: string; full_name: string; email: string; role: string }>>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
@@ -1471,6 +1473,13 @@ export default function PropertyManagementClient() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            className="btn-primary py-1 text-xs"
+            onClick={() => setAddPropertyOpen(true)}
+          >
+            <Icon name="PlusIcon" size={13} />
+            Add Property
+          </button>
           {isAdmin && (
           <button className="btn-secondary py-1 text-xs" onClick={exportToCSV}>
             <Icon name="DownloadIcon" size={13} />
@@ -2391,6 +2400,17 @@ export default function PropertyManagementClient() {
           onSuccess={() => {
             setBatchEditOpen(false);
             setSelectedRows(new Set());
+            fetchProperties();
+          }}
+        />
+      )}
+
+      {/* Add Property Modal */}
+      {addPropertyOpen && (
+        <AddPropertyModal
+          onClose={() => setAddPropertyOpen(false)}
+          onSuccess={() => {
+            setAddPropertyOpen(false);
             fetchProperties();
           }}
         />

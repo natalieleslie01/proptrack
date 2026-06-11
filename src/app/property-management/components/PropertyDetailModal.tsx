@@ -2029,14 +2029,6 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                     sectionKey="pricing"
                     icon="TagIcon"
                     title="Pricing & Listing Dates"
-                    rightContent={
-                      !collapsedSections['pricing'] && !editingPricing ? (
-                        <button onClick={() => setEditingPricing(true)} className="btn-ghost py-1 px-2.5 text-xs min-h-[32px]">
-                          <Icon name="PencilIcon" size={11} />
-                          Edit
-                        </button>
-                      ) : undefined
-                    }
                   />
                 </div>
                 {!collapsedSections['pricing'] && (
@@ -2088,8 +2080,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </select>
                       </div>
                     </div>
-                    {editingPricing ? (
-                      <div className="card p-3 space-y-3 border border-[#1B4F8A]/20">
+                    {/* Pricing fields — always editable */}
+                    <div className="space-y-3">
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           <div>
                             <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Sale Price (HKD)</label>
@@ -2240,29 +2232,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </div>
                         <div className="flex items-center gap-2">
                           <button onClick={handleSavePricing} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="CheckIcon" size={12} />Save</button>
-                          <button onClick={() => setEditingPricing(false)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
                         </div>
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-                        <div className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Sale Price</p>
-                          <p className="text-xs font-semibold text-violet-700 font-mono">{salePrice ? `HK$${(Number(salePrice) / 1000000).toFixed(2)}M` : '—'}</p>
-                        </div>
-                        <div className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Rental Price</p>
-                          <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{rentalPrice ? `HK$${Number(rentalPrice).toLocaleString()}/mo` : '—'}</p>
-                        </div>
-                        <div className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Listing Date</p>
-                          <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{listingDate || '—'}</p>
-                        </div>
-                        <div className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2 col-span-2 sm:col-span-1">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Vacant Date</p>
-                          <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{vacantDate || '—'}</p>
-                        </div>
-                      </div>
-                    )}
 
                     {/* Publish to Website — always visible */}
                     <div className={`mt-3 rounded-xl border-2 overflow-hidden ${publishToWebsite ? 'border-emerald-300 bg-emerald-50' : 'border-dashed border-[hsl(214,20%,80%)] bg-[hsl(210,20%,98%)]'}`}>
@@ -2384,20 +2355,12 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                     sectionKey="specs"
                     icon="HomeIcon"
                     title="Property Specifications"
-                    rightContent={
-                      !collapsedSections['specs'] && !editingPropertyDetails ? (
-                        <button onClick={() => setEditingPropertyDetails(true)} className="btn-ghost py-1 px-2.5 text-xs min-h-[32px]">
-                          <Icon name="PencilIcon" size={11} />
-                          Edit
-                        </button>
-                      ) : undefined
-                    }
                   />
                 </div>
                 {!collapsedSections['specs'] && (
                   <div className="px-3 sm:px-4 pb-3 pt-1.5">
-                    {editingPropertyDetails ? (
-                      <div className="card p-3 space-y-3 border border-[#1B4F8A]/20">
+                    {/* Property specs — always editable */}
+                    <div className="space-y-3">
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           <div>
                             <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Bedrooms</label>
@@ -2519,43 +2482,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </div>
                         <div className="flex items-center gap-2">
                           <button onClick={handleSavePropertyDetails} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="CheckIcon" size={12} />Save</button>
-                          <button onClick={() => setEditingPropertyDetails(false)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
-                          {[
-                            { label: 'Bedrooms', value: bedrooms || '—' },
-                            { label: 'Bathrooms', value: bathrooms ? (Number(bathrooms) >= 4 ? '4+' : bathrooms) : '—' },
-                            { label: 'Direction', value: direction || '—' },
-                            { label: 'View', value: view || '—' },
-                            { label: 'Decoration', value: decoration || '—' },
-                            { label: 'Original Furnishing', value: originalFurnishing || '—' },
-                            { label: 'Building Type', value: buildingType || '—' },
-                            { label: 'Floor Type', value: floorType || '—' },
-                            { label: 'Floor Number', value: floorNumber || '—' },
-                          ].map((item) => (
-                            <div key={`spec-${item.label}`} className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2">
-                              <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">{item.label}</p>
-                              <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{item.value}</p>
-                            </div>
-                          ))}
-                        </div>
-                        {additionalFeatures.length > 0 && (
-                          <div className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2">
-                            <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1">Additional Features</p>
-                            <div className="flex flex-wrap gap-1">
-                              {additionalFeatures.map((feat) => (
-                                <span key={feat} className="text-[10px] px-2 py-0.5 rounded-full bg-[#1B4F8A]/10 text-[#1B4F8A] font-medium border border-[#1B4F8A]/20">
-                                  {feat}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>

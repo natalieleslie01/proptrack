@@ -510,6 +510,14 @@ function dbRowToProperty(row: Record<string, any>): Property {
     floorNumber: (row.floor as import('./mockData').FloorNumber) || undefined,
     listingType: listingTypeNorm,
     contactStatusCode: row.contact_status_code ?? undefined,
+    keyLocation: row.key_location
+      ? {
+          type: (row.key_location as Record<string, string>).type as import('./mockData').KeyLocationType,
+          keyNumber: (row.key_location as Record<string, string>).keyNumber ?? undefined,
+          agentName: (row.key_location as Record<string, string>).agentName ?? undefined,
+          agentPhone: (row.key_location as Record<string, string>).agentPhone ?? undefined,
+        }
+      : undefined,
   } as Property & { listingType: string; contactStatusCode: number | undefined };
 }
 

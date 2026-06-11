@@ -319,6 +319,22 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   const [editingWebsite, setEditingWebsite] = useState(false);
   const [websiteDraft, setWebsiteDraft] = useState<string>(property.websiteLink ?? '');
 
+  // Key Location state
+  const [keyLocation, setKeyLocation] = useState<import('./mockData').KeyLocation | undefined>(property.keyLocation);
+  const [editingKeyLocation, setEditingKeyLocation] = useState(false);
+  const [keyLocationDraft, setKeyLocationDraft] = useState<{
+    type: import('./mockData').KeyLocationType;
+    keyNumber: string;
+    agentName: string;
+    agentPhone: string;
+  }>({
+    type: property.keyLocation?.type ?? 'office',
+    keyNumber: property.keyLocation?.keyNumber ?? '',
+    agentName: property.keyLocation?.agentName ?? '',
+    agentPhone: property.keyLocation?.agentPhone ?? '',
+  });
+  const [savingKeyLocation, setSavingKeyLocation] = useState(false);
+
   // Viewing schedule state
   const [showViewingSchedule, setShowViewingSchedule] = useState(false);
   const [showSaleInvoice, setShowSaleInvoice] = useState(false);
@@ -1165,6 +1181,37 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
     };
     setHistoryLog((prev) => [entry, ...prev]);
     toast.success('Highlight saved');
+  }
+
+  async function handleSaveKeyLocation() {
+    setSavingKeyLocation(true);
+    const newKeyLocation: import('./mockData').KeyLocation = {
+      type: keyLocationDraft.type,
+      keyNumber: keyLocationDraft.keyNumber.trim() || undefined,
+      agentName: keyLocationDraft.agentName.trim() || undefined,
+      agentPhone: keyLocationDraft.agentPhone.trim() || undefined,
+    };
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('properties')
+      .update({ key_location: newKeyLocation })
+      .eq('id', property.id);
+    setSavingKeyLocation(false);
+    if (error) {
+      toast.error('Failed to save key location: ' + error.message);
+      return;
+    }
+    setKeyLocation(newKeyLocation);
+    setEditingKeyLocation(false);
+    const today = new Date().toLocaleDateString('en-GB').replace(/\//g, '/');
+    const entry: HistoryEntry = {
+      id: `hl-keyloc-${Date.now()}`,
+      date: today,
+      agent: agentNames[0],
+      action: `Key location updated — ${newKeyLocation.type}${newKeyLocation.keyNumber ? ` #${newKeyLocation.keyNumber}` : ''}${newKeyLocation.agentName ? ` (${newKeyLocation.agentName})` : ''}`,
+    };
+    setHistoryLog((prev) => [entry, ...prev]);
+    toast.success('Key location saved');
   }
 
   function handleSavePropertyDetails() {
@@ -2811,50 +2858,160 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 7. Key Location Banner */}
-              {property.keyLocation && (
-                <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                  <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
-                    <SectionHeader sectionKey="keylocation" icon="KeyIcon" title="Key Location" />
-                  </div>
-                  {!collapsedSections['keylocation'] && (
-                    <div className="px-3 sm:px-4 pb-3 pt-1.5">
+              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
+                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+                  <SectionHeader
+                    sectionKey="keylocation"
+                    icon="KeyIcon"
+                    title="Key Location"
+                    rightContent={
+                      !collapsedSections['keylocation'] && !editingKeyLocation ? (
+                        <button
+                          onClick={() => {
+                            setKeyLocationDraft({
+                              type: keyLocation?.type ?? 'office',
+                              keyNumber: keyLocation?.keyNumber ?? '',
+                              agentName: keyLocation?.agentName ?? '',
+                              agentPhone: keyLocation?.agentPhone ?? '',
+                            });
+                            setEditingKeyLocation(true);
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-[hsl(215,15%,52%)] hover:bg-[hsl(210,15%,92%)] hover:text-[#1B4F8A] transition-colors"
+                        >
+                          <Icon name="PencilSquareIcon" size={12} />
+                          Edit
+                        </button>
+                      ) : undefined
+                    }
+                  />
+                </div>
+                {!collapsedSections['keylocation'] && (
+                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                    {editingKeyLocation ? (
+                      <div className="space-y-3">
+                        {/* Type selector */}
+                        <div>
+                          <label className="block text-[11px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-1.5">Key Location Type</label>
+                          <div className="flex gap-2">
+                            {(['office', 'agent', 'landlord'] as const).map((t) => (
+                              <button
+                                key={t}
+                                type="button"
+                                onClick={() => setKeyLocationDraft((prev) => ({ ...prev, type: t }))}
+                                className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all capitalize ${
+                                  keyLocationDraft.type === t
+                                    ? t === 'office' ? 'bg-[#1B4F8A] text-white border-[#1B4F8A]'
+                                      : t === 'agent'? 'bg-amber-500 text-white border-amber-500' :'bg-emerald-500 text-white border-emerald-500' :'bg-white text-[hsl(215,15%,52%)] border-[hsl(214,20%,88%)] hover:bg-[hsl(210,15%,96%)]'
+                                }`}
+                              >
+                                {t === 'office' ? '🏢 Office' : t === 'agent' ? '👤 Agent' : '🏠 Landlord'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Key Number */}
+                        <div>
+                          <label className="block text-[11px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-1">Key Number</label>
+                          <input
+                            type="text"
+                            value={keyLocationDraft.keyNumber}
+                            onChange={(e) => setKeyLocationDraft((prev) => ({ ...prev, keyNumber: e.target.value }))}
+                            placeholder="e.g. K-042"
+                            className="input-base w-full text-xs"
+                          />
+                        </div>
+                        {/* Agent fields — only when type is 'agent' */}
+                        {keyLocationDraft.type === 'agent' && (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-1">Agent Name</label>
+                              <input
+                                type="text"
+                                value={keyLocationDraft.agentName}
+                                onChange={(e) => setKeyLocationDraft((prev) => ({ ...prev, agentName: e.target.value }))}
+                                placeholder="e.g. Natalie Leslie"
+                                className="input-base w-full text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-1">Agent Phone</label>
+                              <input
+                                type="text"
+                                value={keyLocationDraft.agentPhone}
+                                onChange={(e) => setKeyLocationDraft((prev) => ({ ...prev, agentPhone: e.target.value }))}
+                                placeholder="e.g. +852 9123 4567"
+                                className="input-base w-full text-xs"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleSaveKeyLocation}
+                            disabled={savingKeyLocation}
+                            className="btn-primary py-1.5 px-3 text-xs min-h-[36px] flex items-center gap-1 disabled:opacity-50"
+                          >
+                            {savingKeyLocation ? <Icon name="LoaderIcon" size={12} className="animate-spin" /> : <Icon name="CheckIcon" size={12} />}
+                            Save
+                          </button>
+                          <button onClick={() => setEditingKeyLocation(false)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
+                        </div>
+                      </div>
+                    ) : keyLocation ? (
                       <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 border ${
-                        property.keyLocation.type === 'office' ? 'bg-[#1B4F8A]/8 border-[#1B4F8A]/25'
-                          : property.keyLocation.type === 'agent' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
+                        keyLocation.type === 'office' ? 'bg-[#1B4F8A]/8 border-[#1B4F8A]/25'
+                          : keyLocation.type === 'agent' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
                       }`}>
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                          property.keyLocation.type === 'office' ? 'bg-[#1B4F8A]/15'
-                            : property.keyLocation.type === 'agent' ? 'bg-amber-100' : 'bg-emerald-100'
+                          keyLocation.type === 'office' ? 'bg-[#1B4F8A]/15'
+                            : keyLocation.type === 'agent' ? 'bg-amber-100' : 'bg-emerald-100'
                         }`}>
-                          <Icon name="KeyIcon" size={15} className={property.keyLocation.type === 'office' ? 'text-[#1B4F8A]' : property.keyLocation.type === 'agent' ? 'text-amber-600' : 'text-emerald-600'} />
+                          <Icon name="KeyIcon" size={15} className={keyLocation.type === 'office' ? 'text-[#1B4F8A]' : keyLocation.type === 'agent' ? 'text-amber-600' : 'text-emerald-600'} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          {property.keyLocation.type === 'office' && (
+                          {keyLocation.type === 'office' && (
                             <p className="text-xs font-medium text-[hsl(215,25%,18%)]">
                               Key in office
-                              {property.keyLocation.keyNumber && (
-                                <span className="ml-2 font-mono font-bold text-[#1B4F8A]">#{property.keyLocation.keyNumber}</span>
+                              {keyLocation.keyNumber && (
+                                <span className="ml-2 font-mono font-bold text-[#1B4F8A]">#{keyLocation.keyNumber}</span>
                               )}
                             </p>
                           )}
-                          {property.keyLocation.type === 'agent' && (
+                          {keyLocation.type === 'agent' && (
                             <p className="text-xs font-medium text-[hsl(215,25%,18%)]">
-                              Key held by agent — <span className="font-semibold">{property.keyLocation.agentName}</span>
-                              {property.keyLocation.agentPhone && <span className="text-amber-700 ml-1">· {property.keyLocation.agentPhone}</span>}
+                              Key held by agent — <span className="font-semibold">{keyLocation.agentName}</span>
+                              {keyLocation.agentPhone && <span className="text-amber-700 ml-1">· {keyLocation.agentPhone}</span>}
                             </p>
                           )}
-                          {property.keyLocation.type === 'landlord' && (
+                          {keyLocation.type === 'landlord' && (
                             <p className="text-xs font-medium text-[hsl(215,25%,18%)]">
                               Landlord will open — contact <span className="font-semibold">{property.landlord.name}</span>
                               <span className="text-emerald-700 ml-1">· {property.landlord.phone}</span>
                             </p>
                           )}
+                          {keyLocation.keyNumber && keyLocation.type !== 'office' && (
+                            <p className="text-[10px] text-[hsl(215,15%,52%)] mt-0.5">Key #{keyLocation.keyNumber}</p>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-4 gap-2 border-2 border-dashed border-[hsl(214,20%,88%)] rounded-xl">
+                        <Icon name="KeyIcon" size={20} className="text-[hsl(215,15%,72%)]" />
+                        <p className="text-xs text-[hsl(215,15%,52%)]">No key location recorded</p>
+                        <button
+                          onClick={() => {
+                            setKeyLocationDraft({ type: 'office', keyNumber: '', agentName: '', agentPhone: '' });
+                            setEditingKeyLocation(true);
+                          }}
+                          className="text-[11px] text-[#1B4F8A] font-medium hover:underline"
+                        >
+                          Add key location
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* 8. Agent Commission */}
               <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">

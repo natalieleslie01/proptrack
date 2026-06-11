@@ -1233,6 +1233,30 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
       });
   }
 
+  function autoSavePricingField(field: 'asking_price' | 'asking_rent', value: string) {
+    const supabase = createClient();
+    supabase
+      .from('properties')
+      .update({ [field]: value ? Number(value) : null } as any)
+      .eq('id', property.id)
+      .then(({ error }) => {
+        if (error) toast.error('Failed to save: ' + error.message);
+        else toast.success('Saved');
+      });
+  }
+
+  function autoSavePricingDate(field: 'listing_date' | 'vacant_date', value: string) {
+    const supabase = createClient();
+    supabase
+      .from('properties')
+      .update({ [field]: value || null } as any)
+      .eq('id', property.id)
+      .then(({ error }) => {
+        if (error) toast.error('Failed to save date: ' + error.message);
+        else toast.success('Date saved');
+      });
+  }
+
   async function handleSavePublishToWebsite(dateValue: string) {
     if (!dateValue) return;
     setPublishingSaving(true);
@@ -1415,6 +1439,18 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
       });
   }
 
+  function autoSaveSpecsField(updates: Record<string, unknown>) {
+    const supabase = createClient();
+    supabase
+      .from('properties')
+      .update(updates as any)
+      .eq('id', property.id)
+      .then(({ error }) => {
+        if (error) toast.error('Failed to save: ' + error.message);
+        else toast.success('Saved');
+      });
+  }
+
   function toggleAdditionalFeature(feat: AdditionalFeature) {
     setAdditionalFeatures((prev) => {
       const next = prev.includes(feat) ? prev.filter((f) => f !== feat) : [...prev, feat];
@@ -1427,6 +1463,25 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
       setHasPool(next.includes('Pool'));
       setHasRoof(next.includes('Roof Top'));
       setHasTerrace(next.includes('Terrace'));
+      // Auto-save features to Supabase
+      const supabase = createClient();
+      supabase
+        .from('properties')
+        .update({
+          balcony: next.includes('Balcony'),
+          combined: next.includes('Combined Unit'),
+          duplex: next.includes('Duplex'),
+          garden: next.includes('Garden'),
+          openkitch: next.includes('Open Kitchen'),
+          pool: next.includes('Pool'),
+          roof: next.includes('Roof Top'),
+          terrace: next.includes('Terrace'),
+        } as any)
+        .eq('id', property.id)
+        .then(({ error }) => {
+          if (error) toast.error('Failed to save feature: ' + error.message);
+          else toast.success('Feature saved');
+        });
       return next;
     });
   }
@@ -2085,12 +2140,12 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Sale Price (HKD)</label>
-                            <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} placeholder="e.g. 8500000" className="input-base w-full font-mono text-xs" />
+                            <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_price', e.target.value)} placeholder="e.g. 8500000" className="input-base w-full font-mono text-xs" />
                             {salePrice && <p className="text-[9px] text-[hsl(215,15%,52%)] mt-0.5">≈ HK${(Number(salePrice) / 1000000).toFixed(2)}M</p>}
                           </div>
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Rental Price / Month</label>
-                            <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} placeholder="e.g. 28500" className="input-base w-full font-mono text-xs" />
+                            <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_rent', e.target.value)} placeholder="e.g. 28500" className="input-base w-full font-mono text-xs" />
                             {rentalPrice && <p className="text-[9px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo</p>}
                           </div>
                           <div>
@@ -2100,7 +2155,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           <div className="relative">
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Listing Date</label>
                             <div className="flex items-center gap-1">
-                              <input type="text" value={listingDate} onChange={(e) => setListingDate(e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
+                              <input type="text" value={listingDate} onChange={(e) => setListingDate(e.target.value)} onBlur={(e) => autoSavePricingDate('listing_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
                               <button
                                 type="button"
                                 onClick={() => { setShowListingCalendar(!showListingCalendar); setShowVacantCalendar(false); }}
@@ -2146,7 +2201,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                                       const isSelected = listingDate === dateStr;
                                       cells.push(
                                         <button key={day} type="button"
-                                          onClick={() => { setListingDate(dateStr); setShowListingCalendar(false); }}
+                                          onClick={() => { setListingDate(dateStr); setShowListingCalendar(false); autoSavePricingDate('listing_date', dateStr); }}
                                           className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}
                                         >{day}</button>
                                       );
@@ -2156,7 +2211,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                                 </div>
                                 {/* Clear button */}
                                 {listingDate && (
-                                  <button type="button" onClick={() => { setListingDate(''); setShowListingCalendar(false); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
+                                  <button type="button" onClick={() => { setListingDate(''); setShowListingCalendar(false); autoSavePricingDate('listing_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
                                     Clear date
                                   </button>
                                 )}
@@ -2166,7 +2221,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           <div className="relative">
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Vacant Date</label>
                             <div className="flex items-center gap-1">
-                              <input type="text" value={vacantDate} onChange={(e) => setVacantDate(e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
+                              <input type="text" value={vacantDate} onChange={(e) => setVacantDate(e.target.value)} onBlur={(e) => autoSavePricingDate('vacant_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
                               <button
                                 type="button"
                                 onClick={() => { setShowVacantCalendar(!showVacantCalendar); setShowListingCalendar(false); }}
@@ -2212,7 +2267,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                                       const isSelected = vacantDate === dateStr;
                                       cells.push(
                                         <button key={day} type="button"
-                                          onClick={() => { setVacantDate(dateStr); setShowVacantCalendar(false); }}
+                                          onClick={() => { setVacantDate(dateStr); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', dateStr); }}
                                           className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}
                                         >{day}</button>
                                       );
@@ -2222,16 +2277,13 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                                 </div>
                                 {/* Clear button */}
                                 {vacantDate && (
-                                  <button type="button" onClick={() => { setVacantDate(''); setShowVacantCalendar(false); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
+                                  <button type="button" onClick={() => { setVacantDate(''); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
                                     Clear date
                                   </button>
                                 )}
                               </div>
                             )}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button onClick={handleSavePricing} className="btn-primary py-1 px-3 text-xs min-h-[30px]"><Icon name="CheckIcon" size={11} />Save</button>
                         </div>
                       </div>
 
@@ -2364,7 +2416,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Bedrooms</label>
-                            <select value={bedrooms} onChange={(e) => setBedrooms(e.target.value)} className="input-base w-full min-h-[34px] text-xs">
+                            <select value={bedrooms} onChange={(e) => { const val = e.target.value; setBedrooms(val); autoSaveSpecsField({ bedrooms: val === 'Studio' ? 0 : val ? Number(val) : null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="Studio">Studio</option>
                               <option value="1">1</option>
@@ -2377,7 +2429,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           </div>
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Bathrooms</label>
-                            <select value={bathrooms} onChange={(e) => setBathrooms(e.target.value)} className="input-base w-full min-h-[34px] text-xs">
+                            <select value={bathrooms} onChange={(e) => { const val = e.target.value; setBathrooms(val); autoSaveSpecsField({ bathrooms: val ? Number(val) : null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="1">1</option>
                               <option value="2">2</option>
@@ -2387,7 +2439,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           </div>
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Direction</label>
-                            <select value={direction} onChange={(e) => setDirection(e.target.value as DirectionType | '')} className="input-base w-full min-h-[34px] text-xs">
+                            <select value={direction} onChange={(e) => { const val = e.target.value as DirectionType | ''; setDirection(val); autoSaveSpecsField({ direction_id: val || null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_DIRECTIONS.map((d) => (
                                 <option key={d} value={d}>{d}</option>
@@ -2396,7 +2448,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           </div>
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">View</label>
-                            <select value={view} onChange={(e) => setView(e.target.value as ViewType | '')} className="input-base w-full min-h-[34px] text-xs">
+                            <select value={view} onChange={(e) => { const val = e.target.value as ViewType | ''; setView(val); autoSaveSpecsField({ view_id: val || null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_VIEWS.map((v) => (
                                 <option key={v} value={v}>{v}</option>
@@ -2405,7 +2457,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           </div>
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Decoration</label>
-                            <select value={decoration} onChange={(e) => setDecoration(e.target.value as DecorationType | '')} className="input-base w-full min-h-[34px] text-xs">
+                            <select value={decoration} onChange={(e) => { const val = e.target.value as DecorationType | ''; setDecoration(val); autoSaveSpecsField({ decor_id: val || null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_DECORATIONS.map((d) => (
                                 <option key={d} value={d}>{d}</option>
@@ -2423,7 +2475,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           </div>
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Building Type</label>
-                            <select value={buildingType} onChange={(e) => setBuildingType(e.target.value as BuildingType | '')} className="input-base w-full min-h-[34px] text-xs">
+                            <select value={buildingType} onChange={(e) => { const val = e.target.value as BuildingType | ''; setBuildingType(val); autoSaveSpecsField({ prop_types: val || null, prop_type: val || null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="House">House</option>
                               <option value="Low Rise">Low Rise</option>
@@ -2432,7 +2484,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           </div>
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Floor Type</label>
-                            <select value={floorType} onChange={(e) => setFloorType(e.target.value as FloorType | '')} className="input-base w-full min-h-[34px] text-xs">
+                            <select value={floorType} onChange={(e) => { const val = e.target.value as FloorType | ''; setFloorType(val); const floorTypeToDb: Record<string, string> = { 'Ground': 'ground floor', 'Low': 'low floor', 'Medium': 'middle floor', 'High': 'high floor' }; autoSaveSpecsField({ floor_type: val ? (floorTypeToDb[val] ?? val) : null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_FLOOR_TYPES.map((ft) => (
                                 <option key={ft} value={ft}>{ft}</option>
@@ -2441,7 +2493,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           </div>
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Floor Number</label>
-                            <select value={floorNumber} onChange={(e) => setFloorNumber(e.target.value as FloorNumber | '')} className="input-base w-full min-h-[34px] text-xs">
+                            <select value={floorNumber} onChange={(e) => { const val = e.target.value as FloorNumber | ''; setFloorNumber(val); autoSaveSpecsField({ floor: val || null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="LG">LG (Lower Ground)</option>
                               <option value="G">G (Ground)</option>
@@ -2453,11 +2505,11 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           </div>
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Net Sqft</label>
-                            <input type="number" value={netSqft} onChange={(e) => setNetSqft(e.target.value)} placeholder="e.g. 950" className="input-base w-full font-mono text-xs" />
+                            <input type="number" value={netSqft} onChange={(e) => setNetSqft(e.target.value)} onBlur={(e) => autoSaveSpecsField({ saleable_area: e.target.value ? Number(e.target.value) : null })} placeholder="e.g. 950" className="input-base w-full font-mono text-xs" />
                           </div>
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Gross Sqft</label>
-                            <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} placeholder="e.g. 1100" className="input-base w-full font-mono text-xs" />
+                            <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} onBlur={(e) => autoSaveSpecsField({ gross_area: e.target.value ? Number(e.target.value) : null })} placeholder="e.g. 1100" className="input-base w-full font-mono text-xs" />
                           </div>
                         </div>
                         <div>
@@ -2480,10 +2532,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             ))}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button onClick={handleSavePropertyDetails} className="btn-primary py-1 px-3 text-xs min-h-[30px]"><Icon name="CheckIcon" size={11} />Save</button>
-                        </div>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

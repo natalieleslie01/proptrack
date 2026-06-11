@@ -1903,13 +1903,13 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin p-3 sm:p-6">
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-2 sm:p-4">
           {/* OVERVIEW TAB */}
           {activeTab === 'overview' && (
-            <div className="space-y-2.5">
+            <div className="space-y-1.5">
               {/* 0. Property Identity — building name, phase, building type, floor/flat */}
-              <div className="border border-[#1B4F8A]/25 rounded-xl overflow-hidden bg-[#1B4F8A]/4">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[#1B4F8A]/8">
+              <div className="border border-[#1B4F8A]/25 rounded-lg overflow-hidden bg-[#1B4F8A]/4">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[#1B4F8A]/8">
                   <SectionHeader
                     sectionKey="identity"
                     icon="BuildingIcon"
@@ -1918,100 +1918,100 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['identity'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="px-3 pb-2 pt-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                       {/* Building Name */}
-                      <div className="col-span-1 sm:col-span-2 bg-white border border-[#1B4F8A]/20 rounded-xl px-3 py-2">
-                        <p className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                          <Icon name="BuildingIcon" size={10} className="text-[#1B4F8A]" />
+                      <div className="col-span-1 sm:col-span-2 bg-white border border-[#1B4F8A]/20 rounded-lg px-2.5 py-1.5">
+                        <p className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                          <Icon name="BuildingIcon" size={9} className="text-[#1B4F8A]" />
                           Building Name
                         </p>
-                        <p className="text-sm font-bold text-[hsl(215,25%,18%)] truncate">
+                        <p className="text-xs font-bold text-[hsl(215,25%,18%)] truncate">
                           {(property as any).buildingName || property.building || '—'}
                         </p>
                       </div>
                       {/* PID — numeric property identifier */}
                       {property.ref && (
-                        <div className="col-span-1 bg-white border border-[#1B4F8A]/20 rounded-xl px-3 py-2">
-                          <p className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                            <Icon name="IdentificationIcon" size={10} className="text-[#1B4F8A]" />
+                        <div className="col-span-1 bg-white border border-[#1B4F8A]/20 rounded-lg px-2.5 py-1.5">
+                          <p className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                            <Icon name="IdentificationIcon" size={9} className="text-[#1B4F8A]" />
                             PID
                           </p>
-                          <p className="text-sm font-semibold font-mono text-[hsl(215,25%,18%)] truncate">
+                          <p className="text-xs font-semibold font-mono text-[hsl(215,25%,18%)] truncate">
                             {property.ref}
                           </p>
                         </div>
                       )}
                       {/* Property Type */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Property Type</p>
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Property Type</p>
                         <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
                           {property.type || '—'}
                         </p>
                       </div>
                       {/* Phase */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Phase</p>
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Phase</p>
                         <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
                           {(property as any).phase || '—'}
                         </p>
                       </div>
                       {/* Village */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Village</p>
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Village</p>
                         <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
                           {(property as any).village || '—'}
                         </p>
                       </div>
                       {/* Build Year */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Build Year</p>
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Build Year</p>
                         <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
                           {property.yearBuilt || '—'}
                         </p>
                       </div>
                       {/* Building Type */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Building Type</p>
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Building Type</p>
                         <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
                           {buildingType || (property as any).buildingType || '—'}
                         </p>
                       </div>
                       {/* Floor Number */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Floor No.</p>
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Floor No.</p>
                         <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
                           {floorNumber || property.floor || '—'}
                         </p>
                       </div>
                       {/* Flat / Unit Number */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Flat / Unit</p>
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Flat / Unit</p>
                         <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
                           {property.unit || '—'}
                         </p>
                       </div>
                       {/* Outdoor Area */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Outdoor Sqft</p>
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Outdoor Sqft</p>
                         <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
                           {outdoorArea || '—'}
                         </p>
                       </div>
                       {/* Net Sqft */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Net Sqft</p>
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Net Sqft</p>
                         <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{netSqft ? `${Number(netSqft).toLocaleString()} ft²` : '—'}</p>
                       </div>
                       {/* Gross Sqft */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Gross Sqft</p>
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Gross Sqft</p>
                         <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{grossSqft ? `${Number(grossSqft).toLocaleString()} ft²` : '—'}</p>
                       </div>
                       {/* Short Code */}
                       {(property as any).shortCode && (
-                        <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Short Code</p>
+                        <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
+                          <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Short Code</p>
                           <p className="text-xs font-semibold font-mono text-[#1B4F8A]">
                             {(property as any).shortCode}
                           </p>
@@ -2023,8 +2023,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 1. Pricing & Listing Dates — compact */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="pricing"
                     icon="TagIcon"
@@ -2032,11 +2032,11 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['pricing'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {/* Status & Listing Type dropdowns */}
-                    <div className="flex flex-wrap gap-4 mb-3">
+                    <div className="flex flex-wrap gap-3 mb-2">
                       <div>
-                        <label className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-1 block">Status:</label>
+                        <label className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Status:</label>
                         <select
                           value={propertyStatusCode}
                           onChange={(e) => {
@@ -2047,7 +2047,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                               toast.success('Status updated');
                             });
                           }}
-                          className="input-base text-xs w-48"
+                          className="input-base text-xs w-44"
                         >
                           <option value="">---</option>
                           <option value="0">Active</option>
@@ -2060,7 +2060,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-1 block">Listing Type:</label>
+                        <label className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Listing Type:</label>
                         <select
                           value={listingType}
                           onChange={(e) => {
@@ -2071,7 +2071,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                               toast.success('Listing type updated');
                             });
                           }}
-                          className="input-base text-xs w-48"
+                          className="input-base text-xs w-44"
                         >
                           <option value="">----</option>
                           <option value="Sale">Sale</option>
@@ -2081,33 +2081,33 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                       </div>
                     </div>
                     {/* Pricing fields — always editable */}
-                    <div className="space-y-3">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="space-y-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Sale Price (HKD)</label>
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Sale Price (HKD)</label>
                             <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} placeholder="e.g. 8500000" className="input-base w-full font-mono text-xs" />
-                            {salePrice && <p className="text-[10px] text-[hsl(215,15%,52%)] mt-0.5">≈ HK${(Number(salePrice) / 1000000).toFixed(2)}M</p>}
+                            {salePrice && <p className="text-[9px] text-[hsl(215,15%,52%)] mt-0.5">≈ HK${(Number(salePrice) / 1000000).toFixed(2)}M</p>}
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Rental Price / Month</label>
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Rental Price / Month</label>
                             <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} placeholder="e.g. 28500" className="input-base w-full font-mono text-xs" />
-                            {rentalPrice && <p className="text-[10px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo</p>}
+                            {rentalPrice && <p className="text-[9px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo</p>}
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Gross Sqft</label>
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Gross Sqft</label>
                             <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} placeholder="e.g. 1200" className="input-base w-full font-mono text-xs" />
                           </div>
                           <div className="relative">
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Listing Date</label>
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Listing Date</label>
                             <div className="flex items-center gap-1">
                               <input type="text" value={listingDate} onChange={(e) => setListingDate(e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
                               <button
                                 type="button"
                                 onClick={() => { setShowListingCalendar(!showListingCalendar); setShowVacantCalendar(false); }}
-                                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
+                                className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
                                 title="Open calendar"
                               >
-                                <Icon name="CalendarIcon" size={14} />
+                                <Icon name="CalendarIcon" size={13} />
                               </button>
                             </div>
                             {showListingCalendar && (
@@ -2164,16 +2164,16 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             )}
                           </div>
                           <div className="relative">
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Vacant Date</label>
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Vacant Date</label>
                             <div className="flex items-center gap-1">
                               <input type="text" value={vacantDate} onChange={(e) => setVacantDate(e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
                               <button
                                 type="button"
                                 onClick={() => { setShowVacantCalendar(!showVacantCalendar); setShowListingCalendar(false); }}
-                                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
+                                className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
                                 title="Open calendar"
                               >
-                                <Icon name="CalendarIcon" size={14} />
+                                <Icon name="CalendarIcon" size={13} />
                               </button>
                             </div>
                             {showVacantCalendar && (
@@ -2231,27 +2231,27 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button onClick={handleSavePricing} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="CheckIcon" size={12} />Save</button>
+                          <button onClick={handleSavePricing} className="btn-primary py-1 px-3 text-xs min-h-[30px]"><Icon name="CheckIcon" size={11} />Save</button>
                         </div>
                       </div>
 
                     {/* Publish to Website — always visible */}
-                    <div className={`mt-3 rounded-xl border-2 overflow-hidden ${publishToWebsite ? 'border-emerald-300 bg-emerald-50' : 'border-dashed border-[hsl(214,20%,80%)] bg-[hsl(210,20%,98%)]'}`}>
-                      <div className="px-3 py-2.5">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${publishToWebsite ? 'bg-emerald-500' : 'bg-[hsl(214,20%,85%)]'}`}>
-                            <Icon name="GlobeIcon" size={13} className={publishToWebsite ? 'text-white' : 'text-[hsl(215,15%,52%)]'} />
+                    <div className={`mt-2 rounded-lg border-2 overflow-hidden ${publishToWebsite ? 'border-emerald-300 bg-emerald-50' : 'border-dashed border-[hsl(214,20%,80%)] bg-[hsl(210,20%,98%)]'}`}>
+                      <div className="px-3 py-2">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${publishToWebsite ? 'bg-emerald-500' : 'bg-[hsl(214,20%,85%)]'}`}>
+                            <Icon name="GlobeIcon" size={11} className={publishToWebsite ? 'text-white' : 'text-[hsl(215,15%,52%)]'} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-[11px] font-bold uppercase tracking-wider ${publishToWebsite ? 'text-emerald-700' : 'text-[hsl(215,15%,52%)]'}`}>
+                            <p className={`text-[10px] font-bold uppercase tracking-wider ${publishToWebsite ? 'text-emerald-700' : 'text-[hsl(215,15%,52%)]'}`}>
                               Publish to Website
                             </p>
                             {publishToWebsite ? (
-                              <p className="text-[10px] text-emerald-600">
+                              <p className="text-[9px] text-emerald-600">
                                 Live from <span className="font-semibold font-mono">{publishToWebsite}</span> · 3-month review reminder set
                               </p>
                             ) : (
-                              <p className="text-[10px] text-[hsl(215,15%,52%)]">
+                              <p className="text-[9px] text-[hsl(215,15%,52%)]">
                                 Set a date to publish this property to the Homes R Us website
                               </p>
                             )}
@@ -2267,7 +2267,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                                   });
                                 }
                               }}
-                              className="flex-shrink-0 text-[10px] text-emerald-600 hover:text-red-600 transition-colors px-1.5 py-0.5 rounded hover:bg-red-50"
+                              className="flex-shrink-0 text-[9px] text-emerald-600 hover:text-red-600 transition-colors px-1.5 py-0.5 rounded hover:bg-red-50"
                             >
                               Remove
                             </button>
@@ -2278,24 +2278,24 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             type="date"
                             value={publishToWebsite}
                             onChange={(e) => setPublishToWebsite(e.target.value)}
-                            className="input-base flex-1 font-mono text-xs min-h-[36px]"
+                            className="input-base flex-1 font-mono text-xs min-h-[30px]"
                             min={new Date().toISOString().split('T')[0]}
                           />
                           <button
                             onClick={() => handleSavePublishToWebsite(publishToWebsite)}
                             disabled={!publishToWebsite || publishingSaving}
-                            className="btn-primary py-1.5 px-3 text-xs min-h-[36px] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                            className="btn-primary py-1 px-3 text-xs min-h-[30px] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                           >
                             {publishingSaving ? (
-                              <><Icon name="LoaderIcon" size={12} className="animate-spin" />Saving…</>
+                              <><Icon name="LoaderIcon" size={11} className="animate-spin" />Saving…</>
                             ) : (
-                              <><Icon name="GlobeIcon" size={12} />Publish</>
+                              <><Icon name="GlobeIcon" size={11} />Publish</>
                             )}
                           </button>
                         </div>
                         {publishToWebsite && (
-                          <p className="text-[10px] text-emerald-600 mt-1.5 flex items-center gap-1">
-                            <Icon name="BellIcon" size={10} />
+                          <p className="text-[9px] text-emerald-600 mt-1 flex items-center gap-1">
+                            <Icon name="BellIcon" size={9} />
                             A 3-month review reminder will be sent to the listing agent on {(() => {
                               try {
                                 const d = new Date(publishToWebsite);
@@ -2309,18 +2309,18 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                     </div>
                     {/* Key Location inline within Pricing & Listing Dates */}
                     {property.keyLocation && (
-                      <div className={`mt-2 flex items-center gap-2.5 rounded-xl px-3 py-2 border ${
+                      <div className={`mt-1.5 flex items-center gap-2 rounded-lg px-2.5 py-1.5 border ${
                         property.keyLocation.type === 'office' ? 'bg-[#1B4F8A]/8 border-[#1B4F8A]/25'
                           : property.keyLocation.type === 'agent' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
                       }`}>
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${
                           property.keyLocation.type === 'office' ? 'bg-[#1B4F8A]/15'
                             : property.keyLocation.type === 'agent' ? 'bg-amber-100' : 'bg-emerald-100'
                         }`}>
-                          <Icon name="KeyIcon" size={13} className={property.keyLocation.type === 'office' ? 'text-[#1B4F8A]' : property.keyLocation.type === 'agent' ? 'text-amber-600' : 'text-emerald-600'} />
+                          <Icon name="KeyIcon" size={11} className={property.keyLocation.type === 'office' ? 'text-[#1B4F8A]' : property.keyLocation.type === 'agent' ? 'text-amber-600' : 'text-emerald-600'} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Key Location</p>
+                          <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Key Location</p>
                           {property.keyLocation.type === 'office' && (
                             <p className="text-xs font-medium text-[hsl(215,25%,18%)]">
                               Key in office
@@ -2349,8 +2349,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 2. Property Specifications — compact */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="specs"
                     icon="HomeIcon"
@@ -2358,13 +2358,13 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['specs'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {/* Property specs — always editable */}
-                    <div className="space-y-3">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="space-y-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Bedrooms</label>
-                            <select value={bedrooms} onChange={(e) => setBedrooms(e.target.value)} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Bedrooms</label>
+                            <select value={bedrooms} onChange={(e) => setBedrooms(e.target.value)} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="Studio">Studio</option>
                               <option value="1">1</option>
@@ -2376,8 +2376,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Bathrooms</label>
-                            <select value={bathrooms} onChange={(e) => setBathrooms(e.target.value)} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Bathrooms</label>
+                            <select value={bathrooms} onChange={(e) => setBathrooms(e.target.value)} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="1">1</option>
                               <option value="2">2</option>
@@ -2386,8 +2386,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Direction</label>
-                            <select value={direction} onChange={(e) => setDirection(e.target.value as DirectionType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Direction</label>
+                            <select value={direction} onChange={(e) => setDirection(e.target.value as DirectionType | '')} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_DIRECTIONS.map((d) => (
                                 <option key={d} value={d}>{d}</option>
@@ -2395,8 +2395,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">View</label>
-                            <select value={view} onChange={(e) => setView(e.target.value as ViewType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">View</label>
+                            <select value={view} onChange={(e) => setView(e.target.value as ViewType | '')} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_VIEWS.map((v) => (
                                 <option key={v} value={v}>{v}</option>
@@ -2404,8 +2404,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Decoration</label>
-                            <select value={decoration} onChange={(e) => setDecoration(e.target.value as DecorationType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Decoration</label>
+                            <select value={decoration} onChange={(e) => setDecoration(e.target.value as DecorationType | '')} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_DECORATIONS.map((d) => (
                                 <option key={d} value={d}>{d}</option>
@@ -2413,8 +2413,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Original Furnishing</label>
-                            <select value={originalFurnishing} onChange={(e) => setOriginalFurnishing(e.target.value as FurnishingType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Original Furnishing</label>
+                            <select value={originalFurnishing} onChange={(e) => setOriginalFurnishing(e.target.value as FurnishingType | '')} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_FURNISHINGS.map((f) => (
                                 <option key={f} value={f}>{f}</option>
@@ -2422,8 +2422,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Building Type</label>
-                            <select value={buildingType} onChange={(e) => setBuildingType(e.target.value as BuildingType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Building Type</label>
+                            <select value={buildingType} onChange={(e) => setBuildingType(e.target.value as BuildingType | '')} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="House">House</option>
                               <option value="Low Rise">Low Rise</option>
@@ -2431,8 +2431,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Floor Type</label>
-                            <select value={floorType} onChange={(e) => setFloorType(e.target.value as FloorType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Floor Type</label>
+                            <select value={floorType} onChange={(e) => setFloorType(e.target.value as FloorType | '')} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_FLOOR_TYPES.map((ft) => (
                                 <option key={ft} value={ft}>{ft}</option>
@@ -2440,8 +2440,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Floor Number</label>
-                            <select value={floorNumber} onChange={(e) => setFloorNumber(e.target.value as FloorNumber | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Floor Number</label>
+                            <select value={floorNumber} onChange={(e) => setFloorNumber(e.target.value as FloorNumber | '')} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="LG">LG (Lower Ground)</option>
                               <option value="G">G (Ground)</option>
@@ -2452,23 +2452,23 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Net Sqft</label>
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Net Sqft</label>
                             <input type="number" value={netSqft} onChange={(e) => setNetSqft(e.target.value)} placeholder="e.g. 950" className="input-base w-full font-mono text-xs" />
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Gross Sqft</label>
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Gross Sqft</label>
                             <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} placeholder="e.g. 1100" className="input-base w-full font-mono text-xs" />
                           </div>
                         </div>
                         <div>
-                          <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Additional Features</label>
-                          <div className="flex flex-wrap gap-1.5">
+                          <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Additional Features</label>
+                          <div className="flex flex-wrap gap-1">
                             {ALL_ADDITIONAL_FEATURES.map((feat) => (
                               <button
                                 key={feat}
                                 type="button"
                                 onClick={() => toggleAdditionalFeature(feat)}
-                                className={`px-2.5 py-1.5 rounded-full text-xs font-medium border-2 transition-all min-h-[32px] ${
+                                className={`px-2 py-1 rounded-full text-xs font-medium border-2 transition-all min-h-[28px] ${
                                   additionalFeatures.includes(feat)
                                     ? 'border-[#1B4F8A] bg-[#1B4F8A]/10 text-[#1B4F8A]'
                                     : 'border-[hsl(214,20%,88%)] text-[hsl(215,15%,52%)] hover:border-[#1B4F8A]/40'
@@ -2481,7 +2481,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button onClick={handleSavePropertyDetails} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="CheckIcon" size={12} />Save</button>
+                          <button onClick={handleSavePropertyDetails} className="btn-primary py-1 px-3 text-xs min-h-[30px]"><Icon name="CheckIcon" size={11} />Save</button>
                         </div>
                     </div>
                   </div>
@@ -2489,30 +2489,30 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 3. Agent Comments */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader sectionKey="agentnotes" icon="FileTextIcon" iconColor="text-amber-600" title="Agent Comments" />
                 </div>
                 {!collapsedSections['agentnotes'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5 flex gap-3">
+                  <div className="px-3 pb-2 pt-1 flex gap-2">
                     {/* Left half: input box + Add Comment button */}
-                    <div className="w-1/2 flex flex-col gap-2">
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                    <div className="w-1/2 flex flex-col gap-1.5">
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
                         <p className="text-xs text-amber-800">{property.agentNotes}</p>
-                        <p className="text-[10px] text-amber-600 mt-1">Last updated {property.lastUpdated} by {property.updatedBy}</p>
+                        <p className="text-[9px] text-amber-600 mt-0.5">Last updated {property.lastUpdated} by {property.updatedBy}</p>
                       </div>
                       <textarea
                         value={newCommentText}
                         onChange={(e) => setNewCommentText(e.target.value)}
                         placeholder="Write a comment..."
-                        rows={3}
-                        className="w-full text-xs border border-[hsl(214,20%,88%)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white"
+                        rows={2}
+                        className="w-full text-xs border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white"
                       />
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <select
                           value={newCommentAgent}
                           onChange={(e) => setNewCommentAgent(e.target.value)}
-                          className="text-xs border border-[hsl(214,20%,88%)] rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400 flex-1"
+                          className="text-xs border border-[hsl(214,20%,88%)] rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400 flex-1"
                         >
                           {agentNames.map((a) => (
                             <option key={a} value={a}>{a}</option>
@@ -2520,26 +2520,26 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </select>
                         <button
                           onClick={handleAddComment}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-lg transition-colors"
+                          className="flex items-center gap-1 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-lg transition-colors"
                         >
-                          <Icon name="PlusIcon" size={12} />
-                          Add Comment
+                          <Icon name="PlusIcon" size={11} />
+                          Add
                         </button>
                       </div>
                     </div>
                     {/* Right half: recent updates (all history entries) */}
                     <div className="w-1/2 border border-[hsl(214,20%,88%)] rounded-lg bg-white overflow-hidden flex flex-col">
-                      <div className="px-3 py-2 bg-[hsl(210,20%,98%)] border-b border-[hsl(214,20%,88%)] flex items-center justify-between">
-                        <p className="text-[10px] font-semibold text-[hsl(215,25%,35%)] uppercase tracking-wide">Recent Updates</p>
+                      <div className="px-2.5 py-1.5 bg-[hsl(210,20%,98%)] border-b border-[hsl(214,20%,88%)] flex items-center justify-between">
+                        <p className="text-[9px] font-semibold text-[hsl(215,25%,35%)] uppercase tracking-wide">Recent Updates</p>
                         {historyLog.length > 0 && (
                           <span className="text-[9px] bg-[#1B4F8A]/10 text-[#1B4F8A] rounded-full px-1.5 py-0.5 font-bold">{historyLog.length}</span>
                         )}
                       </div>
-                      <div className="flex-1 overflow-y-auto max-h-40 divide-y divide-[hsl(214,20%,93%)]">
+                      <div className="flex-1 overflow-y-auto max-h-32 divide-y divide-[hsl(214,20%,93%)]">
                         {historyLog.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-6 text-center">
-                            <Icon name="ClockIcon" size={18} className="text-[hsl(215,15%,72%)] mb-1" />
-                            <p className="text-[10px] text-[hsl(215,15%,55%)]">No updates yet</p>
+                          <div className="flex flex-col items-center justify-center py-4 text-center">
+                            <Icon name="ClockIcon" size={16} className="text-[hsl(215,15%,72%)] mb-1" />
+                            <p className="text-[9px] text-[hsl(215,15%,55%)]">No updates yet</p>
                           </div>
                         ) : (
                           historyLog.map((entry) => {
@@ -2550,11 +2550,11 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                               : isPricing
                               ? 'bg-emerald-500' :'bg-[#1B4F8A]';
                             return (
-                              <div key={entry.id} className="px-3 py-2 flex items-start gap-2">
-                                <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+                              <div key={entry.id} className="px-2.5 py-1.5 flex items-start gap-1.5">
+                                <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center justify-between mb-0.5 gap-1">
-                                    <span className="text-[10px] font-medium text-[hsl(215,25%,35%)] truncate">{entry.agent}</span>
+                                    <span className="text-[9px] font-medium text-[hsl(215,25%,35%)] truncate">{entry.agent}</span>
                                     <span className="text-[9px] text-[hsl(215,15%,55%)] flex-shrink-0">{entry.date}</span>
                                   </div>
                                   <p className="text-[11px] text-[hsl(215,25%,25%)] leading-relaxed break-words">{entry.action}</p>
@@ -2570,8 +2570,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 4. Highlight */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="highlight"
                     icon="StarIcon"
@@ -2581,7 +2581,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                       !collapsedSections['highlight'] && !editingHighlight ? (
                         <button
                           onClick={() => { setHighlightDraft(highlight); setEditingHighlight(true); }}
-                          className="btn-ghost py-1 px-2.5 text-xs min-h-[32px]"
+                          className="btn-ghost py-0.5 px-2 text-xs min-h-[28px]"
                         >
                           <Icon name="PencilIcon" size={11} />
                           <span className="hidden sm:inline">{highlight ? 'Edit' : 'Add Highlight'}</span>
@@ -2592,9 +2592,9 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['highlight'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {editingHighlight ? (
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <textarea
                           value={highlightDraft}
                           onChange={(e) => setHighlightDraft(e.target.value)}
@@ -2603,18 +2603,18 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           className="input-base w-full resize-none text-xs"
                         />
                         <div className="flex items-center gap-2">
-                          <button onClick={handleSaveHighlight} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="CheckIcon" size={12} />Save</button>
-                          <button onClick={() => setEditingHighlight(false)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
+                          <button onClick={handleSaveHighlight} className="btn-primary py-1 px-3 text-xs min-h-[30px]"><Icon name="CheckIcon" size={11} />Save</button>
+                          <button onClick={() => setEditingHighlight(false)} className="btn-ghost py-1 px-3 text-xs min-h-[30px]">Cancel</button>
                         </div>
                       </div>
                     ) : highlight ? (
-                      <div className="flex items-start gap-2.5 bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2.5">
-                        <Icon name="StarIcon" size={14} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-2.5 py-2">
+                        <Icon name="StarIcon" size={13} className="text-yellow-500 flex-shrink-0 mt-0.5" />
                         <p className="text-xs text-yellow-800 leading-relaxed">{highlight}</p>
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed border-yellow-200 rounded-xl p-3 text-center bg-yellow-50/40">
-                        <Icon name="StarIcon" size={18} className="text-yellow-300 mx-auto mb-1" />
+                      <div className="border-2 border-dashed border-yellow-200 rounded-lg p-2.5 text-center bg-yellow-50/40">
+                        <Icon name="StarIcon" size={16} className="text-yellow-300 mx-auto mb-0.5" />
                         <p className="text-xs text-[hsl(215,15%,52%)]">No highlight set — click "Add Highlight" to add an important note</p>
                       </div>
                     )}
@@ -2623,44 +2623,44 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 5. Owner & Landlord Details — combined */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader sectionKey="owner-landlord" icon="UserIcon" iconColor="text-violet-600" title="Owner & Landlord Details" />
                 </div>
                 {!collapsedSections['owner-landlord'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5 space-y-2.5">
+                  <div className="px-3 pb-2 pt-1 space-y-1.5">
                     {/* Owner bubble */}
                     <div className="relative">
                       <button
                         type="button"
                         onClick={() => setShowOwnerBubble((v) => !v)}
-                        className="flex items-center gap-2.5 w-full text-left bg-violet-50 border border-violet-200 rounded-xl px-3 py-2.5 hover:bg-violet-100 transition-colors group"
+                        className="flex items-center gap-2 w-full text-left bg-violet-50 border border-violet-200 rounded-lg px-2.5 py-2 hover:bg-violet-100 transition-colors group"
                       >
-                        <div className="w-8 h-8 rounded-full bg-violet-200 flex items-center justify-center flex-shrink-0">
-                          <Icon name="UserIcon" size={15} className="text-violet-700" />
+                        <div className="w-7 h-7 rounded-full bg-violet-200 flex items-center justify-center flex-shrink-0">
+                          <Icon name="UserIcon" size={13} className="text-violet-700" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold text-violet-800">{property.owner ?? property.landlord.name}</p>
-                          <p className="text-[10px] text-violet-600">Property Owner — tap to view details</p>
+                          <p className="text-[9px] text-violet-600">Property Owner — tap to view details</p>
                         </div>
                         <Icon
                           name={showOwnerBubble ? 'ChevronUpIcon' : 'ChevronDownIcon'}
-                          size={14}
+                          size={13}
                           className="text-violet-500 flex-shrink-0 transition-transform"
                         />
                       </button>
                       {showOwnerBubble && (
-                        <div className="mt-1.5 bg-white border border-violet-200 rounded-xl shadow-lg p-3 space-y-1.5 animate-fade-in">
-                          <p className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider mb-1">Owner Details</p>
-                          <div className="grid grid-cols-2 gap-1.5">
+                        <div className="mt-1 bg-white border border-violet-200 rounded-lg shadow-lg p-2.5 space-y-1 animate-fade-in">
+                          <p className="text-[9px] font-semibold text-violet-600 uppercase tracking-wider mb-0.5">Owner Details</p>
+                          <div className="grid grid-cols-2 gap-1">
                             {[
                               { label: 'Name', value: property.owner ?? property.landlord.name },
                               { label: 'Phone', value: property.landlord.phone },
                               { label: 'Email', value: property.landlord.email },
                               { label: 'ID / CR No.', value: property.landlord.idNumber },
                             ].map((item) => (
-                              <div key={`owner-detail-${item.label}`} className="bg-violet-50 rounded-lg px-2.5 py-1.5">
-                                <p className="text-[10px] text-violet-500 mb-0.5">{item.label}</p>
+                              <div key={`owner-detail-${item.label}`} className="bg-violet-50 rounded-lg px-2 py-1">
+                                <p className="text-[9px] text-violet-500 mb-0.5">{item.label}</p>
                                 <p className="text-xs font-medium text-violet-900 break-all">{item.value}</p>
                               </div>
                             ))}
@@ -2669,10 +2669,10 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                       )}
                     </div>
                     {/* Landlord details */}
-                    <div className="card p-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="card p-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                       <div className="col-span-2 sm:col-span-4">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                          <Icon name="BuildingIcon" size={11} className="text-[#1B4F8A]" />
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 flex items-center gap-1">
+                          <Icon name="BuildingIcon" size={10} className="text-[#1B4F8A]" />
                           Landlord Details
                         </p>
                       </div>
@@ -2683,7 +2683,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         { label: 'ID / CR No.', value: property.landlord.idNumber },
                       ].map((item) => (
                         <div key={`ll-${item.label}`}>
-                          <p className="text-[10px] text-[hsl(215,15%,52%)] mb-0.5">{item.label}</p>
+                          <p className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5">{item.label}</p>
                           <p className="text-xs font-medium text-[hsl(215,25%,18%)] break-all">{item.value}</p>
                         </div>
                       ))}
@@ -2693,8 +2693,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 6. Contacts */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="contacts"
                     icon="UsersIcon"
@@ -2703,9 +2703,9 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                       !collapsedSections['contacts'] ? (
                         <button
                           onClick={() => { setShowAddContact(true); setNewContact(emptyContact()); }}
-                          className="btn-primary py-1 px-2.5 text-xs min-h-[32px]"
+                          className="btn-primary py-0.5 px-2 text-xs min-h-[28px]"
                         >
-                          <Icon name="PlusIcon" size={12} />
+                          <Icon name="PlusIcon" size={11} />
                           <span className="hidden sm:inline">Add Contact</span>
                           <span className="sm:hidden">Add</span>
                         </button>
@@ -2714,109 +2714,109 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['contacts'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {contacts.length === 0 && !showAddContact && (
-                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-xl p-5 text-center">
-                        <Icon name="UsersIcon" size={24} className="text-[hsl(215,15%,62%)] mx-auto mb-1.5" />
+                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg p-3 text-center">
+                        <Icon name="UsersIcon" size={20} className="text-[hsl(215,15%,62%)] mx-auto mb-1" />
                         <p className="text-xs font-medium text-[hsl(215,25%,18%)]">No contacts added yet</p>
-                        <p className="text-[10px] text-[hsl(215,15%,52%)] mb-2.5">Add family members, company contacts, or other people associated with this property</p>
+                        <p className="text-[9px] text-[hsl(215,15%,52%)] mb-2">Add family members, company contacts, or other people associated with this property</p>
                         <button
                           onClick={() => { setShowAddContact(true); setNewContact(emptyContact()); }}
-                          className="btn-secondary py-1.5 px-3 text-xs min-h-[36px]"
+                          className="btn-secondary py-1 px-3 text-xs min-h-[30px]"
                         >
-                          <Icon name="PlusIcon" size={12} />
+                          <Icon name="PlusIcon" size={11} />
                           Add First Contact
                         </button>
                       </div>
                     )}
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       {contacts.map((contact) => (
                         <div key={contact.id}>
                           {editingContact?.id === contact.id ? (
-                            <div className="card p-3 border-2 border-[#1B4F8A]/30 space-y-2.5">
-                              <p className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider">Editing Contact</p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div className="card p-2.5 border-2 border-[#1B4F8A]/30 space-y-2">
+                              <p className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider">Editing Contact</p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                 <div>
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Name *</label>
-                                  <input type="text" value={editingContact.name} onChange={(e) => setEditingContact({ ...editingContact, name: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="Full name" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name *</label>
+                                  <input type="text" value={editingContact.name} onChange={(e) => setEditingContact({ ...editingContact, name: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="Full name" />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Relationship to Owner</label>
-                                  <input type="text" value={editingContact.relationship} onChange={(e) => setEditingContact({ ...editingContact, relationship: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="e.g. Wife, Son, Company Director" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Relationship to Owner</label>
+                                  <input type="text" value={editingContact.relationship} onChange={(e) => setEditingContact({ ...editingContact, relationship: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="e.g. Wife, Son, Company Director" />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Mobile</label>
-                                  <input type="text" value={editingContact.mobile} onChange={(e) => setEditingContact({ ...editingContact, mobile: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="+852 9xxx xxxx" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Mobile</label>
+                                  <input type="text" value={editingContact.mobile} onChange={(e) => setEditingContact({ ...editingContact, mobile: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="+852 9xxx xxxx" />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Telephone</label>
-                                  <input type="text" value={editingContact.telephone} onChange={(e) => setEditingContact({ ...editingContact, telephone: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="+852 2xxx xxxx" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Telephone</label>
+                                  <input type="text" value={editingContact.telephone} onChange={(e) => setEditingContact({ ...editingContact, telephone: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="+852 2xxx xxxx" />
                                 </div>
                                 <div className="sm:col-span-2">
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Email</label>
-                                  <input type="email" value={editingContact.email} onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="email@example.com" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                                  <input type="email" value={editingContact.email} onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="email@example.com" />
                                 </div>
                                 <div className="sm:col-span-2">
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block flex items-center gap-1">
-                                    <Icon name="TagIcon" size={10} className="text-amber-600" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block flex items-center gap-1">
+                                    <Icon name="TagIcon" size={9} className="text-amber-600" />
                                     Customer Code
                                     <span className="text-[9px] text-[hsl(215,15%,62%)] font-normal ml-1">— identifies contacts managing multiple properties</span>
                                   </label>
-                                  <input type="text" value={editingContact.customerCode ?? ''} onChange={(e) => setEditingContact({ ...editingContact, customerCode: e.target.value })} className="input-base w-full min-h-[40px] font-mono text-xs" placeholder="e.g. CUST-001" />
+                                  <input type="text" value={editingContact.customerCode ?? ''} onChange={(e) => setEditingContact({ ...editingContact, customerCode: e.target.value })} className="input-base w-full min-h-[34px] font-mono text-xs" placeholder="e.g. CUST-001" />
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <button onClick={() => handleUpdateContact(editingContact)} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="CheckIcon" size={12} />Save</button>
-                                <button onClick={() => setEditingContact(null)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
+                                <button onClick={() => handleUpdateContact(editingContact)} className="btn-primary py-1 px-3 text-xs min-h-[30px]"><Icon name="CheckIcon" size={11} />Save</button>
+                                <button onClick={() => setEditingContact(null)} className="btn-ghost py-1 px-3 text-xs min-h-[30px]">Cancel</button>
                               </div>
                             </div>
                           ) : (
-                            <div className="card p-2.5 sm:p-3 flex items-start gap-2.5 hover:shadow-card-hover transition-shadow">
-                              <div className="w-8 h-8 rounded-full bg-[#1B4F8A]/10 flex items-center justify-center flex-shrink-0">
-                                <Icon name="UserIcon" size={14} className="text-[#1B4F8A]" />
+                            <div className="card p-2 flex items-start gap-2 hover:shadow-card-hover transition-shadow">
+                              <div className="w-7 h-7 rounded-full bg-[#1B4F8A]/10 flex items-center justify-center flex-shrink-0">
+                                <Icon name="UserIcon" size={13} className="text-[#1B4F8A]" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                                   <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{contact.name}</p>
                                   {contact.relationship && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] border border-[hsl(214,20%,88%)]">
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] border border-[hsl(214,20%,88%)]">
                                       {contact.relationship}
                                     </span>
                                   )}
                                   {contact.customerCode && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono font-semibold flex items-center gap-0.5">
-                                      <Icon name="TagIcon" size={9} />
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono font-semibold flex items-center gap-0.5">
+                                      <Icon name="TagIcon" size={8} />
                                       {contact.customerCode}
                                     </span>
                                   )}
                                 </div>
                                 <div className="flex flex-wrap gap-x-3 gap-y-0.5">
                                   {contact.mobile && (
-                                    <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1">
-                                      <Icon name="SmartphoneIcon" size={10} />
+                                    <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                                      <Icon name="SmartphoneIcon" size={9} />
                                       {contact.mobile}
                                     </p>
                                   )}
                                   {contact.telephone && (
-                                    <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1">
-                                      <Icon name="PhoneIcon" size={10} />
+                                    <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                                      <Icon name="PhoneIcon" size={9} />
                                       {contact.telephone}
                                     </p>
                                   )}
                                   {contact.email && (
-                                    <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
-                                      <Icon name="MailIcon" size={10} className="flex-shrink-0" />
+                                    <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
+                                      <Icon name="MailIcon" size={9} className="flex-shrink-0" />
                                       {contact.email}
                                     </p>
                                   )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-0.5 flex-shrink-0">
-                                <button onClick={() => setEditingContact(contact)} className="p-1.5 rounded hover:bg-[hsl(210,15%,94%)] transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center" title="Edit contact">
-                                  <Icon name="PencilIcon" size={12} className="text-[hsl(215,15%,52%)]" />
+                                <button onClick={() => setEditingContact(contact)} className="p-1 rounded hover:bg-[hsl(210,15%,94%)] transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center" title="Edit contact">
+                                  <Icon name="PencilIcon" size={11} className="text-[hsl(215,15%,52%)]" />
                                 </button>
-                                <button onClick={() => handleDeleteContact(contact.id)} className="p-1.5 rounded hover:bg-red-50 transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center" title="Remove contact">
-                                  <Icon name="Trash2Icon" size={12} className="text-red-400" />
+                                <button onClick={() => handleDeleteContact(contact.id)} className="p-1 rounded hover:bg-red-50 transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center" title="Remove contact">
+                                  <Icon name="Trash2Icon" size={11} className="text-red-400" />
                                 </button>
                               </div>
                             </div>
@@ -2825,82 +2825,82 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                       ))}
                     </div>
                     {showAddContact && (
-                      <div className="card p-3 border-2 border-[#1B4F8A]/30 space-y-2.5 mt-2">
-                        <p className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider">New Contact</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="card p-2.5 border-2 border-[#1B4F8A]/30 space-y-2 mt-1.5">
+                        <p className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider">New Contact</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                           <div>
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Name *</label>
-                            <input type="text" value={newContact.name} onChange={(e) => setNewContact({ ...newContact, name: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="Full name" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name *</label>
+                            <input type="text" value={newContact.name} onChange={(e) => setNewContact({ ...newContact, name: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="Full name" />
                           </div>
                           <div>
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Relationship to Owner</label>
-                            <input type="text" value={newContact.relationship} onChange={(e) => setNewContact({ ...newContact, relationship: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="e.g. Wife, Son, Company Director" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Relationship to Owner</label>
+                            <input type="text" value={newContact.relationship} onChange={(e) => setNewContact({ ...newContact, relationship: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="e.g. Wife, Son, Company Director" />
                           </div>
                           <div>
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Mobile</label>
-                            <input type="text" value={newContact.mobile} onChange={(e) => setNewContact({ ...newContact, mobile: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="+852 9xxx xxxx" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Mobile</label>
+                            <input type="text" value={newContact.mobile} onChange={(e) => setNewContact({ ...newContact, mobile: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="+852 9xxx xxxx" />
                           </div>
                           <div>
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Telephone</label>
-                            <input type="text" value={newContact.telephone} onChange={(e) => setNewContact({ ...newContact, telephone: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="+852 2xxx xxxx" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Telephone</label>
+                            <input type="text" value={newContact.telephone} onChange={(e) => setNewContact({ ...newContact, telephone: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="+852 2xxx xxxx" />
                           </div>
                           <div className="sm:col-span-2">
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Email</label>
-                            <input type="email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="email@example.com" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                            <input type="email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="email@example.com" />
                           </div>
                           <div className="sm:col-span-2">
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block flex items-center gap-1">
-                              <Icon name="TagIcon" size={10} className="text-amber-600" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block flex items-center gap-1">
+                              <Icon name="TagIcon" size={9} className="text-amber-600" />
                               Customer Code
                               <span className="text-[9px] text-[hsl(215,15%,62%)] font-normal ml-1">— identifies contacts managing multiple properties</span>
                             </label>
-                            <input type="text" value={newContact.customerCode ?? ''} onChange={(e) => setNewContact({ ...newContact, customerCode: e.target.value })} className="input-base w-full min-h-[40px] font-mono text-xs" placeholder="e.g. CUST-001" />
+                            <input type="text" value={newContact.customerCode ?? ''} onChange={(e) => setNewContact({ ...newContact, customerCode: e.target.value })} className="input-base w-full min-h-[34px] font-mono text-xs" placeholder="e.g. CUST-001" />
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button onClick={handleSaveContact} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="PlusIcon" size={12} />Add Contact</button>
-                          <button onClick={() => setShowAddContact(false)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
+                          <button onClick={handleSaveContact} className="btn-primary py-1 px-3 text-xs min-h-[30px]"><Icon name="PlusIcon" size={11} />Add Contact</button>
+                          <button onClick={() => setShowAddContact(false)} className="btn-ghost py-1 px-3 text-xs min-h-[30px]">Cancel</button>
                         </div>
                       </div>
                     )}
 
                     {/* Imported contacts from CSV upload */}
                     {(importedContactsLoading || importedContacts.length > 0) && (
-                      <div className="mt-3">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                          <Icon name="UploadCloudIcon" size={10} />
+                      <div className="mt-2">
+                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 flex items-center gap-1">
+                          <Icon name="UploadCloudIcon" size={9} />
                           CSV-Imported Contacts
                         </p>
                         {importedContactsLoading ? (
-                          <div className="flex items-center gap-2 text-xs text-[hsl(215,15%,52%)] py-2">
-                            <Icon name="LoaderIcon" size={13} className="animate-spin" />
+                          <div className="flex items-center gap-2 text-xs text-[hsl(215,15%,52%)] py-1.5">
+                            <Icon name="LoaderIcon" size={12} className="animate-spin" />
                             Loading…
                           </div>
                         ) : (
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             {importedContacts.map((c) => (
-                              <div key={c.id} className="card p-3 border border-purple-100">
-                                <div className="flex items-start gap-2.5">
-                                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                    <Icon name="UserIcon" size={13} className="text-purple-600" />
+                              <div key={c.id} className="card p-2 border border-purple-100">
+                                <div className="flex items-start gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                    <Icon name="UserIcon" size={12} className="text-purple-600" />
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                                       <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{c.contact_person || '—'}</p>
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 capitalize">
+                                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 capitalize">
                                         {c.contact_role}
                                       </span>
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
                                       {c.contact_number && (
-                                        <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1">
-                                          <Icon name="PhoneIcon" size={10} className="flex-shrink-0 text-purple-400" />
+                                        <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                                          <Icon name="PhoneIcon" size={9} className="flex-shrink-0 text-purple-400" />
                                           <span>{c.contact_number}</span>
                                         </p>
                                       )}
                                       {c.contact_email && (
-                                        <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
-                                          <Icon name="MailIcon" size={10} className="flex-shrink-0 text-purple-400" />
+                                        <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
+                                          <Icon name="MailIcon" size={9} className="flex-shrink-0 text-purple-400" />
                                           <span>{c.contact_email}</span>
                                         </p>
                                       )}
@@ -2918,8 +2918,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 7. Key Location Banner */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="keylocation"
                     icon="KeyIcon"
@@ -2936,9 +2936,9 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             });
                             setEditingKeyLocation(true);
                           }}
-                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-[hsl(215,15%,52%)] hover:bg-[hsl(210,15%,92%)] hover:text-[#1B4F8A] transition-colors"
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium text-[hsl(215,15%,52%)] hover:bg-[hsl(210,15%,92%)] hover:text-[#1B4F8A] transition-colors"
                         >
-                          <Icon name="PencilSquareIcon" size={12} />
+                          <Icon name="PencilSquareIcon" size={11} />
                           Edit
                         </button>
                       ) : undefined
@@ -2946,19 +2946,19 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['keylocation'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {editingKeyLocation ? (
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         {/* Type selector */}
                         <div>
-                          <label className="block text-[11px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-1.5">Key Location Type</label>
-                          <div className="flex gap-2">
+                          <label className="block text-[10px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-1">Key Location Type</label>
+                          <div className="flex gap-1.5">
                             {(['office', 'agent', 'landlord'] as const).map((t) => (
                               <button
                                 key={t}
                                 type="button"
                                 onClick={() => setKeyLocationDraft((prev) => ({ ...prev, type: t }))}
-                                className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all capitalize ${
+                                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all capitalize ${
                                   keyLocationDraft.type === t
                                     ? t === 'office' ? 'bg-[#1B4F8A] text-white border-[#1B4F8A]'
                                       : t === 'agent'? 'bg-amber-500 text-white border-amber-500' :'bg-emerald-500 text-white border-emerald-500' :'bg-white text-[hsl(215,15%,52%)] border-[hsl(214,20%,88%)] hover:bg-[hsl(210,15%,96%)]'
@@ -2971,7 +2971,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </div>
                         {/* Key Number */}
                         <div>
-                          <label className="block text-[11px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-1">Key Number</label>
+                          <label className="block text-[10px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-0.5">Key Number</label>
                           <input
                             type="text"
                             value={keyLocationDraft.keyNumber}
@@ -2982,9 +2982,9 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </div>
                         {/* Agent fields — only when type is 'agent' */}
                         {keyLocationDraft.type === 'agent' && (
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="block text-[11px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-1">Agent Name</label>
+                              <label className="block text-[10px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-0.5">Agent Name</label>
                               <input
                                 type="text"
                                 value={keyLocationDraft.agentName}
@@ -2994,7 +2994,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                               />
                             </div>
                             <div>
-                              <label className="block text-[11px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-1">Agent Phone</label>
+                              <label className="block text-[10px] font-semibold text-[hsl(215,15%,40%)] uppercase tracking-wide mb-0.5">Agent Phone</label>
                               <input
                                 type="text"
                                 value={keyLocationDraft.agentPhone}
@@ -3009,24 +3009,24 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           <button
                             onClick={handleSaveKeyLocation}
                             disabled={savingKeyLocation}
-                            className="btn-primary py-1.5 px-3 text-xs min-h-[36px] flex items-center gap-1 disabled:opacity-50"
+                            className="btn-primary py-1 px-3 text-xs min-h-[30px] flex items-center gap-1 disabled:opacity-50"
                           >
-                            {savingKeyLocation ? <Icon name="LoaderIcon" size={12} className="animate-spin" /> : <Icon name="CheckIcon" size={12} />}
+                            {savingKeyLocation ? <Icon name="LoaderIcon" size={11} className="animate-spin" /> : <Icon name="CheckIcon" size={11} />}
                             Save
                           </button>
-                          <button onClick={() => setEditingKeyLocation(false)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
+                          <button onClick={() => setEditingKeyLocation(false)} className="btn-ghost py-1 px-3 text-xs min-h-[30px]">Cancel</button>
                         </div>
                       </div>
                     ) : keyLocation ? (
-                      <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 border ${
+                      <div className={`flex items-center gap-2 rounded-lg px-2.5 py-2 border ${
                         keyLocation.type === 'office' ? 'bg-[#1B4F8A]/8 border-[#1B4F8A]/25'
                           : keyLocation.type === 'agent' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
                       }`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
                           keyLocation.type === 'office' ? 'bg-[#1B4F8A]/15'
                             : keyLocation.type === 'agent' ? 'bg-amber-100' : 'bg-emerald-100'
                         }`}>
-                          <Icon name="KeyIcon" size={15} className={keyLocation.type === 'office' ? 'text-[#1B4F8A]' : keyLocation.type === 'agent' ? 'text-amber-600' : 'text-emerald-600'} />
+                          <Icon name="KeyIcon" size={13} className={keyLocation.type === 'office' ? 'text-[#1B4F8A]' : keyLocation.type === 'agent' ? 'text-amber-600' : 'text-emerald-600'} />
                         </div>
                         <div className="flex-1 min-w-0">
                           {keyLocation.type === 'office' && (
@@ -3050,13 +3050,13 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </p>
                           )}
                           {keyLocation.keyNumber && keyLocation.type !== 'office' && (
-                            <p className="text-[10px] text-[hsl(215,15%,52%)] mt-0.5">Key #{keyLocation.keyNumber}</p>
+                            <p className="text-[9px] text-[hsl(215,15%,52%)] mt-0.5">Key #{keyLocation.keyNumber}</p>
                           )}
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center py-4 gap-2 border-2 border-dashed border-[hsl(214,20%,88%)] rounded-xl">
-                        <Icon name="KeyIcon" size={20} className="text-[hsl(215,15%,72%)]" />
+                      <div className="flex flex-col items-center justify-center py-3 gap-1.5 border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg">
+                        <Icon name="KeyIcon" size={18} className="text-[hsl(215,15%,72%)]" />
                         <p className="text-xs text-[hsl(215,15%,52%)]">No key location recorded</p>
                         <button
                           onClick={() => {
@@ -3074,34 +3074,34 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 8. Agent Commission */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="commission"
                     title="Agent Commission (% per category)"
                     rightContent={
                       !collapsedSections['commission'] ? (
-                        <span className="text-[10px] text-[hsl(215,15%,52%)] bg-[hsl(210,20%,97%)] px-2 py-1 rounded-md hidden sm:inline">Rates vary per category</span>
+                        <span className="text-[9px] text-[hsl(215,15%,52%)] bg-[hsl(210,20%,97%)] px-2 py-0.5 rounded-md hidden sm:inline">Rates vary per category</span>
                       ) : undefined
                     }
                   />
                 </div>
                 {!collapsedSections['commission'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
-                    <div className="card p-2.5 sm:p-3 space-y-2">
+                  <div className="px-3 pb-2 pt-1">
+                    <div className="card p-2 space-y-1.5">
                       {commissionCategories.map((cat) => (
-                        <div key={cat.key} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-                          <div className="flex items-center gap-2 sm:w-40 flex-shrink-0">
-                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[#1B4F8A]/10 text-[#1B4F8A] text-xs font-bold flex-shrink-0">
+                        <div key={cat.key} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <div className="flex items-center gap-1.5 sm:w-36 flex-shrink-0">
+                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-[#1B4F8A]/10 text-[#1B4F8A] text-xs font-bold flex-shrink-0">
                               {cat.code}
                             </span>
                             <div>
                               <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{cat.label}</p>
-                              <p className="text-[10px] text-[hsl(215,15%,52%)]">{cat.percentage}</p>
+                              <p className="text-[9px] text-[hsl(215,15%,52%)]">{cat.percentage}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 flex-1">
-                            <select value={commission[cat.key] ?? ''} onChange={(e) => handleCommissionChange(cat.key, e.target.value)} className="input-base w-full min-h-[40px] text-xs">
+                            <select value={commission[cat.key] ?? ''} onChange={(e) => handleCommissionChange(cat.key, e.target.value)} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select Agent —</option>
                               {agentNames.map((name) => (
                                 <option key={name} value={name}>{name}</option>
@@ -3109,8 +3109,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                             {commission[cat.key] && (
                               <div className="flex items-center gap-1 flex-shrink-0">
-                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                <span className="text-[10px] text-emerald-700 font-medium hidden sm:inline">Assigned</span>
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span className="text-[9px] text-emerald-700 font-medium hidden sm:inline">Assigned</span>
                               </div>
                             )}
                           </div>
@@ -3122,8 +3122,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 9. Property Photos */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="photos"
                     icon="ImageIcon"
@@ -3166,7 +3166,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['photos'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {/* Hidden file input */}
                     <input
                       ref={photoUploadRef}
@@ -3237,8 +3237,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 10. Website Link */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="website"
                     icon="GlobeIcon"
@@ -3255,7 +3255,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['website'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {editingWebsite ? (
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         <input type="url" value={websiteDraft} onChange={(e) => setWebsiteDraft(e.target.value)} placeholder="https://www.example.com/property/..." className="input-base text-xs font-mono flex-1 min-h-[40px]" autoFocus />
@@ -3270,7 +3270,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         {websiteLink}
                       </a>
                     ) : (
-                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-xl p-3 text-center bg-[hsl(210,20%,98%)]">
+                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg p-3 text-center bg-[hsl(210,20%,98%)]">
                         <Icon name="GlobeIcon" size={18} className="text-[hsl(215,15%,62%)] mx-auto mb-1" />
                         <p className="text-xs text-[hsl(215,15%,52%)]">No website link — click "Add Website" to link this property to a website listing</p>
                       </div>
@@ -3280,8 +3280,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 10b. Advertising Remarks */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="remarks"
                     icon="FileTextIcon"
@@ -3301,7 +3301,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['remarks'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {editingRemarks ? (
                       <div className="space-y-3">
                         <div>
@@ -3352,7 +3352,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         )}
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-xl p-3 text-center bg-[hsl(210,20%,98%)]">
+                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg p-3 text-center bg-[hsl(210,20%,98%)]">
                         <Icon name="FileTextIcon" size={18} className="text-[hsl(215,15%,62%)] mx-auto mb-1" />
                         <p className="text-xs text-[hsl(215,15%,52%)]">No advertising remarks — click "Add Remarks" to add English and Chinese descriptions</p>
                       </div>
@@ -3362,12 +3362,12 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 11. Floor Plan */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader sectionKey="floorplan" icon="LayoutIcon" title="Floor Plan" />
                 </div>
                 {!collapsedSections['floorplan'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {property.hasFloorPlan ? (
                       <div className="card p-3 flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-lg bg-[#1B4F8A]/10 flex items-center justify-center">
@@ -3380,7 +3380,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         <button className="btn-secondary py-1.5 px-2.5 text-xs min-h-[36px]"><Icon name="DownloadIcon" size={12} />Download</button>
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-xl p-5 text-center">
+                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg p-5 text-center">
                         <Icon name="LayoutIcon" size={24} className="text-[hsl(215,15%,62%)] mx-auto mb-1.5" />
                         <p className="text-xs font-medium text-[hsl(215,25%,18%)]">No floor plan uploaded</p>
                         <p className="text-[10px] text-[hsl(215,15%,52%)] mb-2.5">Upload a PDF or image of the floor plan</p>

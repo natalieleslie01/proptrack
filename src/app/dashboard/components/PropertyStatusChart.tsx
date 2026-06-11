@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
+import { usePropertiesRealtime } from '@/hooks/useRealtimeSync';
 
 interface DistrictData {
   district: string;
@@ -39,60 +40,65 @@ export default function PropertyStatusChart() {
   const [data, setData] = useState<DistrictData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const supabase = createClient();
-        const { data: props } = await supabase
-          .from('properties')
-          .select('area, phase, status, occupancy')
-          .not('area', 'is', null);
+  const fetchData = useCallback(async () => {
+    try {
+      const supabase = createClient();
+      const { data: props } = await supabase
+        .from('properties')
+        .select('area, phase, status, occupancy')
+        .not('area', 'is', null);
 
-        if (!props || props.length === 0) {
-          setData([]);
-          setLoading(false);
-          return;
-        }
-
-        // Group by area (use phase as fallback label)
-        const districtMap: Record<string, DistrictData> = {};
-
-        props.forEach(p => {
-          const key = (p.area || p.phase || 'Other').trim();
-          if (!districtMap[key]) {
-            districtMap[key] = { district: key, active: 0, leased: 0, selfOccupy: 0, sold: 0 };
-          }
-          const d = districtMap[key];
-          if (p.status === 'for-sale' || p.status === 'for-sale-and-rent') {
-            d.sold += 1;
-          } else if (p.occupancy === 'leased' || p.status === 'leased') {
-            d.leased += 1;
-          } else if (p.status === 'self-occupy') {
-            d.selfOccupy += 1;
-          } else {
-            d.active += 1;
-          }
-        });
-
-        // Sort by total count desc, take top 6
-        const sorted = Object.values(districtMap)
-          .sort((a, b) => (b.active + b.leased + b.selfOccupy + b.sold) - (a.active + a.leased + a.selfOccupy + a.sold))
-          .slice(0, 6)
-          .map(d => ({
-            ...d,
-            district: d.district.length > 8 ? d.district.slice(0, 8) : d.district,
-          }));
-
-        setData(sorted);
-      } catch (err) {
-        console.error('PropertyStatusChart fetch error:', err);
-      } finally {
+      if (!props || props.length === 0) {
+        setData([]);
         setLoading(false);
+        return;
       }
-    }
 
-    fetchData();
+      // Group by area (use phase as fallback label)
+      const districtMap: Record<string, DistrictData> = {};
+
+      props.forEach(p => {
+        const key = (p.area || p.phase || 'Other').trim();
+        if (!districtMap[key]) {
+          districtMap[key] = { district: key, active: 0, leased: 0, selfOccupy: 0, sold: 0 };
+        }
+        const d = districtMap[key];
+        if (p.status === 'for-sale' || p.status === 'for-sale-and-rent') {
+          d.sold += 1;
+        } else if (p.occupancy === 'leased' || p.status === 'leased') {
+          d.leased += 1;
+        } else if (p.status === 'self-occupy') {
+          d.selfOccupy += 1;
+        } else {
+          d.active += 1;
+        }
+      });
+
+      // Sort by total count desc, take top 6
+      const sorted = Object.values(districtMap)
+        .sort((a, b) => (b.active + b.leased + b.selfOccupy + b.sold) - (a.active + a.leased + a.selfOccupy + a.sold))
+        .slice(0, 6)
+        .map(d => ({
+          ...d,
+          district: d.district.length > 8 ? d.district.slice(0, 8) : d.district,
+        }));
+
+      setData(sorted);
+    } catch (err) {
+      console.error('PropertyStatusChart fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // ── Real-time: refetch chart when properties change ────────────────────────
+  usePropertiesRealtime(() => {
+    fetchData();
+  });
 
   return (
     <div className="card p-5 h-full">

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   AreaChart,
   Area,
@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
+import { usePropertiesRealtime } from '@/hooks/useRealtimeSync';
 
 interface MonthlyData {
   month: string;
@@ -58,82 +59,87 @@ export default function RentalIncomeChart() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('');
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const supabase = createClient();
+  const fetchData = useCallback(async () => {
+    try {
+      const supabase = createClient();
 
-        // Fetch leased properties with asking_rent and lease_start
-        const { data: props } = await supabase
-          .from('properties')
-          .select('asking_rent, lease_start, occupancy')
-          .eq('occupancy', 'leased')
-          .not('asking_rent', 'is', null)
-          .not('lease_start', 'is', null);
+      // Fetch leased properties with asking_rent and lease_start
+      const { data: props } = await supabase
+        .from('properties')
+        .select('asking_rent, lease_start, occupancy')
+        .eq('occupancy', 'leased')
+        .not('asking_rent', 'is', null)
+        .not('lease_start', 'is', null);
 
-        if (!props || props.length === 0) {
-          // Build empty 12-month chart from current month going back
-          const now = new Date();
-          const months: MonthlyData[] = [];
-          for (let i = 11; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            months.push({ month: MONTH_LABELS[d.getMonth()], income: 0, transactions: 0 });
-          }
-          setData(months);
-          setLoading(false);
-          return;
-        }
-
-        // Build last 12 months buckets
+      if (!props || props.length === 0) {
+        // Build empty 12-month chart from current month going back
         const now = new Date();
-        const buckets: Record<string, { income: number; transactions: number; label: string }> = {};
+        const months: MonthlyData[] = [];
         for (let i = 11; i >= 0; i--) {
           const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          buckets[key] = { income: 0, transactions: 0, label: MONTH_LABELS[d.getMonth()] };
+          months.push({ month: MONTH_LABELS[d.getMonth()], income: 0, transactions: 0 });
         }
-
-        props.forEach(p => {
-          if (!p.lease_start || !p.asking_rent) return;
-          // Parse DD/MM/YYYY or YYYY-MM-DD
-          let leaseDate: Date;
-          if (/^\d{2}\/\d{2}\/\d{4}$/.test(p.lease_start)) {
-            const [dd, mm, yyyy] = p.lease_start.split('/');
-            leaseDate = new Date(`${yyyy}-${mm}-${dd}`);
-          } else {
-            leaseDate = new Date(p.lease_start);
-          }
-          if (isNaN(leaseDate.getTime())) return;
-
-          const key = `${leaseDate.getFullYear()}-${String(leaseDate.getMonth() + 1).padStart(2, '0')}`;
-          if (buckets[key]) {
-            buckets[key].income += p.asking_rent;
-            buckets[key].transactions += 1;
-          }
-        });
-
-        const chartData = Object.entries(buckets)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([, v]) => ({ month: v.label, income: v.income, transactions: v.transactions }));
-
-        // Build date range label
-        const keys = Object.keys(buckets).sort();
-        if (keys.length >= 2) {
-          const [startYear, startMonth] = keys[0].split('-');
-          const [endYear, endMonth] = keys[keys.length - 1].split('-');
-          setDateRange(`${MONTH_LABELS[parseInt(startMonth) - 1]} ${startYear} – ${MONTH_LABELS[parseInt(endMonth) - 1]} ${endYear}`);
-        }
-
-        setData(chartData);
-      } catch (err) {
-        console.error('RentalIncomeChart fetch error:', err);
-      } finally {
+        setData(months);
         setLoading(false);
+        return;
       }
-    }
 
-    fetchData();
+      // Build last 12 months buckets
+      const now = new Date();
+      const buckets: Record<string, { income: number; transactions: number; label: string }> = {};
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        buckets[key] = { income: 0, transactions: 0, label: MONTH_LABELS[d.getMonth()] };
+      }
+
+      props.forEach(p => {
+        if (!p.lease_start || !p.asking_rent) return;
+        // Parse DD/MM/YYYY or YYYY-MM-DD
+        let leaseDate: Date;
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(p.lease_start)) {
+          const [dd, mm, yyyy] = p.lease_start.split('/');
+          leaseDate = new Date(`${yyyy}-${mm}-${dd}`);
+        } else {
+          leaseDate = new Date(p.lease_start);
+        }
+        if (isNaN(leaseDate.getTime())) return;
+
+        const key = `${leaseDate.getFullYear()}-${String(leaseDate.getMonth() + 1).padStart(2, '0')}`;
+        if (buckets[key]) {
+          buckets[key].income += p.asking_rent;
+          buckets[key].transactions += 1;
+        }
+      });
+
+      const chartData = Object.entries(buckets)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([, v]) => ({ month: v.label, income: v.income, transactions: v.transactions }));
+
+      // Build date range label
+      const keys = Object.keys(buckets).sort();
+      if (keys.length >= 2) {
+        const [startYear, startMonth] = keys[0].split('-');
+        const [endYear, endMonth] = keys[keys.length - 1].split('-');
+        setDateRange(`${MONTH_LABELS[parseInt(startMonth) - 1]} ${startYear} – ${MONTH_LABELS[parseInt(endMonth) - 1]} ${endYear}`);
+      }
+
+      setData(chartData);
+    } catch (err) {
+      console.error('RentalIncomeChart fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // ── Real-time: refetch chart when properties change ────────────────────────
+  usePropertiesRealtime(() => {
+    fetchData();
+  });
 
   return (
     <div className="card p-5">

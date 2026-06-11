@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { createClient } from '@/lib/supabase/client';
+import { usePropertiesRealtime } from '@/hooks/useRealtimeSync';
 
 interface MetricCardProps {
   label: string;
@@ -93,113 +94,118 @@ export default function MetricsBentoGrid() {
   const [kpi, setKpi] = useState<KpiData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchKpis() {
-      try {
-        const supabase = createClient();
+  const fetchKpis = useCallback(async () => {
+    try {
+      const supabase = createClient();
 
-        // Use count queries to bypass the 1,000 row default limit
-        const [
-          totalRes,
-          leasedRes,
-          vacantRes,
-          forSaleRes,
-          rentRes,
-          leasesRes,
-          viewingsRes,
-        ] = await Promise.all([
-          supabase
-            .from('properties')
-            .select('*', { count: 'exact', head: true }),
-          supabase
-            .from('properties')
-            .select('*', { count: 'exact', head: true })
-            .eq('occupancy', 'leased'),
-          supabase
-            .from('properties')
-            .select('*', { count: 'exact', head: true })
-            .or('occupancy.eq.vacant,occupancy.eq.vacant-soon'),
-          supabase
-            .from('properties')
-            .select('*', { count: 'exact', head: true })
-            .or('status.eq.for-sale,status.eq.for-sale-and-rent'),
-          // Fetch rent sum — must page through all leased properties
-          supabase
-            .from('properties')
-            .select('asking_rent')
-            .eq('occupancy', 'leased')
-            .limit(10000),
-          supabase
-            .from('properties')
-            .select('lease_end')
-            .eq('occupancy', 'leased')
-            .not('lease_end', 'is', null)
-            .limit(10000),
-          supabase
-            .from('viewings')
-            .select('id, viewing_date')
-            .eq('status', 'scheduled')
-            .limit(10000),
-        ]);
+      // Use count queries to bypass the 1,000 row default limit
+      const [
+        totalRes,
+        leasedRes,
+        vacantRes,
+        forSaleRes,
+        rentRes,
+        leasesRes,
+        viewingsRes,
+      ] = await Promise.all([
+        supabase
+          .from('properties')
+          .select('*', { count: 'exact', head: true }),
+        supabase
+          .from('properties')
+          .select('*', { count: 'exact', head: true })
+          .eq('occupancy', 'leased'),
+        supabase
+          .from('properties')
+          .select('*', { count: 'exact', head: true })
+          .or('occupancy.eq.vacant,occupancy.eq.vacant-soon'),
+        supabase
+          .from('properties')
+          .select('*', { count: 'exact', head: true })
+          .or('status.eq.for-sale,status.eq.for-sale-and-rent'),
+        // Fetch rent sum — must page through all leased properties
+        supabase
+          .from('properties')
+          .select('asking_rent')
+          .eq('occupancy', 'leased')
+          .limit(10000),
+        supabase
+          .from('properties')
+          .select('lease_end')
+          .eq('occupancy', 'leased')
+          .not('lease_end', 'is', null)
+          .limit(10000),
+        supabase
+          .from('viewings')
+          .select('id, viewing_date')
+          .eq('status', 'scheduled')
+          .limit(10000),
+      ]);
 
-        const totalProperties = totalRes.count ?? 0;
-        const leasedCount = leasedRes.count ?? 0;
-        const vacantCount = vacantRes.count ?? 0;
-        const forSaleCount = forSaleRes.count ?? 0;
+      const totalProperties = totalRes.count ?? 0;
+      const leasedCount = leasedRes.count ?? 0;
+      const vacantCount = vacantRes.count ?? 0;
+      const forSaleCount = forSaleRes.count ?? 0;
 
-        // Sum rent for leased properties
-        const leasedProps = rentRes.data || [];
-        const totalRent = leasedProps.reduce((sum, p) => sum + (p.asking_rent || 0), 0);
+      // Sum rent for leased properties
+      const leasedProps = rentRes.data || [];
+      const totalRent = leasedProps.reduce((sum, p) => sum + (p.asking_rent || 0), 0);
 
-        // Expiring leases within 60 days
-        const leasedWithEnd = leasesRes.data || [];
-        const now = new Date();
-        const in60 = new Date();
-        in60.setDate(in60.getDate() + 60);
-        const expiringLeases = leasedWithEnd.filter(p => {
-          if (!p.lease_end) return false;
-          let d: Date;
-          if (/^\d{2}\/\d{2}\/\d{4}$/.test(p.lease_end)) {
-            const [dd, mm, yyyy] = p.lease_end.split('/');
-            d = new Date(`${yyyy}-${mm}-${dd}`);
-          } else {
-            d = new Date(p.lease_end);
-          }
-          return d >= now && d <= in60;
-        }).length;
+      // Expiring leases within 60 days
+      const leasedWithEnd = leasesRes.data || [];
+      const now = new Date();
+      const in60 = new Date();
+      in60.setDate(in60.getDate() + 60);
+      const expiringLeases = leasedWithEnd.filter(p => {
+        if (!p.lease_end) return false;
+        let d: Date;
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(p.lease_end)) {
+          const [dd, mm, yyyy] = p.lease_end.split('/');
+          d = new Date(`${yyyy}-${mm}-${dd}`);
+        } else {
+          d = new Date(p.lease_end);
+        }
+        return d >= now && d <= in60;
+      }).length;
 
-        // Viewings this week
-        const viewings = viewingsRes.data || [];
-        const startOfWeek = new Date();
-        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-        startOfWeek.setHours(0, 0, 0, 0);
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(endOfWeek.getDate() + 6);
-        endOfWeek.setHours(23, 59, 59, 999);
-        const viewingsThisWeek = viewings.filter(v => {
-          let d = new Date(v.viewing_date);
-          return d >= startOfWeek && d <= endOfWeek;
-        }).length;
+      // Viewings this week
+      const viewings = viewingsRes.data || [];
+      const startOfWeek = new Date();
+      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(endOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+      const viewingsThisWeek = viewings.filter(v => {
+        let d = new Date(v.viewing_date);
+        return d >= startOfWeek && d <= endOfWeek;
+      }).length;
 
-        setKpi({
-          totalProperties,
-          leasedCount,
-          vacantCount,
-          forSaleCount,
-          totalRent,
-          expiringLeases,
-          viewingsThisWeek,
-          pendingForms: 0,
-        });
-      } catch (err) {
-        console.error('KPI fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
+      setKpi({
+        totalProperties,
+        leasedCount,
+        vacantCount,
+        forSaleCount,
+        totalRent,
+        expiringLeases,
+        viewingsThisWeek,
+        pendingForms: 0,
+      });
+    } catch (err) {
+      console.error('KPI fetch error:', err);
+    } finally {
+      setLoading(false);
     }
-
-    fetchKpis();
   }, []);
+
+  useEffect(() => {
+    fetchKpis();
+  }, [fetchKpis]);
+
+  // ── Real-time: refetch KPIs when properties change ─────────────────────────
+  usePropertiesRealtime(() => {
+    fetchKpis();
+  });
 
   const occupancyRate = kpi && kpi.totalProperties > 0
     ? ((kpi.leasedCount / kpi.totalProperties) * 100).toFixed(1)

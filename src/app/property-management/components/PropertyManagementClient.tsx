@@ -2115,9 +2115,7 @@ export default function PropertyManagementClient() {
                             if (parsed) {
                               return (
                                 <p className="text-xs font-bold text-[hsl(215,25%,18%)] leading-tight">
-                                  {parsed.floor && (prop as any).buildingType === 'High Rise'
-                                    ? `${buildingPrefix}Floor ${parsed.floor}, Unit ${parsed.flat}`
-                                    : `${buildingPrefix}Unit ${parsed.flat}`}
+                                  {`${buildingPrefix}Unit ${parsed.flat}`}
                                 </p>
                               );
                             }
@@ -2125,9 +2123,7 @@ export default function PropertyManagementClient() {
                             if (prop.unit) {
                               return (
                                 <p className="text-xs font-bold text-[hsl(215,25%,18%)] leading-tight">
-                                  {prop.floor && (prop as any).buildingType === 'High Rise'
-                                    ? `${buildingPrefix}Floor ${prop.floor}, Unit ${prop.unit}`
-                                    : `${buildingPrefix}Unit ${prop.unit}`}
+                                  {`${buildingPrefix}Unit ${prop.unit}`}
                                 </p>
                               );
                             }

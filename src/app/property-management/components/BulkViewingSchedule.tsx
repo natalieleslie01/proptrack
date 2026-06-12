@@ -26,21 +26,6 @@ interface TimeValue {
 
 type ScheduleMode = 'full-address' | 'village-only';
 
-const AVATAR_COLORS = [
-  'bg-[#1B4F8A]', 'bg-emerald-600', 'bg-violet-600',
-  'bg-rose-600', 'bg-amber-600', 'bg-cyan-600',
-];
-
-function agentInitials(name: string): string {
-  return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
-}
-
-function agentAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
 function formatTime(t: TimeValue): string {
   const mm = String(t.minute).padStart(2, '0');
   return `${t.hour}:${mm} ${t.period}`;
@@ -53,6 +38,23 @@ function defaultTime(): TimeValue {
 function hasMaidsRoom(property: Property): boolean {
   if (!property.additionalFeatures) return false;
   return property.additionalFeatures.some((f) => f.toLowerCase().includes('maid'));
+}
+
+function getCarParking(property: Property): string {
+  if (!property.additionalFeatures) return 'N/A';
+  const carFeature = property.additionalFeatures.find((f) =>
+    f.toLowerCase().includes('car') || f.toLowerCase().includes('parking') || f.toLowerCase().includes('garage')
+  );
+  return carFeature ? '1' : 'N/A';
+}
+
+function parseAdvertisingRemarks(text: string): string[] {
+  if (!text) return [];
+  const lines = text
+    .split(/\n|\r\n|\r|\*(?=\s)|•/)
+    .map((l) => l.replace(/^\s*[\*•\-]\s*/, '').trim())
+    .filter((l) => l.length > 3);
+  return lines;
 }
 
 // ─── Structured Time Picker ───────────────────────────────────────────────────
@@ -123,7 +125,7 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
       {/* Print Styles — Portrait A4 */}
       <style>{`
         @media print {
-          @page { size: A4 portrait; margin: 12mm 10mm; }
+          @page { size: A4 portrait; margin: 12mm 12mm; }
           body * { visibility: hidden !important; }
           #bulk-viewing-schedule-print, #bulk-viewing-schedule-print * { visibility: visible !important; }
           #bulk-viewing-schedule-print {
@@ -283,31 +285,14 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
             </div>
           </div>
 
-          {/* ─── PRINTABLE SCHEDULE (Portrait) ─────────────────────────────── */}
-          <div id="bulk-viewing-schedule-print" ref={printRef} className="p-6 bg-white">
+          {/* ─── PRINTABLE SCHEDULE — Habitat-style Portrait A4 ─────────────── */}
+          <div id="bulk-viewing-schedule-print" ref={printRef} className="p-7 bg-white font-sans">
 
-            {/* ── TOP HEADER: Client Left | Logo Center | Agent Right ── */}
-            <div className="flex items-start justify-between mb-4 pb-3 border-b-2 border-[#1B4F8A]">
-
-              {/* LEFT: Client Details */}
-              <div className="w-[30%]">
-                <p className="text-[9px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-1.5 pb-0.5 border-b border-[#1B4F8A]/30">Client Details</p>
-                <div className="space-y-0.5">
-                  <p className="text-[11px] font-bold text-[hsl(215,25%,18%)] leading-tight">{client.name || '—'}</p>
-                  {client.mobile && <p className="text-[10px] text-[hsl(215,15%,52%)] font-mono">{client.mobile}</p>}
-                  {client.email && <p className="text-[10px] text-[hsl(215,15%,52%)]">{client.email}</p>}
-                  {viewingDate && (
-                    <div className="mt-1.5 bg-[#1B4F8A]/6 border border-[#1B4F8A]/20 rounded px-2 py-1">
-                      <p className="text-[9px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-0.5">Date</p>
-                      <p className="text-[10px] font-bold text-[#1B4F8A] font-mono">{viewingDate}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* CENTER: Homes R Us Logo */}
-              <div className="flex flex-col items-center gap-1 w-[36%]">
-                <div className="relative w-16 h-16 flex-shrink-0">
+            {/* ── PAGE HEADER: Logo left | Agent right ── */}
+            <div className="flex items-start justify-between mb-5">
+              {/* LEFT: Company branding */}
+              <div className="flex items-center gap-3">
+                <div className="relative w-12 h-12 flex-shrink-0">
                   <Image
                     src="/assets/images/image-1780466751353.png"
                     alt="Homes R Us logo"
@@ -316,92 +301,191 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
                     unoptimized
                   />
                 </div>
-                <div className="text-center">
-                  <p className="text-base font-extrabold text-[#1B4F8A] leading-tight">{COMPANY.name}</p>
-                  <p className="text-[9px] text-[hsl(215,15%,52%)]">{COMPANY.address}</p>
-                  <p className="text-[9px] text-[hsl(215,15%,52%)] font-mono">{COMPANY.phones[0]}</p>
-                  <p className="text-[8px] text-[hsl(215,15%,62%)] mt-0.5">EAA: {COMPANY.eaaLicense} · Co: {COMPANY.companyLicense}</p>
-                </div>
-                <div className="mt-1 text-center">
-                  <h1 className="text-sm font-bold text-[hsl(215,25%,18%)] tracking-tight uppercase">Viewing Schedule</h1>
+                <div>
+                  <p className="text-[18px] font-black text-[hsl(215,25%,12%)] leading-none tracking-tight">{COMPANY.name}</p>
+                  <p className="text-[9px] font-semibold text-[hsl(215,15%,45%)] uppercase tracking-widest mt-0.5">Property</p>
                 </div>
               </div>
 
-              {/* RIGHT: Agent Details */}
-              <div className="w-[30%] text-right">
-                <p className="text-[9px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-1.5 pb-0.5 border-b border-[#1B4F8A]/30">Your Agent</p>
+              {/* RIGHT: Agent details */}
+              <div className="text-right">
                 {agentProfile ? (
-                  <div className="space-y-0.5">
-                    <p className="text-[11px] font-bold text-[hsl(215,25%,18%)] leading-tight">{agentProfile.name}</p>
-                    <p className="text-[10px] text-[hsl(215,15%,52%)] font-mono">{agentProfile.mobile}</p>
-                    <p className="text-[10px] text-[hsl(215,15%,52%)]">{agentProfile.email}</p>
-                    <p className="text-[9px] text-[hsl(215,15%,62%)] font-mono">Lic: {agentProfile.licenceNumber}</p>
-                  </div>
+                  <>
+                    <p className="text-[12px] font-bold text-[hsl(215,25%,18%)] leading-tight">{agentProfile.name}</p>
+                    <p className="text-[10px] text-[hsl(215,15%,45%)] italic">
+                      {agentProfile.name === 'Natalie Leslie' ? 'Principal Director' :
+                       agentProfile.name === 'Nicola Baird' ? 'Senior Consultant' : 'Property Consultant'}
+                    </p>
+                    <p className="text-[10px] text-[hsl(215,15%,40%)] font-mono mt-0.5">☎ {agentProfile.mobile}</p>
+                    <p className="text-[10px] text-[hsl(215,15%,40%)]">{agentProfile.email}</p>
+                    <p className="text-[9px] text-[hsl(215,15%,55%)] font-mono mt-0.5">{agentProfile.licenceNumber}</p>
+                  </>
                 ) : (
                   <p className="text-[10px] text-[hsl(215,15%,52%)]">—</p>
                 )}
               </div>
             </div>
 
-            {/* ── PROPERTIES LIST ── */}
-            <div>
-              <p className="text-[9px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-3 pb-1 border-b border-[hsl(214,20%,88%)]">
-                Properties to View ({properties.length})
-              </p>
-              <div className="space-y-4">
-                {properties.map((property, idx) => {
-                  const bedroomsLabel = property.bedrooms != null ? (property.bedrooms >= 5 ? '5+' : String(property.bedrooms)) : '—';
-                  const bathroomsLabel = property.bathrooms != null ? (property.bathrooms >= 4 ? '4+' : String(property.bathrooms)) : '—';
-                  const maidsRoom = hasMaidsRoom(property) ? 'Yes' : 'No';
-                  const addressLine =
-                    mode === 'full-address'
-                      ? `${property.unit}, ${property.building}, ${property.street}, ${property.district}`
-                      : (property.village ?? property.district);
-                  const propTime = propertyTimes[property.id];
-                  const propertyPhoto = property.photos && property.photos.length > 0 ? property.photos[0] : null;
-                  const priceDisplay = property.monthlyRent
-                    ? `HK$${property.monthlyRent.toLocaleString()}/mo`
-                    : property.salePrice
-                    ? `HK$${(property.salePrice / 1000000).toFixed(2)}M`
-                    : '—';
+            {/* ── DIVIDER ── */}
+            <div className="border-t border-[hsl(215,15%,75%)] mb-4" />
 
-                  return (
-                    <div
-                      key={property.id}
-                      className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden"
-                    >
-                      {/* Property header row */}
-                      <div className="flex items-center gap-3 px-3 py-2 bg-[hsl(210,20%,97%)] border-b border-[hsl(214,20%,88%)]">
-                        <span className="w-5 h-5 rounded-full bg-[#1B4F8A] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                          {idx + 1}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-[hsl(215,25%,18%)] truncate">
-                            {mode === 'village-only'
-                              ? (property.village ?? property.building)
-                              : `${property.unit}, ${property.building}`}
+            {/* ── CLIENT INFO ── */}
+            {(client.name || viewingDate) && (
+              <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1">
+                {client.name && (
+                  <div>
+                    <span className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">Client: </span>
+                    <span className="text-[10px] font-semibold text-[hsl(215,25%,18%)]">{client.name}</span>
+                    {client.mobile && <span className="text-[10px] text-[hsl(215,15%,45%)] font-mono ml-2">{client.mobile}</span>}
+                  </div>
+                )}
+                {viewingDate && (
+                  <div>
+                    <span className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">Date: </span>
+                    <span className="text-[10px] font-semibold text-[hsl(215,25%,18%)] font-mono">{viewingDate}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── PROPERTIES LIST ── */}
+            <div className="space-y-6">
+              {properties.map((property, idx) => {
+                const bedroomsLabel = property.bedrooms != null ? (property.bedrooms >= 5 ? '5+' : String(property.bedrooms)) : '—';
+                const bathroomsLabel = property.bathrooms != null ? (property.bathrooms >= 4 ? '4+' : String(property.bathrooms)) : '—';
+                const maidsRoom = hasMaidsRoom(property) ? 'Yes' : 'N/A';
+                const carParking = getCarParking(property);
+                const addressLine =
+                  mode === 'full-address'
+                    ? `${property.unit}, ${property.building}, ${property.street}, ${property.district}`
+                    : (property.village ?? property.district);
+                const propertyHeading = mode === 'full-address'
+                  ? `${property.building}${property.unit ? `, ${property.unit}` : ''}`
+                  : (property.village ?? property.building);
+                const propTime = propertyTimes[property.id];
+                const propertyPhoto = property.photos && property.photos.length > 0 ? property.photos[0] : null;
+                const priceDisplay = property.monthlyRent
+                  ? `HK$${property.monthlyRent.toLocaleString()}/mo`
+                  : property.salePrice
+                  ? `HK$${(property.salePrice / 1000000).toFixed(3)}M`
+                  : '—';
+                const saleableArea = property.sqft ? `${property.sqft.toLocaleString()} sq.ft` : '—';
+                const pricePerSqft = property.salePrice && property.sqft
+                  ? `$${Math.round(property.salePrice / property.sqft).toLocaleString()} sq.ft`
+                  : property.monthlyRent && property.sqft
+                  ? `$${Math.round(property.monthlyRent / property.sqft).toLocaleString()}/sqft`
+                  : '—';
+                const features = property.additionalFeatures ?? [];
+                const extProp = property as Property & { engRemark?: string; chiRemark?: string };
+                const advertisingText = extProp.engRemark || property.agentNotes || '';
+                const advertisingBullets = parseAdvertisingRemarks(advertisingText);
+
+                return (
+                  <div key={property.id} className={idx > 0 ? 'page-break pt-4' : ''}>
+                    {/* Property heading row */}
+                    <div className="flex items-start justify-between mb-1">
+                      <div>
+                        <h2 className="text-[18px] font-black text-[hsl(215,25%,12%)] leading-tight tracking-tight">
+                          {propertyHeading}
+                        </h2>
+                        {mode === 'full-address' && (
+                          <p className="text-[11px] text-[hsl(215,15%,40%)] mt-0.5 flex items-center gap-1">
+                            <span className="text-[#1B4F8A]">📍</span>
+                            {property.street}{property.district ? `, ${property.district}` : ''}
                           </p>
-                          <p className="text-[10px] text-[hsl(215,15%,52%)] truncate">{addressLine}</p>
+                        )}
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-4 flex items-center gap-3">
+                        {propTime && (
+                          <span className="text-[10px] font-mono font-bold text-[#1B4F8A] bg-[#1B4F8A]/10 px-2 py-0.5 rounded-full border border-[#1B4F8A]/20">
+                            {formatTime(propTime)}
+                          </span>
+                        )}
+                        <p className="text-[15px] font-black text-[hsl(215,25%,12%)]">{priceDisplay}</p>
+                      </div>
+                    </div>
+
+                    {/* Specs + Photo */}
+                    <div className="flex gap-4 mt-2 mb-2">
+                      {/* LEFT: Specs + details */}
+                      <div className="flex-1 min-w-0">
+                        {/* Specs table */}
+                        <div className="border border-[hsl(215,15%,80%)] rounded-sm overflow-hidden mb-2">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="border-b border-[hsl(215,15%,80%)]">
+                                <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">BEDS</th>
+                                <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">BATHS</th>
+                                <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">CAR</th>
+                                <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">PRICE</th>
+                                <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">SALEABLE AREA</th>
+                                <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1">PRICE/S.F.</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                <td className="text-[11px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">{bedroomsLabel}</td>
+                                <td className="text-[11px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">{bathroomsLabel}</td>
+                                <td className="text-[11px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">{carParking}</td>
+                                <td className="text-[10px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 border-r border-[hsl(215,15%,80%)] font-mono">{priceDisplay}</td>
+                                <td className="text-[10px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 border-r border-[hsl(215,15%,80%)] font-mono">{saleableArea}</td>
+                                <td className="text-[10px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 font-mono">{pricePerSqft}</td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {propTime && (
-                            <span className="text-[10px] font-mono font-bold text-[#1B4F8A] bg-[#1B4F8A]/10 px-2 py-0.5 rounded-full">
-                              {formatTime(propTime)}
-                            </span>
+
+                        {/* Year Built + Helpers Room + View */}
+                        <div className="flex gap-5 mb-1.5">
+                          <div>
+                            <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">YEAR BUILT</p>
+                            <p className="text-[10px] font-bold text-[hsl(215,25%,18%)]">{property.yearBuilt ?? '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">HELPERS ROOM</p>
+                            <p className="text-[10px] font-bold text-[hsl(215,25%,18%)]">{maidsRoom}</p>
+                          </div>
+                          {property.view && (
+                            <div>
+                              <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">VIEW</p>
+                              <p className="text-[10px] font-bold text-[hsl(215,25%,18%)]">{property.view}</p>
+                            </div>
                           )}
-                          {property.ref && (
-                            <span className="text-[10px] font-mono font-semibold text-[#1B4F8A] bg-[#1B4F8A]/10 px-1.5 py-0.5 rounded-full">
-                              {property.ref}
-                            </span>
+                          {property.direction && (
+                            <div>
+                              <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">FACING</p>
+                              <p className="text-[10px] font-bold text-[hsl(215,25%,18%)]">{property.direction}</p>
+                            </div>
                           )}
                         </div>
+
+                        {/* Features */}
+                        {features.length > 0 && (
+                          <div className="mb-1.5">
+                            <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider mb-0.5">FEATURES</p>
+                            <p className="text-[9px] text-[hsl(215,25%,25%)] leading-relaxed">
+                              {features.join(', ')}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Advertising Remarks */}
+                        {advertisingBullets.length > 0 && (
+                          <ul className="space-y-0.5 mt-1">
+                            {advertisingBullets.slice(0, 6).map((bullet, i) => (
+                              <li key={i} className="text-[9px] text-[hsl(215,25%,25%)] leading-snug flex items-start gap-1.5">
+                                <span className="flex-shrink-0 mt-0.5">*</span>
+                                <span>{bullet}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
 
-                      {/* Photo + Details row */}
-                      <div className="flex gap-3 p-3">
-                        {/* Property Photo */}
+                      {/* RIGHT: Large property photo */}
+                      <div className="flex-shrink-0 w-[190px]">
                         {propertyPhoto ? (
-                          <div className="relative w-28 h-20 flex-shrink-0 rounded-lg overflow-hidden border border-[hsl(214,20%,88%)]">
+                          <div className="relative w-full h-[170px] border border-[hsl(215,15%,80%)] overflow-hidden">
                             <Image
                               src={propertyPhoto}
                               alt={`${property.building} ${property.unit}`}
@@ -409,95 +493,48 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
                               className="object-cover"
                               unoptimized
                             />
-                            {/* Price overlay */}
-                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5">
-                              <p className="text-[9px] font-bold text-white font-mono text-center">{priceDisplay}</p>
-                            </div>
                           </div>
                         ) : (
-                          <div className="w-28 h-20 flex-shrink-0 rounded-lg bg-[hsl(210,20%,95%)] border border-[hsl(214,20%,88%)] flex flex-col items-center justify-center gap-1">
-                            <Icon name="HomeIcon" size={16} className="text-[hsl(215,15%,68%)]" />
-                            <p className="text-[9px] font-bold text-[#1B4F8A] font-mono">{priceDisplay}</p>
+                          <div className="w-full h-[170px] border border-[hsl(215,15%,80%)] bg-[hsl(210,20%,95%)] flex flex-col items-center justify-center gap-2">
+                            <Icon name="HomeIcon" size={24} className="text-[hsl(215,15%,65%)]" />
+                            <p className="text-[9px] text-[hsl(215,15%,55%)]">No photo available</p>
                           </div>
                         )}
-
-                        {/* Property specs grid */}
-                        <div className="flex-1 grid grid-cols-4 gap-x-2 gap-y-1.5 content-start">
-                          <div className="flex flex-col">
-                            <span className="text-[9px] text-[hsl(215,15%,52%)] uppercase tracking-wider">Beds</span>
-                            <span className="text-[11px] font-bold text-[hsl(215,25%,18%)]">{bedroomsLabel}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[9px] text-[hsl(215,15%,52%)] uppercase tracking-wider">Baths</span>
-                            <span className="text-[11px] font-bold text-[hsl(215,25%,18%)]">{bathroomsLabel}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[9px] text-[hsl(215,15%,52%)] uppercase tracking-wider">Maid&apos;s Rm</span>
-                            <span className={`text-[11px] font-bold ${maidsRoom === 'Yes' ? 'text-emerald-600' : 'text-[hsl(215,25%,18%)]'}`}>{maidsRoom}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[9px] text-[hsl(215,15%,52%)] uppercase tracking-wider">Built</span>
-                            <span className="text-[11px] font-bold text-[hsl(215,25%,18%)]">{property.yearBuilt ?? '—'}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[9px] text-[hsl(215,15%,52%)] uppercase tracking-wider">Net Sq Ft</span>
-                            <span className="text-[11px] font-bold text-[hsl(215,25%,18%)] font-mono">{property.sqft ? property.sqft.toLocaleString() : '—'}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[9px] text-[hsl(215,15%,52%)] uppercase tracking-wider">Gross Sq Ft</span>
-                            <span className="text-[11px] font-bold text-[hsl(215,25%,18%)] font-mono">{property.grossSqft ? property.grossSqft.toLocaleString() : '—'}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[9px] text-[hsl(215,15%,52%)] uppercase tracking-wider">Direction</span>
-                            <span className="text-[11px] font-bold text-[hsl(215,25%,18%)]">{property.direction ?? '—'}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[9px] text-[hsl(215,15%,52%)] uppercase tracking-wider">View</span>
-                            <span className="text-[11px] font-bold text-[hsl(215,25%,18%)]">{property.view ?? '—'}</span>
-                          </div>
+                        {/* Property ID bottom right */}
+                        <div className="flex justify-end mt-0.5">
+                          <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">
+                            PROPERTY ID &nbsp;<span className="text-[hsl(215,25%,18%)]">{property.ref || property.id}</span>
+                          </p>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Divider between properties */}
+                    {idx < properties.length - 1 && (
+                      <div className="border-t border-[hsl(215,15%,80%)] mt-4" />
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* ── CLIENT COMMENTS BOX ── */}
-            <div className="mt-4">
-              <p className="text-[9px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-1.5 pb-1 border-b border-[hsl(214,20%,88%)]">Client Comments &amp; Notes</p>
-              {clientComments ? (
-                <p className="text-[11px] text-[hsl(215,25%,18%)] leading-relaxed whitespace-pre-wrap">{clientComments}</p>
-              ) : (
-                <div className="border border-dashed border-[hsl(214,20%,80%)] rounded-lg h-16 flex items-center justify-center">
-                  <p className="text-[10px] text-[hsl(215,15%,68%)] italic">Space for client comments and feedback</p>
-                </div>
-              )}
-            </div>
+            {clientComments && (
+              <div className="mt-4 mb-3">
+                <p className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider mb-1">CLIENT NOTES</p>
+                <p className="text-[10px] text-[hsl(215,25%,25%)] leading-relaxed whitespace-pre-wrap">{clientComments}</p>
+              </div>
+            )}
 
             {/* ── FOOTER ── */}
-            <div className="mt-4 pt-3 border-t border-[hsl(214,20%,88%)] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="relative w-7 h-7 flex-shrink-0">
-                  <Image
-                    src="/assets/images/image-1780466751353.png"
-                    alt="Homes R Us"
-                    fill
-                    className="object-contain"
-                    unoptimized
-                  />
-                </div>
-                <div>
-                  <p className="text-[9px] font-semibold text-[hsl(215,25%,18%)]">{COMPANY.name} · {COMPANY.website}</p>
-                  <p className="text-[8px] text-[hsl(215,15%,62%)]">
-                    {mode === 'village-only' ? 'Full address available upon confirmed appointment. ' : ''}
-                    EAA Lic: {COMPANY.eaaLicense}
-                  </p>
-                </div>
-              </div>
-              <p className="text-[8px] text-[hsl(215,15%,62%)] font-mono">
-                Generated {new Date().toLocaleDateString('en-GB')}
+            <div className="mt-4 pt-3 border-t border-[hsl(215,15%,75%)]">
+              <p className="text-[8px] text-[hsl(215,15%,50%)] leading-relaxed">
+                A standard agency fee of 50% of one month&apos;s total rent is payable by both landlord and tenant upon signing a tenancy agreement. For sales, a 1% agency fee of the total purchase price is payable by both vendor and purchaser on completion. These particulars are for guidance only and do not form part of any offer or contract. All property details (including price, fees, rates, descriptions, and floor areas) are subject to change and should be verified by your solicitor before entering into any agreement. EA Licence {COMPANY.eaaLicense} · {COMPANY.name} · {COMPANY.address}
               </p>
+              <div className="flex items-center justify-between mt-1.5">
+                <p className="text-[8px] text-[hsl(215,15%,50%)]">{COMPANY.name} is a leading specialist in Hong Kong property.</p>
+                <p className="text-[8px] text-[hsl(215,15%,50%)] font-mono">Printed Date: {new Date().toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}</p>
+              </div>
             </div>
           </div>
         </div>

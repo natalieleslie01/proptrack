@@ -432,13 +432,36 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
         This guarantees the browser only sees one copy of the content.
       */}
       <style>{`
+        @media screen {
+          #bulk-print-portal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: -9999;
+          }
+        }
         @media print {
           @page { size: A4 portrait; margin: 12mm 12mm; }
           body > * { display: none !important; }
-          #bulk-print-portal { display: block !important; }
+          #bulk-print-portal {
+            display: block !important;
+            position: static !important;
+            width: auto !important;
+            height: auto !important;
+            overflow: visible !important;
+            clip: auto !important;
+            white-space: normal !important;
+            z-index: auto !important;
+          }
         }
       `}</style>
-      <div id="bulk-print-portal" style={{ display: 'none' }}>
+      <div id="bulk-print-portal">
         <PrintableSchedule
           properties={properties}
           mode={mode}

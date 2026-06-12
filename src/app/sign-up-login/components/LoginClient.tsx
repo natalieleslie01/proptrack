@@ -62,6 +62,7 @@ export default function LoginClient() {
     try {
       await signIn(data.email, data.password);
       toast.success(`Welcome back!`);
+      router.refresh();
       router.push('/dashboard');
     } catch (err: any) {
       const msg: string = err?.message || '';

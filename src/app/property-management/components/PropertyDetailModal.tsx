@@ -351,8 +351,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   const [keyLogSaving, setKeyLogSaving] = useState(false);
   const [showKeyLogValidFromCal, setShowKeyLogValidFromCal] = useState(false);
   const [showKeyLogValidToCal, setShowKeyLogValidToCal] = useState(false);
-  const [keyLogValidFromMonth, setKeyLogValidFromMonth] = useState<Date>(new Date());
-  const [keyLogValidToMonth, setKeyLogValidToMonth] = useState<Date>(new Date());
+  const [keyLogValidFromMonth, setKeyLogValidFromMonth] = useState<Date>(() => new Date());
+  const [keyLogValidToMonth, setKeyLogValidToMonth] = useState<Date>(() => new Date());
 
   // Load key log on mount
   useEffect(() => {

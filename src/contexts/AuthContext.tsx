@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import React from 'react';
 
 export type UserRole = 'agent' | 'manager' | 'admin';
 
@@ -35,12 +36,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<UserRole | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
-  const supabase = createClient();
+
+  // Use a ref to hold the supabase client so it's only created once
+  // and never during SSR (avoids hydration mismatches)
+  const supabaseRef = React.useRef<ReturnType<typeof createClient> | null>(null);
+  function getSupabase() {
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient();
+    }
+    return supabaseRef.current;
+  }
 
   const fetchRole = async (userId: string) => {
     setProfileLoading(true);
     try {
-      const { data } = await supabase
+      const { data } = await getSupabase()
         .from('user_profiles')
         .select('role')
         .eq('id', userId)
@@ -54,7 +64,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    getSupabase().auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -65,7 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = getSupabase().auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -85,7 +95,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // which is NOT in Supabase's allowed redirect list, causing "Invalid path" errors.
     const envUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
     const siteUrl = (envUrl && !envUrl.includes('builtwithrocket.new')) ? envUrl : 'https://homesrus-proptrack.com';
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await getSupabase().auth.signUp({
       email,
       password,
       options: {
@@ -101,7 +111,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await getSupabase().auth.signInWithPassword({
       email,
       password
     });
@@ -110,12 +120,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await getSupabase().auth.signOut();
     if (error) throw error;
   };
 
   const getCurrentUser = async () => {
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const { data: { user }, error } = await getSupabase().auth.getUser();
     if (error) throw error;
     return user;
   };
@@ -126,7 +136,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const getUserProfile = async () => {
     if (!user) return null;
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('user_profiles')
       .select('*')
       .eq('id', user.id)

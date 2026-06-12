@@ -1343,31 +1343,35 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
       });
   }
 
-  function autoSavePricingField(field: 'asking_price' | 'asking_rent', value: string) {
-    const supabase = createClient();
-    supabase
-      .from('properties')
-      .update({ [field]: value ? Number(value) : null } as any)
-      .eq('id', property.id)
-      .then(({ error }) => {
-        if (error) toast.error('Failed to save: ' + error.message);
-        else {
-          toast.success('Saved');
-          onSaved?.();
-        }
+  async function autoSavePricingField(field: 'asking_price' | 'asking_rent', value: string) {
+    try {
+      const res = await fetch('/api/property-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: property.id, updates: { [field]: value ? Number(value) : null } }),
       });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error ?? 'Save failed');
+      toast.success('Saved');
+      onSaved?.();
+    } catch (err: any) {
+      toast.error('Failed to save: ' + (err?.message ?? 'Unknown error'));
+    }
   }
 
-  function autoSavePricingDate(field: 'listing_date' | 'vacant_date', value: string) {
-    const supabase = createClient();
-    supabase
-      .from('properties')
-      .update({ [field]: value || null } as any)
-      .eq('id', property.id)
-      .then(({ error }) => {
-        if (error) toast.error('Failed to save date: ' + error.message);
-        else toast.success('Date saved');
+  async function autoSavePricingDate(field: 'listing_date' | 'vacant_date', value: string) {
+    try {
+      const res = await fetch('/api/property-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: property.id, updates: { [field]: value || null } }),
       });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error ?? 'Save failed');
+      toast.success('Date saved');
+    } catch (err: any) {
+      toast.error('Failed to save date: ' + (err?.message ?? 'Unknown error'));
+    }
   }
 
   async function handleSavePublishToWebsite(dateValue: string) {
@@ -1379,13 +1383,14 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
       // Determine workflow type from property status
       const workflowType = (property.status === 4 || (property as any).listType === 'sale') ? 'sales' : 'tenancy';
 
-      // Save publish date to properties
-      const { error: propError } = await supabase
-        .from('properties')
-        .update({ publish_dt: dateValue } as any)
-        .eq('id', property.id);
-
-      if (propError) throw propError;
+      // Save publish date to properties via server API (bypasses RLS)
+      const saveRes = await fetch('/api/property-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: property.id, updates: { publish_dt: dateValue } }),
+      });
+      const saveJson = await saveRes.json();
+      if (!saveRes.ok || saveJson.error) throw new Error(saveJson.error ?? 'Failed to save publish date');
 
       // Build property address
       const propertyAddress = [property.building, property.village, property.district].filter(Boolean).join(', ');
@@ -1552,16 +1557,19 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
       });
   }
 
-  function autoSaveSpecsField(updates: Record<string, unknown>) {
-    const supabase = createClient();
-    supabase
-      .from('properties')
-      .update(updates as any)
-      .eq('id', property.id)
-      .then(({ error }) => {
-        if (error) toast.error('Failed to save: ' + error.message);
-        else toast.success('Saved');
+  async function autoSaveSpecsField(updates: Record<string, unknown>) {
+    try {
+      const res = await fetch('/api/property-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: property.id, updates }),
       });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error ?? 'Save failed');
+      toast.success('Saved');
+    } catch (err: any) {
+      toast.error('Failed to save: ' + (err?.message ?? 'Unknown error'));
+    }
   }
 
   function toggleAdditionalFeature(feat: AdditionalFeature) {
@@ -1576,25 +1584,25 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
       setHasPool(next.includes('Pool'));
       setHasRoof(next.includes('Roof Top'));
       setHasTerrace(next.includes('Terrace'));
-      // Auto-save features to Supabase
-      const supabase = createClient();
-      supabase
-        .from('properties')
-        .update({
-          balcony: next.includes('Balcony'),
-          combined: next.includes('Combined Unit'),
-          duplex: next.includes('Duplex'),
-          garden: next.includes('Garden'),
-          openkitch: next.includes('Open Kitchen'),
-          pool: next.includes('Pool'),
-          roof: next.includes('Roof Top'),
-          terrace: next.includes('Terrace'),
-        } as any)
-        .eq('id', property.id)
-        .then(({ error }) => {
-          if (error) toast.error('Failed to save feature: ' + error.message);
-          else toast.success('Feature saved');
-        });
+      // Auto-save features via server API
+      const featureUpdates = {
+        balcony: next.includes('Balcony'),
+        combined: next.includes('Combined Unit'),
+        duplex: next.includes('Duplex'),
+        garden: next.includes('Garden'),
+        openkitch: next.includes('Open Kitchen'),
+        pool: next.includes('Pool'),
+        roof: next.includes('Roof Top'),
+        terrace: next.includes('Terrace'),
+      };
+      fetch('/api/property-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: property.id, updates: featureUpdates }),
+      }).then((res) => res.json()).then((json) => {
+        if (json.error) toast.error('Failed to save feature: ' + json.error);
+        else toast.success('Feature saved');
+      }).catch((err) => toast.error('Failed to save feature: ' + err.message));
       return next;
     });
   }
@@ -2196,10 +2204,11 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                           onChange={(e) => {
                             const val = e.target.value;
                             setPropertyStatusCode(val);
-                            const supabase = createClient();
-                            supabase.from('properties').update({ contact_status_code: val !== '' ? parseInt(val, 10) : null } as any).eq('id', property.id).then(() => {
-                              toast.success('Status updated');
-                            });
+                            fetch('/api/property-save', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: property.id, updates: { contact_status_code: val !== '' ? parseInt(val, 10) : null } }),
+                            }).then(() => toast.success('Status updated'));
                           }}
                           className="input-base text-xs w-full min-h-[28px] py-0.5"
                         >
@@ -2220,10 +2229,11 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                           onChange={(e) => {
                             const val = e.target.value;
                             setListingType(val);
-                            const supabase = createClient();
-                            supabase.from('properties').update({ list_type: val || null } as any).eq('id', property.id).then(() => {
-                              toast.success('Listing type updated');
-                            });
+                            fetch('/api/property-save', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: property.id, updates: { list_type: val || null } }),
+                            }).then(() => toast.success('Listing type updated'));
                           }}
                           className="input-base text-xs w-full min-h-[28px] py-0.5"
                         >
@@ -2356,10 +2366,11 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                               onClick={() => {
                                 if (confirm('Remove the publish date? This will unpublish the property from the website.')) {
                                   setPublishToWebsite('');
-                                  const supabase = createClient();
-                                  supabase.from('properties').update({ publish_dt: null } as any).eq('id', property.id).then(() => {
-                                    toast.success('Property unpublished from website');
-                                  });
+                                  fetch('/api/property-save', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ id: property.id, updates: { publish_dt: null } }),
+                                  }).then(() => toast.success('Property unpublished from website'));
                                 }
                               }}
                               className="flex-shrink-0 text-[9px] text-emerald-600 hover:text-red-600 transition-colors px-1.5 py-0.5 rounded hover:bg-red-50"

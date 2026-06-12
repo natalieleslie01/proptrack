@@ -67,12 +67,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If user is authenticated and visiting the login page, redirect to dashboard
-  if (user && request.nextUrl.pathname.startsWith('/sign-up-login')) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
-  }
+  // Removed: middleware redirect for authenticated users on /sign-up-login
+  // The LoginClient component handles this via useEffect + onAuthStateChange,
+  // which only fires after the session cookie is fully committed to the browser.
+  // Doing it here caused a race condition where the cookie wasn't set yet.
 
   return supabaseResponse;
 }

@@ -25,7 +25,7 @@ const hkDistricts = ['Central', 'Wan Chai', 'Causeway Bay', 'Tsim Sha Tsui', 'Mo
 
 export default function LoginClient() {
   const router = useRouter();
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, loading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,10 +34,18 @@ export default function LoginClient() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // When loginSuccess is true and user is populated (session committed), navigate
+  useEffect(() => {
+    if (loginSuccess && !loading && user) {
+      window.location.replace('/dashboard');
+    }
+  }, [loginSuccess, loading, user]);
 
   const {
     register,
@@ -62,8 +70,7 @@ export default function LoginClient() {
     try {
       await signIn(data.email, data.password);
       toast.success(`Welcome back!`);
-      router.refresh();
-      router.push('/dashboard');
+      setLoginSuccess(true);
     } catch (err: any) {
       const msg: string = err?.message || '';
       if (msg.toLowerCase().includes('email not confirmed')) {

@@ -116,6 +116,15 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
   const [editingPricing, setEditingPricing] = useState(false);
   const [publishingSaving, setPublishingSaving] = useState(false);
 
+  // Sync price fields when the parent re-passes a freshly-fetched property prop
+  useEffect(() => {
+    setSalePrice(property.salePrice ? String(property.salePrice) : '');
+  }, [property.salePrice]);
+
+  useEffect(() => {
+    setRentalPrice(property.monthlyRent ? String(property.monthlyRent) : '');
+  }, [property.monthlyRent]);
+
   // Matterport state
   const [matterportLink, setMatterportLink] = useState<string>(property.matterportLink ?? '');
   const [editingMatterport, setEditingMatterport] = useState(false);

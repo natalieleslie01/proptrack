@@ -1167,6 +1167,13 @@ export default function PropertyManagementClient() {
       }
       setDbProperties(allRows.map(dbRowToProperty));
 
+      // Keep selectedProperty in sync so the modal reflects the latest saved values
+      setSelectedProperty((prev) => {
+        if (!prev) return prev;
+        const updated = allRows.find((r) => r.id === prev.id);
+        return updated ? dbRowToProperty(updated) : prev;
+      });
+
       // Fetch import history batches for filter dropdown
       const { data: batchData } = await supabase
         .from('import_history')

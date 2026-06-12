@@ -420,61 +420,24 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
       toast.error('Please enter the client name before printing');
       return;
     }
-    window.print();
+    // Serialize all schedule data to sessionStorage, then open the dedicated print page
+    const printData = {
+      properties,
+      mode,
+      selectedAgent,
+      client,
+      viewingDate,
+      clientComments,
+      propertyTimes,
+      photoUrls,
+    };
+    sessionStorage.setItem('bulk-viewing-schedule-print', JSON.stringify(printData));
+    window.open('/print-viewing-schedule', '_blank');
   }
 
   return (
     <>
-      {/*
-        ─── PRINT-ONLY CONTENT ───────────────────────────────────────────────
-        Rendered in normal document flow (not inside the modal/fixed overlay).
-        @media print hides everything EXCEPT this element.
-        This guarantees the browser only sees one copy of the content.
-      */}
-      <style>{`
-        @media screen {
-          #bulk-print-portal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-            clip: rect(0,0,0,0);
-            white-space: nowrap;
-            pointer-events: none;
-            z-index: -9999;
-          }
-        }
-        @media print {
-          @page { size: A4 portrait; margin: 12mm 12mm; }
-          body > * { display: none !important; }
-          #bulk-print-portal {
-            display: block !important;
-            position: static !important;
-            width: auto !important;
-            height: auto !important;
-            overflow: visible !important;
-            clip: auto !important;
-            white-space: normal !important;
-            z-index: auto !important;
-          }
-        }
-      `}</style>
-      <div id="bulk-print-portal">
-        <PrintableSchedule
-          properties={properties}
-          mode={mode}
-          selectedAgent={selectedAgent}
-          client={client}
-          viewingDate={viewingDate}
-          clientComments={clientComments}
-          propertyTimes={propertyTimes}
-          photoUrls={photoUrls}
-        />
-      </div>
-
-      {/* ─── SCREEN MODAL ─────────────────────────────────────────────────── */}
+      {/* ─── SCREEN MODAL ONLY — no print CSS tricks ─────────────────────── */}
       <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
           {/* Modal Header */}

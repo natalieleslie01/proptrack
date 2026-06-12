@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { createClient } from '@/lib/supabase/client';
 import { usePropertiesRealtime } from '@/hooks/useRealtimeSync';
+import Link from 'next/link';
 
 interface MetricCardProps {
   label: string;
@@ -14,9 +15,10 @@ interface MetricCardProps {
   variant?: 'default' | 'alert' | 'warning' | 'positive' | 'hero';
   colSpan?: string;
   loading?: boolean;
+  href?: string;
 }
 
-function MetricCard({ label, value, subtext, icon, trend, variant = 'default', colSpan = '', loading }: MetricCardProps) {
+function MetricCard({ label, value, subtext, icon, trend, variant = 'default', colSpan = '', loading, href }: MetricCardProps) {
   const variantStyles: Record<string, string> = {
     default: 'bg-white border-[hsl(214,20%,88%)]',
     hero: 'bg-[#1B4F8A] border-[#1B4F8A] text-white',
@@ -50,7 +52,7 @@ function MetricCard({ label, value, subtext, icon, trend, variant = 'default', c
   };
 
   return (
-    <div className={`card ${variantStyles[variant]} ${colSpan} p-5 hover:shadow-card-hover transition-shadow duration-200`}>
+    <div className={`card ${variantStyles[variant]} ${colSpan} p-5 hover:shadow-card-hover transition-shadow duration-200 ${href ? 'cursor-pointer hover:ring-2 hover:ring-[#1B4F8A]/20' : ''}`}>
       <div className="flex items-start justify-between mb-3">
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${iconBg[variant]}`}>
           <Icon name={icon as Parameters<typeof Icon>[0]['name']} size={18} />
@@ -273,6 +275,20 @@ export default function MetricsBentoGrid() {
         variant="default"
         loading={loading}
       />
+
+      {/* Key Inventory KPI — links to dedicated screen */}
+      <Link href="/key-inventory" className="contents">
+        <MetricCard
+          label="Key Inventory"
+          value="—"
+          subtext="View all keys — status, holder & validity"
+          icon="KeyRoundIcon"
+          variant="default"
+          loading={loading}
+          href="/key-inventory"
+        />
+      </Link>
+
       <MetricCard
         label="Viewings This Week"
         value={kpi ? kpi.viewingsThisWeek.toLocaleString() : '—'}

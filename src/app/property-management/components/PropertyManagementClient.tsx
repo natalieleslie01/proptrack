@@ -56,14 +56,14 @@ function PropertyThumbnail({ propertyId, propertyRef }: { propertyId: string; pr
 
   if (!thumbUrl) {
     return (
-      <div className="w-14 h-10 rounded bg-[hsl(210,15%,94%)] border border-[hsl(214,20%,88%)] flex items-center justify-center flex-shrink-0">
-        <Icon name="ImageIcon" size={14} className="text-[hsl(215,15%,72%)]" />
+      <div className="w-24 h-16 rounded bg-[hsl(210,15%,94%)] border border-[hsl(214,20%,88%)] flex items-center justify-center flex-shrink-0">
+        <Icon name="ImageIcon" size={18} className="text-[hsl(215,15%,72%)]" />
       </div>
     );
   }
 
   return (
-    <div className="w-14 h-10 rounded overflow-hidden border border-[hsl(214,20%,88%)] flex-shrink-0 bg-[hsl(210,15%,94%)]">
+    <div className="w-24 h-16 rounded overflow-hidden border border-[hsl(214,20%,88%)] flex-shrink-0 bg-[hsl(210,15%,94%)]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={thumbUrl}

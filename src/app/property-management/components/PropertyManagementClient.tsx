@@ -2176,7 +2176,7 @@ export default function PropertyManagementClient() {
                       <td className="px-3 py-2 whitespace-nowrap">
                         {prop.salePrice ? (
                           <span className="text-xs font-mono font-semibold text-violet-700 tabular-nums">
-                            HK${(prop.salePrice / 1000000).toFixed(1)}M
+                            HK${((v) => v % 1 === 0 ? v.toFixed(0) : v.toFixed(1))(prop.salePrice / 1000000)}M
                           </span>
                         ) : (
                           <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>

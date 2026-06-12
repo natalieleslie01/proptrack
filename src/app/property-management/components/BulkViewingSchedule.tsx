@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Icon from '@/components/ui/AppIcon';
 import { Property, agentNames, agentProfiles, AgentProfile } from './mockData';
 import { COMPANY } from '@/lib/company';
 import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
 
 interface BulkViewingScheduleProps {
   properties: Property[];
@@ -108,7 +109,51 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
   const [propertyTimes, setPropertyTimes] = useState<Record<string, TimeValue>>(() =>
     Object.fromEntries(properties.map((p) => [p.id, defaultTime()]))
   );
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Fetch primary photo for each property
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchPhotos() {
+      const supabase = createClient();
+      const results: Record<string, string> = {};
+      await Promise.all(
+        properties.map(async (p) => {
+          try {
+            // First try property_photos table
+            if (p.ref) {
+              const { data: rows } = await supabase
+                .from('property_photos')
+                .select('public_url')
+                .eq('property_ref', p.ref)
+                .order('display_order', { ascending: true })
+                .limit(1);
+              if (rows && rows.length > 0) {
+                results[p.id] = rows[0].public_url;
+                return;
+              }
+            }
+            // Fallback: storage bucket
+            const { data: files } = await supabase.storage
+              .from('property-documents')
+              .list(`property-photos/${p.id}`, { limit: 1, sortBy: { column: 'created_at', order: 'asc' } });
+            if (files && files.length > 0) {
+              const { data: urlData } = supabase.storage
+                .from('property-documents')
+                .getPublicUrl(`property-photos/${p.id}/${files[0].name}`);
+              if (urlData?.publicUrl) results[p.id] = urlData.publicUrl;
+            }
+          } catch {
+            // silently ignore
+          }
+        })
+      );
+      if (!cancelled) setPhotoUrls(results);
+    }
+    fetchPhotos();
+    return () => { cancelled = true; };
+  }, [properties]);
 
   const agentProfile: AgentProfile | undefined = agentProfiles.find((a) => a.name === selectedAgent);
 
@@ -363,7 +408,7 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
                   ? `${property.building}${property.unit ? `, ${property.unit}` : ''}`
                   : (property.village ?? property.building);
                 const propTime = propertyTimes[property.id];
-                const propertyPhoto = property.photos && property.photos.length > 0 ? property.photos[0] : null;
+                const propertyPhoto = photoUrls[property.id] || (property.photos && property.photos.length > 0 ? property.photos[0] : null);
                 const priceDisplay = property.monthlyRent
                   ? `HK$${property.monthlyRent.toLocaleString()}/mo`
                   : property.salePrice

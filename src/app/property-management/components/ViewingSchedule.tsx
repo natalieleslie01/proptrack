@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Icon from '@/components/ui/AppIcon';
 import { Property, agentNames, agentProfiles, AgentProfile } from './mockData';
 import { COMPANY } from '@/lib/company';
 import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
 
 interface ViewingScheduleProps {
   property: Property;
@@ -52,7 +53,45 @@ export default function ViewingSchedule({ property, onClose }: ViewingSchedulePr
   const [viewingDate, setViewingDate] = useState<string>('');
   const [viewingTime, setViewingTime] = useState<string>('');
   const [clientComments, setClientComments] = useState<string>('');
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Fetch primary property photo
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchPhoto() {
+      try {
+        const supabase = createClient();
+        // First try property_photos table
+        if (property.ref) {
+          const { data: rows } = await supabase
+            .from('property_photos')
+            .select('public_url')
+            .eq('property_ref', property.ref)
+            .order('display_order', { ascending: true })
+            .limit(1);
+          if (!cancelled && rows && rows.length > 0) {
+            setPhotoUrl(rows[0].public_url);
+            return;
+          }
+        }
+        // Fallback: storage bucket
+        const { data: files } = await supabase.storage
+          .from('property-documents')
+          .list(`property-photos/${property.id}`, { limit: 1, sortBy: { column: 'created_at', order: 'asc' } });
+        if (!cancelled && files && files.length > 0) {
+          const { data: urlData } = supabase.storage
+            .from('property-documents')
+            .getPublicUrl(`property-photos/${property.id}/${files[0].name}`);
+          if (urlData?.publicUrl) setPhotoUrl(urlData.publicUrl);
+        }
+      } catch {
+        // silently ignore
+      }
+    }
+    fetchPhoto();
+    return () => { cancelled = true; };
+  }, [property.id, property.ref]);
 
   const agentProfile: AgentProfile | undefined = agentProfiles.find((a) => a.name === selectedAgent);
 
@@ -61,7 +100,7 @@ export default function ViewingSchedule({ property, onClose }: ViewingSchedulePr
   const maidsRoom = hasMaidsRoom(property) ? 'Yes' : 'N/A';
   const carParking = getCarParking(property);
 
-  const propertyPhoto = property.photos && property.photos.length > 0 ? property.photos[0] : null;
+  const propertyPhoto = photoUrl || (property.photos && property.photos.length > 0 ? property.photos[0] : null);
 
   // Extended fields from DB mapping
   const extProp = property as Property & { engRemark?: string; chiRemark?: string };

@@ -335,6 +335,106 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   });
   const [savingKeyLocation, setSavingKeyLocation] = useState(false);
 
+  // Key Log state
+  interface KeyLogEntry {
+    id: string;
+    key_status: string;
+    key_number: string;
+    sole_agent: string;
+    sole_agent_name: string;
+    sole_agent_valid_from: string;
+    sole_agent_valid_to: string;
+    property_ref: string;
+  }
+  const [keyLog, setKeyLog] = useState<KeyLogEntry | null>(null);
+  const [keyLogLoading, setKeyLogLoading] = useState(false);
+  const [keyLogSaving, setKeyLogSaving] = useState(false);
+  const [showKeyLogValidFromCal, setShowKeyLogValidFromCal] = useState(false);
+  const [showKeyLogValidToCal, setShowKeyLogValidToCal] = useState(false);
+  const [keyLogValidFromMonth, setKeyLogValidFromMonth] = useState<Date>(new Date());
+  const [keyLogValidToMonth, setKeyLogValidToMonth] = useState<Date>(new Date());
+
+  // Load key log on mount
+  useEffect(() => {
+    const propRef = property.ref || property.unit;
+    if (!propRef) return;
+    setKeyLogLoading(true);
+    const supabase = createClient();
+    supabase
+      .from('key_log')
+      .select('id, key_status, key_number, sole_agent, sole_agent_name, sole_agent_valid_from, sole_agent_valid_to, property_ref')
+      .eq('property_ref', propRef)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          const row = data[0];
+          setKeyLog({
+            id: row.id,
+            key_status: row.key_status ?? '',
+            key_number: row.key_number ?? '',
+            sole_agent: row.sole_agent ?? '',
+            sole_agent_name: row.sole_agent_name ?? '',
+            sole_agent_valid_from: row.sole_agent_valid_from ?? '',
+            sole_agent_valid_to: row.sole_agent_valid_to ?? '',
+            property_ref: row.property_ref ?? propRef,
+          });
+        } else {
+          setKeyLog({
+            id: '',
+            key_status: '',
+            key_number: '',
+            sole_agent: '',
+            sole_agent_name: '',
+            sole_agent_valid_from: '',
+            sole_agent_valid_to: '',
+            property_ref: propRef,
+          });
+        }
+        setKeyLogLoading(false);
+      });
+  }, [property.ref, property.unit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function autoSaveKeyLog(updates: Partial<KeyLogEntry>) {
+    if (!keyLog) return;
+    const propRef = property.ref || property.unit;
+    if (!propRef) return;
+    setKeyLogSaving(true);
+    const merged = { ...keyLog, ...updates };
+    setKeyLog(merged);
+    try {
+      const supabase = createClient();
+      if (merged.id) {
+        await supabase.from('key_log').update({
+          key_status: merged.key_status || null,
+          key_number: merged.key_number || null,
+          sole_agent: merged.sole_agent || null,
+          sole_agent_name: merged.sole_agent_name || null,
+          sole_agent_valid_from: merged.sole_agent_valid_from || null,
+          sole_agent_valid_to: merged.sole_agent_valid_to || null,
+        } as any).eq('id', merged.id);
+      } else {
+        const { data } = await supabase.from('key_log').insert({
+          property_ref: propRef,
+          property_label: `${property.unit}, ${property.building}`,
+          key_status: merged.key_status || null,
+          key_number: merged.key_number || null,
+          sole_agent: merged.sole_agent || null,
+          sole_agent_name: merged.sole_agent_name || null,
+          sole_agent_valid_from: merged.sole_agent_valid_from || null,
+          sole_agent_valid_to: merged.sole_agent_valid_to || null,
+          key_type: 'Main Door',
+          status: 'held',
+        } as any).select('id').single();
+        if (data) setKeyLog((prev) => prev ? { ...prev, id: data.id } : prev);
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setKeyLogSaving(false);
+    }
+  }
+
   // Viewing schedule state
   const [showViewingSchedule, setShowViewingSchedule] = useState(false);
   const [showSaleInvoice, setShowSaleInvoice] = useState(false);
@@ -1974,111 +2074,97 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                 </div>
                 {!collapsedSections['identity'] && (
                   <div className="px-3 pb-2 pt-1">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                      {/* Building Name */}
-                      <div className="col-span-1 sm:col-span-2 bg-white border border-[#1B4F8A]/20 rounded-lg px-2.5 py-1.5">
-                        <p className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                          <Icon name="BuildingIcon" size={9} className="text-[#1B4F8A]" />
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-1">
+                      {/* Building Name — spans 2 cols */}
+                      <div className="col-span-2 bg-white border border-[#1B4F8A]/20 rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                          <Icon name="BuildingIcon" size={8} className="text-[#1B4F8A]" />
                           Building Name
                         </p>
-                        <p className="text-xs font-bold text-[hsl(215,25%,18%)] truncate">
+                        <p className="text-[11px] font-bold text-[hsl(215,25%,18%)] truncate">
                           {(property as any).buildingName || property.building || '—'}
                         </p>
                       </div>
-                      {/* PID — numeric property identifier */}
+                      {/* PID */}
                       {property.ref && (
-                        <div className="col-span-1 bg-white border border-[#1B4F8A]/20 rounded-lg px-2.5 py-1.5">
-                          <p className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                            <Icon name="IdentificationIcon" size={9} className="text-[#1B4F8A]" />
+                        <div className="bg-white border border-[#1B4F8A]/20 rounded-md px-2 py-1">
+                          <p className="text-[8px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                            <Icon name="IdentificationIcon" size={8} className="text-[#1B4F8A]" />
                             PID
                           </p>
-                          <p className="text-xs font-semibold font-mono text-[hsl(215,25%,18%)] truncate">
+                          <p className="text-[11px] font-semibold font-mono text-[hsl(215,25%,18%)] truncate">
                             {property.ref}
                           </p>
                         </div>
                       )}
-                      {/* Property Type */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Property Type</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {property.type || '—'}
-                        </p>
-                      </div>
-                      {/* Phase */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Phase</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {(property as any).phase || '—'}
-                        </p>
-                      </div>
-                      {/* Village */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Village</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {(property as any).village || '—'}
-                        </p>
-                      </div>
-                      {/* Build Year */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Build Year</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {property.yearBuilt || '—'}
-                        </p>
-                      </div>
-                      {/* Building Type */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Building Type</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {buildingType || (property as any).buildingType || '—'}
-                        </p>
-                      </div>
-                      {/* Floor Number */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Floor No.</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {floorNumber || property.floor || '—'}
-                        </p>
-                      </div>
-                      {/* Flat / Unit Number */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Flat / Unit</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {property.unit || '—'}
-                        </p>
-                      </div>
-                      {/* Outdoor Area */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Outdoor Sqft</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {outdoorArea || '—'}
-                        </p>
-                      </div>
-                      {/* Net Sqft */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Net Sqft</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{netSqft ? `${Number(netSqft).toLocaleString()} ft²` : '—'}</p>
-                      </div>
-                      {/* Gross Sqft */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Gross Sqft</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{grossSqft ? `${Number(grossSqft).toLocaleString()} ft²` : '—'}</p>
-                      </div>
                       {/* Short Code */}
                       {(property as any).shortCode && (
-                        <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5">
-                          <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Short Code</p>
-                          <p className="text-xs font-semibold font-mono text-[#1B4F8A]">
+                        <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                          <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Short Code</p>
+                          <p className="text-[11px] font-semibold font-mono text-[#1B4F8A] truncate">
                             {(property as any).shortCode}
                           </p>
                         </div>
                       )}
+                      {/* Property Type */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Type</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] truncate">{property.type || '—'}</p>
+                      </div>
+                      {/* Phase */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Phase</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] truncate">{(property as any).phase || '—'}</p>
+                      </div>
+                      {/* Village */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Village</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] truncate">{(property as any).village || '—'}</p>
+                      </div>
+                      {/* Build Year */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Built</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{property.yearBuilt || '—'}</p>
+                      </div>
+                      {/* Building Type */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Bldg Type</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] truncate">{buildingType || (property as any).buildingType || '—'}</p>
+                      </div>
+                      {/* Floor Number */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Floor</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{floorNumber || property.floor || '—'}</p>
+                      </div>
+                      {/* Flat / Unit Number */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Flat/Unit</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{property.unit || '—'}</p>
+                      </div>
+                      {/* Outdoor Area */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Outdoor ft²</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{outdoorArea || '—'}</p>
+                      </div>
+                      {/* Net Sqft */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Net ft²</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">{netSqft ? `${Number(netSqft).toLocaleString()}` : '—'}</p>
+                      </div>
+                      {/* Gross Sqft */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Gross ft²</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">{grossSqft ? `${Number(grossSqft).toLocaleString()}` : '—'}</p>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* 1. Pricing & Listing Dates — compact */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+              {/* 1. Pricing & Listing + Key Log — side by side */}
+              <div className="flex flex-col sm:flex-row gap-1.5">
+                {/* Pricing & Listing Dates */}
+                <div className="flex-1 border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
                 <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="pricing"
@@ -2088,10 +2174,10 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                 </div>
                 {!collapsedSections['pricing'] && (
                   <div className="px-3 pb-2 pt-1">
-                    {/* Status & Listing Type dropdowns */}
-                    <div className="flex flex-wrap gap-3 mb-2">
+                    {/* Status & Listing Type — compact row */}
+                    <div className="grid grid-cols-2 gap-1 mb-1.5">
                       <div>
-                        <label className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Status:</label>
+                        <label className="text-[8px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Status</label>
                         <select
                           value={propertyStatusCode}
                           onChange={(e) => {
@@ -2102,7 +2188,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                               toast.success('Status updated');
                             });
                           }}
-                          className="input-base text-xs w-44"
+                          className="input-base text-xs w-full min-h-[28px] py-0.5"
                         >
                           <option value="">---</option>
                           <option value="0">Active</option>
@@ -2115,7 +2201,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </select>
                       </div>
                       <div>
-                        <label className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Listing Type:</label>
+                        <label className="text-[8px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Listing Type</label>
                         <select
                           value={listingType}
                           onChange={(e) => {
@@ -2126,7 +2212,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                               toast.success('Listing type updated');
                             });
                           }}
-                          className="input-base text-xs w-44"
+                          className="input-base text-xs w-full min-h-[28px] py-0.5"
                         >
                           <option value="">----</option>
                           <option value="Sale">Sale</option>
@@ -2135,160 +2221,104 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </select>
                       </div>
                     </div>
-                    {/* Pricing fields — always editable */}
-                    <div className="space-y-2">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                          <div>
-                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Sale Price (HKD)</label>
-                            <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_price', e.target.value)} placeholder="e.g. 8500000" className="input-base w-full font-mono text-xs" />
-                            {salePrice && <p className="text-[9px] text-[hsl(215,15%,52%)] mt-0.5">≈ HK${(Number(salePrice) / 1000000).toFixed(2)}M</p>}
-                          </div>
-                          <div>
-                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Rental Price / Month</label>
-                            <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_rent', e.target.value)} placeholder="e.g. 28500" className="input-base w-full font-mono text-xs" />
-                            {rentalPrice && <p className="text-[9px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo</p>}
-                          </div>
-                          <div>
-                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Gross Sqft</label>
-                            <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} placeholder="e.g. 1200" className="input-base w-full font-mono text-xs" />
-                          </div>
-                          <div className="relative">
-                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Listing Date</label>
-                            <div className="flex items-center gap-1">
-                              <input type="text" value={listingDate} onChange={(e) => setListingDate(e.target.value)} onBlur={(e) => autoSavePricingDate('listing_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
-                              <button
-                                type="button"
-                                onClick={() => { setShowListingCalendar(!showListingCalendar); setShowVacantCalendar(false); }}
-                                className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
-                                title="Open calendar"
-                              >
-                                <Icon name="CalendarIcon" size={13} />
-                              </button>
-                            </div>
-                            {showListingCalendar && (
-                              <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
-                                {/* Month navigation */}
-                                <div className="flex items-center justify-between mb-2">
-                                  <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                    <Icon name="ChevronLeftIcon" size={14} />
-                                  </button>
-                                  <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                                    {listingCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                                  </span>
-                                  <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                    <Icon name="ChevronRightIcon" size={14} />
-                                  </button>
-                                </div>
-                                {/* Day headers */}
-                                <div className="grid grid-cols-7 mb-1">
-                                  {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                                    <div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>
-                                  ))}
-                                </div>
-                                {/* Days grid */}
-                                <div className="grid grid-cols-7 gap-y-0.5">
-                                  {(() => {
-                                    const year = listingCalMonth.getFullYear();
-                                    const month = listingCalMonth.getMonth();
-                                    const firstDay = new Date(year, month, 1).getDay();
-                                    const daysInMonth = new Date(year, month + 1, 0).getDate();
-                                    const cells: React.ReactNode[] = [];
-                                    for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
-                                    for (let day = 1; day <= daysInMonth; day++) {
-                                      const dd = String(day).padStart(2, '0');
-                                      const mm = String(month + 1).padStart(2, '0');
-                                      const dateStr = `${dd}/${mm}/${year}`;
-                                      const isSelected = listingDate === dateStr;
-                                      cells.push(
-                                        <button key={day} type="button"
-                                          onClick={() => { setListingDate(dateStr); setShowListingCalendar(false); autoSavePricingDate('listing_date', dateStr); }}
-                                          className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}
-                                        >{day}</button>
-                                      );
-                                    }
-                                    return cells;
-                                  })()}
-                                </div>
-                                {/* Clear button */}
-                                {listingDate && (
-                                  <button type="button" onClick={() => { setListingDate(''); setShowListingCalendar(false); autoSavePricingDate('listing_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
-                                    Clear date
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <div className="relative">
-                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Vacant Date</label>
-                            <div className="flex items-center gap-1">
-                              <input type="text" value={vacantDate} onChange={(e) => setVacantDate(e.target.value)} onBlur={(e) => autoSavePricingDate('vacant_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
-                              <button
-                                type="button"
-                                onClick={() => { setShowVacantCalendar(!showVacantCalendar); setShowListingCalendar(false); }}
-                                className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
-                                title="Open calendar"
-                              >
-                                <Icon name="CalendarIcon" size={13} />
-                              </button>
-                            </div>
-                            {showVacantCalendar && (
-                              <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
-                                {/* Month navigation */}
-                                <div className="flex items-center justify-between mb-2">
-                                  <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                    <Icon name="ChevronLeftIcon" size={14} />
-                                  </button>
-                                  <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                                    {vacantCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                                  </span>
-                                  <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                    <Icon name="ChevronRightIcon" size={14} />
-                                  </button>
-                                </div>
-                                {/* Day headers */}
-                                <div className="grid grid-cols-7 mb-1">
-                                  {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                                    <div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>
-                                  ))}
-                                </div>
-                                {/* Days grid */}
-                                <div className="grid grid-cols-7 gap-y-0.5">
-                                  {(() => {
-                                    const year = vacantCalMonth.getFullYear();
-                                    const month = vacantCalMonth.getMonth();
-                                    const firstDay = new Date(year, month, 1).getDay();
-                                    const daysInMonth = new Date(year, month + 1, 0).getDate();
-                                    const cells: React.ReactNode[] = [];
-                                    for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
-                                    for (let day = 1; day <= daysInMonth; day++) {
-                                      const dd = String(day).padStart(2, '0');
-                                      const mm = String(month + 1).padStart(2, '0');
-                                      const dateStr = `${dd}/${mm}/${year}`;
-                                      const isSelected = vacantDate === dateStr;
-                                      cells.push(
-                                        <button key={day} type="button"
-                                          onClick={() => { setVacantDate(dateStr); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', dateStr); }}
-                                          className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}
-                                        >{day}</button>
-                                      );
-                                    }
-                                    return cells;
-                                  })()}
-                                </div>
-                                {/* Clear button */}
-                                {vacantDate && (
-                                  <button type="button" onClick={() => { setVacantDate(''); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
-                                    Clear date
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                    {/* Pricing fields — 5 per row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 mb-1.5">
+                      <div className="sm:col-span-2">
+                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Sale Price (HKD)</label>
+                        <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_price', e.target.value)} placeholder="e.g. 8500000" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                        {salePrice && <p className="text-[8px] text-[hsl(215,15%,52%)] mt-0.5">≈ HK${(Number(salePrice) / 1000000).toFixed(2)}M</p>}
                       </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Rental / Month</label>
+                        <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_rent', e.target.value)} placeholder="e.g. 28500" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                        {rentalPrice && <p className="text-[8px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo</p>}
+                      </div>
+                      <div>
+                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Gross ft²</label>
+                        <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} placeholder="e.g. 1200" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                      </div>
+                      <div className="relative sm:col-span-2">
+                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Listing Date</label>
+                        <div className="flex items-center gap-1">
+                          <input type="text" value={listingDate} onChange={(e) => setListingDate(e.target.value)} onBlur={(e) => autoSavePricingDate('listing_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                          <button
+                            type="button"
+                            onClick={() => { setShowListingCalendar(!showListingCalendar); setShowVacantCalendar(false); }}
+                            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"
+                            title="Open calendar"
+                          >
+                            <Icon name="CalendarIcon" size={11} />
+                          </button>
+                        </div>
+                        {showListingCalendar && (
+                          <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
+                            <div className="flex items-center justify-between mb-2">
+                              <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronLeftIcon" size={14} /></button>
+                              <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{listingCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+                              <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronRightIcon" size={14} /></button>
+                            </div>
+                            <div className="grid grid-cols-7 mb-1">{['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (<div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>))}</div>
+                            <div className="grid grid-cols-7 gap-y-0.5">
+                              {(() => {
+                                const year = listingCalMonth.getFullYear(); const month = listingCalMonth.getMonth();
+                                const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+                                const cells: React.ReactNode[] = [];
+                                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
+                                for (let day = 1; day <= daysInMonth; day++) {
+                                  const dd = String(day).padStart(2, '0'); const mm = String(month + 1).padStart(2, '0');
+                                  const dateStr = `${dd}/${mm}/${year}`; const isSelected = listingDate === dateStr;
+                                  cells.push(<button key={day} type="button" onClick={() => { setListingDate(dateStr); setShowListingCalendar(false); autoSavePricingDate('listing_date', dateStr); }} className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}>{day}</button>);
+                                }
+                                return cells;
+                              })()}
+                            </div>
+                            {listingDate && (<button type="button" onClick={() => { setListingDate(''); setShowListingCalendar(false); autoSavePricingDate('listing_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">Clear date</button>)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="relative sm:col-span-2">
+                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Vacant Date</label>
+                        <div className="flex items-center gap-1">
+                          <input type="text" value={vacantDate} onChange={(e) => setVacantDate(e.target.value)} onBlur={(e) => autoSavePricingDate('vacant_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                          <button
+                            type="button"
+                            onClick={() => { setShowVacantCalendar(!showVacantCalendar); setShowListingCalendar(false); }}
+                            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"
+                            title="Open calendar"
+                          >
+                            <Icon name="CalendarIcon" size={11} />
+                          </button>
+                        </div>
+                        {showVacantCalendar && (
+                          <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
+                            <div className="flex items-center justify-between mb-2">
+                              <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronLeftIcon" size={14} /></button>
+                              <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{vacantCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+                              <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronRightIcon" size={14} /></button>
+                            </div>
+                            <div className="grid grid-cols-7 mb-1">{['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (<div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>))}</div>
+                            <div className="grid grid-cols-7 gap-y-0.5">
+                              {(() => {
+                                const year = vacantCalMonth.getFullYear(); const month = vacantCalMonth.getMonth();
+                                const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+                                const cells: React.ReactNode[] = [];
+                                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
+                                for (let day = 1; day <= daysInMonth; day++) {
+                                  const dd = String(day).padStart(2, '0'); const mm = String(month + 1).padStart(2, '0');
+                                  const dateStr = `${dd}/${mm}/${year}`; const isSelected = vacantDate === dateStr;
+                                  cells.push(<button key={day} type="button" onClick={() => { setVacantDate(dateStr); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', dateStr); }} className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}>{day}</button>);
+                                }
+                                return cells;
+                              })()}
+                            </div>
+                            {vacantDate && (<button type="button" onClick={() => { setVacantDate(''); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">Clear date</button>)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
                     {/* Publish to Website — always visible */}
-                    <div className={`mt-2 rounded-lg border-2 overflow-hidden ${publishToWebsite ? 'border-emerald-300 bg-emerald-50' : 'border-dashed border-[hsl(214,20%,80%)] bg-[hsl(210,20%,98%)]'}`}>
+                    <div className={`rounded-lg border-2 overflow-hidden ${publishToWebsite ? 'border-emerald-300 bg-emerald-50' : 'border-dashed border-[hsl(214,20%,80%)] bg-[hsl(210,20%,98%)]'}`}>
                       <div className="px-3 py-2">
                         <div className="flex items-center gap-2 mb-1.5">
                           <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${publishToWebsite ? 'bg-emerald-500' : 'bg-[hsl(214,20%,85%)]'}`}>
@@ -2330,13 +2360,13 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             type="date"
                             value={publishToWebsite}
                             onChange={(e) => setPublishToWebsite(e.target.value)}
-                            className="input-base flex-1 font-mono text-xs min-h-[30px]"
+                            className="input-base flex-1 font-mono text-xs min-h-[28px]"
                             min={new Date().toISOString().split('T')[0]}
                           />
                           <button
                             onClick={() => handleSavePublishToWebsite(publishToWebsite)}
                             disabled={!publishToWebsite || publishingSaving}
-                            className="btn-primary py-1 px-3 text-xs min-h-[30px] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                            className="btn-primary py-1 px-3 text-xs min-h-[28px] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                           >
                             {publishingSaving ? (
                               <><Icon name="LoaderIcon" size={11} className="animate-spin" />Saving…</>
@@ -2398,6 +2428,112 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                     )}
                   </div>
                 )}
+              </div>
+
+                {/* Key Log section — next to Pricing & Listing */}
+                <div className="sm:w-72 border border-amber-200 rounded-lg overflow-hidden bg-amber-50/30">
+                  <div className="px-3 pt-1.5 pb-1.5 bg-amber-50 border-b border-amber-200">
+                    <div className="flex items-center gap-2">
+                      <Icon name="KeyIcon" size={13} className="text-amber-600 flex-shrink-0" />
+                      <span className="text-xs font-semibold text-amber-800">Key Log</span>
+                      {keyLogSaving && (
+                        <span className="ml-auto flex items-center gap-1 text-[9px] text-amber-600">
+                          <Icon name="LoaderIcon" size={9} className="animate-spin" />
+                          Saving…
+                        </span>
+                      )}
+                      {!keyLogSaving && keyLog?.id && (
+                        <span className="ml-auto flex items-center gap-1 text-[9px] text-emerald-600">
+                          <Icon name="CheckIcon" size={9} />
+                          Saved
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {keyLogLoading ? (
+                    <div className="px-3 py-4 flex items-center justify-center">
+                      <Icon name="LoaderIcon" size={16} className="animate-spin text-amber-500" />
+                    </div>
+                  ) : keyLog !== null ? (
+                    <div className="px-3 py-2 space-y-2">
+                      {/* Key */}
+                      <div>
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Key</label>
+                        <select
+                          value={keyLog.key_status}
+                          onChange={(e) => autoSaveKeyLog({ key_status: e.target.value })}
+                          className="input-base w-full text-xs min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                        >
+                          <option value="">— Select —</option>
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      {/* Key Number */}
+                      <div>
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Key Number</label>
+                        <input
+                          type="text"
+                          value={keyLog.key_number}
+                          onChange={(e) => setKeyLog((prev) => prev ? { ...prev, key_number: e.target.value } : prev)}
+                          onBlur={(e) => autoSaveKeyLog({ key_number: e.target.value })}
+                          placeholder="e.g. K-001"
+                          className="input-base w-full text-xs font-mono min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                        />
+                      </div>
+                      {/* Sole Agent */}
+                      <div>
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Sole Agent</label>
+                        <select
+                          value={keyLog.sole_agent}
+                          onChange={(e) => autoSaveKeyLog({ sole_agent: e.target.value })}
+                          className="input-base w-full text-xs min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                        >
+                          <option value="">— Select —</option>
+                          <option value="Homes R Us">Homes R Us</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      {/* Sole Agent Name */}
+                      <div>
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Sole Agent Name</label>
+                        <input
+                          type="text"
+                          value={keyLog.sole_agent_name}
+                          onChange={(e) => setKeyLog((prev) => prev ? { ...prev, sole_agent_name: e.target.value } : prev)}
+                          onBlur={(e) => autoSaveKeyLog({ sole_agent_name: e.target.value })}
+                          placeholder="Agent name"
+                          className="input-base w-full text-xs min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                        />
+                      </div>
+                      {/* Sole Agent Valid From */}
+                      <div className="relative">
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Valid From</label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="date"
+                            value={keyLog.sole_agent_valid_from}
+                            onChange={(e) => autoSaveKeyLog({ sole_agent_valid_from: e.target.value })}
+                            className="input-base w-full text-xs font-mono min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                          />
+                        </div>
+                      </div>
+                      {/* Sole Agent Valid To */}
+                      <div className="relative">
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Valid To</label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="date"
+                            value={keyLog.sole_agent_valid_to}
+                            onChange={(e) => autoSaveKeyLog({ sole_agent_valid_to: e.target.value })}
+                            className="input-base w-full text-xs font-mono min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               {/* 2. Property Specifications — compact */}

@@ -259,50 +259,139 @@ function ContactsPopover({ prop }: { prop: Property }) {
 
 // ── Key location popover content ───────────────────────────────────────────────
 function KeyLocationPopover({ prop }: { prop: Property }) {
-  if (!prop.keyLocation) {
-    return <p className="text-xs text-[hsl(215,15%,52%)] italic">No key location recorded</p>;
-  }
-  const { type, keyNumber, agentName, agentPhone } = prop.keyLocation;
+  const [keyLogData, setKeyLogData] = React.useState<{
+    key_status: string;
+    key_number: string;
+    sole_agent: string;
+    sole_agent_name: string;
+    sole_agent_valid_from: string;
+    sole_agent_valid_to: string;
+  } | null>(null);
+  const [keyLogLoaded, setKeyLogLoaded] = React.useState(false);
+
+  React.useEffect(() => {
+    const propRef = (prop as any).ref || prop.unit;
+    if (!propRef) { setKeyLogLoaded(true); return; }
+    const supabase = createClient();
+    supabase
+      .from('key_log')
+      .select('key_status, key_number, sole_agent, sole_agent_name, sole_agent_valid_from, sole_agent_valid_to')
+      .eq('property_ref', propRef)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setKeyLogData({
+            key_status: data[0].key_status ?? '',
+            key_number: data[0].key_number ?? '',
+            sole_agent: data[0].sole_agent ?? '',
+            sole_agent_name: data[0].sole_agent_name ?? '',
+            sole_agent_valid_from: data[0].sole_agent_valid_from ?? '',
+            sole_agent_valid_to: data[0].sole_agent_valid_to ?? '',
+          });
+        }
+        setKeyLogLoaded(true);
+      });
+  }, [(prop as any).ref, prop.unit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="space-y-1.5">
-      <p className="text-[11px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Key Location</p>
-      {type === 'office' && (
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#1B4F8A]/10 text-[#1B4F8A] text-xs font-semibold">
-            <Icon name="BuildingIcon" size={11} />
-            Office {keyNumber ? `#${keyNumber}` : ''}
-          </span>
+    <div className="space-y-2">
+      {/* Key Location section */}
+      {prop.keyLocation ? (
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide">Key Location</p>
+          {prop.keyLocation.type === 'office' && (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#1B4F8A]/10 text-[#1B4F8A] text-xs font-semibold">
+                <Icon name="BuildingIcon" size={11} />
+                Office {prop.keyLocation.keyNumber ? `#${prop.keyLocation.keyNumber}` : ''}
+              </span>
+            </div>
+          )}
+          {prop.keyLocation.type === 'agent' && (
+            <div className="space-y-0.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+                <Icon name="UserIcon" size={11} />
+                With Agent
+              </span>
+              {prop.keyLocation.agentName && <p className="text-xs text-[hsl(215,25%,18%)] font-medium mt-1">{prop.keyLocation.agentName}</p>}
+              {prop.keyLocation.agentPhone && (
+                <p className="text-[11px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                  <Icon name="PhoneIcon" size={10} className="text-[hsl(215,15%,62%)]" />
+                  {prop.keyLocation.agentPhone}
+                </p>
+              )}
+            </div>
+          )}
+          {prop.keyLocation.type === 'landlord' && (
+            <div className="space-y-0.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                <Icon name="HomeIcon" size={11} />
+                With Landlord
+              </span>
+              <p className="text-xs text-[hsl(215,25%,18%)] font-medium mt-1">{prop.landlord.name}</p>
+              {prop.landlord.phone && (
+                <p className="text-[11px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                  <Icon name="PhoneIcon" size={10} className="text-[hsl(215,15%,62%)]" />
+                  {prop.landlord.phone}
+                </p>
+              )}
+            </div>
+          )}
         </div>
+      ) : (
+        <p className="text-xs text-[hsl(215,15%,52%)] italic">No key location recorded</p>
       )}
-      {type === 'agent' && (
-        <div className="space-y-0.5">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
-            <Icon name="UserIcon" size={11} />
-            With Agent
-          </span>
-          {agentName && <p className="text-xs text-[hsl(215,25%,18%)] font-medium mt-1">{agentName}</p>}
-          {agentPhone && (
-            <p className="text-[11px] text-[hsl(215,15%,52%)] flex items-center gap-1">
-              <Icon name="PhoneIcon" size={10} className="text-[hsl(215,15%,62%)]" />
-              {agentPhone}
-            </p>
+
+      {/* Key Log section */}
+      {keyLogLoaded && keyLogData && (keyLogData.key_status || keyLogData.key_number || keyLogData.sole_agent || keyLogData.sole_agent_name) && (
+        <div className="border-t border-amber-200 pt-2 mt-1 space-y-1">
+          <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide flex items-center gap-1">
+            <Icon name="KeyIcon" size={10} className="text-amber-600" />
+            Key Log
+          </p>
+          {keyLogData.key_status && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-[hsl(215,15%,52%)]">Key:</span>
+              <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${keyLogData.key_status === 'Yes' ? 'bg-emerald-100 text-emerald-700' : keyLogData.key_status === 'No' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                {keyLogData.key_status}
+              </span>
+            </div>
+          )}
+          {keyLogData.key_number && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-[hsl(215,15%,52%)]">Key No:</span>
+              <span className="text-[11px] font-mono font-semibold text-[hsl(215,25%,18%)]">{keyLogData.key_number}</span>
+            </div>
+          )}
+          {keyLogData.sole_agent && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-[hsl(215,15%,52%)]">Sole Agent:</span>
+              <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{keyLogData.sole_agent}</span>
+            </div>
+          )}
+          {keyLogData.sole_agent_name && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-[hsl(215,15%,52%)]">Agent Name:</span>
+              <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{keyLogData.sole_agent_name}</span>
+            </div>
+          )}
+          {(keyLogData.sole_agent_valid_from || keyLogData.sole_agent_valid_to) && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-[hsl(215,15%,52%)]">Valid:</span>
+              <span className="text-[11px] text-[hsl(215,25%,18%)]">
+                {keyLogData.sole_agent_valid_from ? new Date(keyLogData.sole_agent_valid_from).toLocaleDateString('en-HK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                {' → '}
+                {keyLogData.sole_agent_valid_to ? new Date(keyLogData.sole_agent_valid_to).toLocaleDateString('en-HK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+              </span>
+            </div>
           )}
         </div>
       )}
-      {type === 'landlord' && (
-        <div className="space-y-0.5">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
-            <Icon name="HomeIcon" size={11} />
-            With Landlord
-          </span>
-          <p className="text-xs text-[hsl(215,25%,18%)] font-medium mt-1">{prop.landlord.name}</p>
-          {prop.landlord.phone && (
-            <p className="text-[11px] text-[hsl(215,15%,52%)] flex items-center gap-1">
-              <Icon name="PhoneIcon" size={10} className="text-[hsl(215,15%,62%)]" />
-              {prop.landlord.phone}
-            </p>
-          )}
+      {!keyLogLoaded && (
+        <div className="border-t border-amber-200 pt-2 mt-1 flex items-center gap-1 text-[11px] text-amber-600">
+          <Icon name="LoaderIcon" size={10} className="animate-spin" />
+          Loading key log…
         </div>
       )}
     </div>
@@ -2100,24 +2189,20 @@ export default function PropertyManagementClient() {
                           <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>
                         )}
                       </td>
-                      {/* Key Location — icon + popover */}
+                      {/* Key Location — icon + popover (always shown, loads key log on hover) */}
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                        {prop.keyLocation ? (
-                          <Popover
-                            trigger={
-                              <button
-                                className="p-1.5 rounded-lg hover:bg-[hsl(210,15%,92%)] transition-colors group/key"
-                                title="View key location"
-                              >
-                                <Icon name="KeyIcon" size={15} className="text-amber-600 group-hover/key:text-amber-700" />
-                              </button>
-                            }
-                          >
-                            <KeyLocationPopover prop={prop} />
-                          </Popover>
-                        ) : (
-                          <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>
-                        )}
+                        <Popover
+                          trigger={
+                            <button
+                              className="p-1.5 rounded-lg hover:bg-[hsl(210,15%,92%)] transition-colors group/key"
+                              title="View key info"
+                            >
+                              <Icon name="KeyIcon" size={15} className={prop.keyLocation ? 'text-amber-600 group-hover/key:text-amber-700' : 'text-[hsl(215,15%,72%)] group-hover/key:text-amber-500'} />
+                            </button>
+                          }
+                        >
+                          <KeyLocationPopover prop={prop} />
+                        </Popover>
                       </td>
                       <td className="px-3 py-2">
                         <p className="text-xs text-[hsl(215,25%,18%)] whitespace-nowrap">{prop.owner ?? prop.landlord.name}</p>

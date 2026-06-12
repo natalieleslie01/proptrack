@@ -2392,6 +2392,7 @@ export default function PropertyManagementClient() {
         <PropertyDetailModal
           property={selectedProperty}
           onClose={() => setSelectedProperty(null)}
+          onSaved={fetchProperties}
         />
       )}
 

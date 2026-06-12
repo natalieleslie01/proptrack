@@ -20,6 +20,7 @@ import PhotoGalleryV2 from './PhotoGalleryV2';
 interface PropertyDetailModalProps {
   property: Property;
   onClose: () => void;
+  onSaved?: () => void;
 }
 
 type Tab = 'overview' | 'tenancy' | 'documents' | 'transactions' | 'hk-forms' | 'history';
@@ -69,7 +70,7 @@ interface TenancyAgreementDoc {
   notes?: string;
 }
 
-export default function PropertyDetailModal({ property, onClose }: PropertyDetailModalProps) {
+export default function PropertyDetailModal({ property, onClose, onSaved }: PropertyDetailModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [generatingForm, setGeneratingForm] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -1341,7 +1342,10 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
       .eq('id', property.id)
       .then(({ error }) => {
         if (error) toast.error('Failed to save: ' + error.message);
-        else toast.success('Saved');
+        else {
+          toast.success('Saved');
+          onSaved?.();
+        }
       });
   }
 

@@ -174,9 +174,8 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
           body * { visibility: hidden !important; }
           #bulk-viewing-schedule-print, #bulk-viewing-schedule-print * { visibility: visible !important; }
           #bulk-viewing-schedule-print {
-            position: fixed; inset: 0;
+            position: absolute; top: 0; left: 0;
             background: white;
-            width: 100%;
           }
           .no-print { display: none !important; }
           .page-break { page-break-before: always; }

@@ -35,9 +35,9 @@ export default function MigrateAgentCommentsPage() {
       <div className="bg-white rounded-xl shadow-md border border-gray-200 max-w-lg w-full p-8">
         <h1 className="text-xl font-semibold text-gray-800 mb-2">Migrate Agent Comments → Advertising Remarks</h1>
         <p className="text-sm text-gray-500 mb-6">
-          This will copy all content from the <strong>Agent Comments</strong> (notes) field into the{' '}
-          <strong>Advertising Remarks</strong> (p_english) field for every property that has agent comments, then clear
-          the agent comments field. This action cannot be undone.
+          This will copy all content from the <strong>Agent Comments</strong> fields (<code className="text-xs bg-gray-100 px-1 rounded">notes</code> and <code className="text-xs bg-gray-100 px-1 rounded">p_eng_res</code>) into the{' '}
+          <strong>Advertising Remarks</strong> (<code className="text-xs bg-gray-100 px-1 rounded">p_english</code>) field for every property that has agent comments, then clear
+          the source fields. This action cannot be undone.
         </p>
 
         {status === 'idle' && (
@@ -79,6 +79,13 @@ export default function MigrateAgentCommentsPage() {
                 <p className="text-xs text-gray-500 mt-1">Failed</p>
               </div>
             </div>
+            {(result as MigrationResult & { debug?: { totalFetched: number; columnsChecked: string[] } }).debug && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-blue-700 text-xs font-medium mb-1">Debug info:</p>
+                <p className="text-blue-600 text-xs">Total rows fetched from DB: {(result as MigrationResult & { debug?: { totalFetched: number; columnsChecked: string[] } }).debug?.totalFetched}</p>
+                <p className="text-blue-600 text-xs">Columns checked: {(result as MigrationResult & { debug?: { totalFetched: number; columnsChecked: string[] } }).debug?.columnsChecked?.join(', ')}</p>
+              </div>
+            )}
             {result.errors && result.errors.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-40 overflow-y-auto">
                 <p className="text-red-700 text-xs font-medium mb-1">Errors:</p>

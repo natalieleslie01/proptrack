@@ -1,90 +1,75 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST() {
   try {
-    const supabase = createAdminClient();
+    // Build admin client inline — avoids any cached/stale module issues
+    const supabaseUrl = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
+    const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').replace(/\s+/g, '');
 
-    // Fetch all properties — we need to check notes, p_eng_res, and p_english
-    // agentNotes in the UI is: row.notes || row.p_english || row.p_eng_res
-    // We want to find properties where notes OR p_eng_res has content (those are the "Agent Comments")
-    // p_english is the Advertising Remarks destination
-    let allProperties: {
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json(
+        { error: `Missing env vars. URL present: ${!!supabaseUrl}, Key present: ${!!serviceRoleKey}` },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    // ── Step 1: fetch ALL properties in pages (no filter — let JS decide) ──
+    type PropRow = {
       id: string;
       notes: string | null;
       p_eng_res: string | null;
       p_english: string | null;
-    }[] = [];
+      [key: string]: unknown;
+    };
+
+    let allProperties: PropRow[] = [];
     let from = 0;
     const PAGE = 1000;
 
-    // Fetch properties where notes OR p_eng_res is non-empty (these are the agent comment sources)
     while (true) {
       const { data, error } = await supabase
         .from('properties')
         .select('id, notes, p_eng_res, p_english')
-        .or('notes.neq.,p_eng_res.neq.')
-        .not('notes', 'is', null)
         .range(from, from + PAGE - 1);
 
       if (error) {
-        // If the OR query fails, fall back to separate queries
-        break;
+        return NextResponse.json(
+          { error: `DB fetch error: ${error.message}`, hint: error.hint, details: error.details },
+          { status: 500 }
+        );
       }
+
       if (!data || data.length === 0) break;
-      allProperties = allProperties.concat(
-        data as { id: string; notes: string | null; p_eng_res: string | null; p_english: string | null }[]
-      );
+      allProperties = allProperties.concat(data as PropRow[]);
       if (data.length < PAGE) break;
       from += PAGE;
     }
 
-    // Also fetch properties where p_eng_res is non-empty but notes is null/empty
-    let from2 = 0;
-    while (true) {
-      const { data, error } = await supabase
-        .from('properties')
-        .select('id, notes, p_eng_res, p_english')
-        .not('p_eng_res', 'is', null)
-        .neq('p_eng_res', '')
-        .range(from2, from2 + PAGE - 1);
+    const totalFetched = allProperties.length;
 
-      if (error) break;
-      if (!data || data.length === 0) break;
+    // ── Step 2: inspect actual column values to understand data shape ──
+    const columnStats = {
+      notes_non_null: allProperties.filter((p) => p.notes !== null && p.notes !== undefined).length,
+      notes_non_empty: allProperties.filter((p) => (p.notes ?? '').trim().length > 0).length,
+      p_eng_res_non_null: allProperties.filter((p) => p.p_eng_res !== null && p.p_eng_res !== undefined).length,
+      p_eng_res_non_empty: allProperties.filter((p) => (p.p_eng_res ?? '').trim().length > 0).length,
+      p_english_non_empty: allProperties.filter((p) => (p.p_english ?? '').trim().length > 0).length,
+    };
 
-      // Add only if not already in allProperties
-      for (const row of data as { id: string; notes: string | null; p_eng_res: string | null; p_english: string | null }[]) {
-        if (!allProperties.find((p) => p.id === row.id)) {
-          allProperties.push(row);
-        }
-      }
-      if (data.length < PAGE) break;
-      from2 += PAGE;
-    }
+    // Sample first 3 rows for debugging
+    const sampleRows = allProperties.slice(0, 3).map((p) => ({
+      id: p.id,
+      notes_preview: p.notes ? String(p.notes).substring(0, 80) : null,
+      p_eng_res_preview: p.p_eng_res ? String(p.p_eng_res).substring(0, 80) : null,
+      p_english_preview: p.p_english ? String(p.p_english).substring(0, 80) : null,
+    }));
 
-    // Also fetch properties where notes is non-empty
-    let from3 = 0;
-    while (true) {
-      const { data, error } = await supabase
-        .from('properties')
-        .select('id, notes, p_eng_res, p_english')
-        .not('notes', 'is', null)
-        .neq('notes', '')
-        .range(from3, from3 + PAGE - 1);
-
-      if (error) break;
-      if (!data || data.length === 0) break;
-
-      for (const row of data as { id: string; notes: string | null; p_eng_res: string | null; p_english: string | null }[]) {
-        if (!allProperties.find((p) => p.id === row.id)) {
-          allProperties.push(row);
-        }
-      }
-      if (data.length < PAGE) break;
-      from3 += PAGE;
-    }
-
-    // Filter to only properties that actually have agent comment content
+    // ── Step 3: filter to properties that have agent comment content ──
     const propertiesWithComments = allProperties.filter((p) => {
       const notesVal = (p.notes ?? '').trim();
       const pEngResVal = (p.p_eng_res ?? '').trim();
@@ -96,29 +81,31 @@ export async function POST() {
         success: true,
         message: 'No properties with agent comments found in notes or p_eng_res columns.',
         updated: 0,
+        total: 0,
+        failed: 0,
         debug: {
-          totalFetched: allProperties.length,
+          totalFetched,
+          columnStats,
+          sampleRows,
           columnsChecked: ['notes', 'p_eng_res'],
         },
       });
     }
 
+    // ── Step 4: migrate — copy to p_english, clear source fields ──
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
 
-    // Process in batches of 50
     const BATCH_SIZE = 50;
     for (let i = 0; i < propertiesWithComments.length; i += BATCH_SIZE) {
       const batch = propertiesWithComments.slice(i, i + BATCH_SIZE);
 
       await Promise.all(
         batch.map(async (prop) => {
-          // Combine agent comment sources: notes takes priority, then p_eng_res
           const notesVal = (prop.notes ?? '').trim();
           const pEngResVal = (prop.p_eng_res ?? '').trim();
 
-          // Build the agent comment text (combine both if both have content)
           let agentComment = '';
           if (notesVal && pEngResVal && notesVal !== pEngResVal) {
             agentComment = `${notesVal}\n\n${pEngResVal}`;
@@ -126,22 +113,16 @@ export async function POST() {
             agentComment = notesVal || pEngResVal;
           }
 
-          if (!agentComment) return; // Nothing to migrate
+          if (!agentComment) return;
 
           const existingRemarks = (prop.p_english ?? '').trim();
-
-          // Merge: if advertising remarks already has content, append; otherwise replace
           const newRemarks = existingRemarks
             ? `${existingRemarks}\n\n${agentComment}`
             : agentComment;
 
           const { error } = await supabase
             .from('properties')
-            .update({
-              p_english: newRemarks,
-              notes: null,
-              p_eng_res: null,
-            })
+            .update({ p_english: newRemarks, notes: null, p_eng_res: null })
             .eq('id', prop.id);
 
           if (error) {
@@ -161,6 +142,12 @@ export async function POST() {
       updated: successCount,
       failed: errorCount,
       errors: errors.slice(0, 50),
+      debug: {
+        totalFetched,
+        columnStats,
+        sampleRows,
+        columnsChecked: ['notes', 'p_eng_res'],
+      },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

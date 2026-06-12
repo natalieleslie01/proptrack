@@ -2111,12 +2111,13 @@ export default function PropertyManagementClient() {
                           {/* Flat / Unit number */}
                           {(() => {
                             const parsed = parseFlatFromShortCode(prop.shortCode);
+                            const buildingPrefix = (prop as any).buildingName ? `${(prop as any).buildingName}, ` : '';
                             if (parsed) {
                               return (
                                 <p className="text-xs font-bold text-[hsl(215,25%,18%)] leading-tight">
                                   {parsed.floor && (prop as any).buildingType === 'High Rise'
-                                    ? `Floor ${parsed.floor}, Unit ${parsed.flat}`
-                                    : `Unit ${parsed.flat}`}
+                                    ? `${buildingPrefix}Floor ${parsed.floor}, Unit ${parsed.flat}`
+                                    : `${buildingPrefix}Unit ${parsed.flat}`}
                                 </p>
                               );
                             }
@@ -2125,17 +2126,14 @@ export default function PropertyManagementClient() {
                               return (
                                 <p className="text-xs font-bold text-[hsl(215,25%,18%)] leading-tight">
                                   {prop.floor && (prop as any).buildingType === 'High Rise'
-                                    ? `Floor ${prop.floor}, Unit ${prop.unit}`
-                                    : `Unit ${prop.unit}`}
+                                    ? `${buildingPrefix}Floor ${prop.floor}, Unit ${prop.unit}`
+                                    : `${buildingPrefix}Unit ${prop.unit}`}
                                 </p>
                               );
                             }
                             return null;
                           })()}
-                          {/* Building Name */}
-                          {(prop as any).buildingName && (
-                            <p className="text-[11px] font-semibold text-[#1B4F8A] leading-tight">{(prop as any).buildingName}</p>
-                          )}
+                          {/* Building Name — now shown inline in main label above */}
                           {/* Village */}
                           {prop.village && (
                             <p className="text-[11px] text-[hsl(215,15%,52%)] leading-tight">{prop.village}</p>

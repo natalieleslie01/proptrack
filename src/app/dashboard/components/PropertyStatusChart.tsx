@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
-import { usePropertiesRealtime } from '@/hooks/useRealtimeSync';
+import { usePropertiesChangeListener } from '@/contexts/PropertiesRealtimeContext';
 
 interface DistrictData {
   district: string;
@@ -96,7 +96,7 @@ export default function PropertyStatusChart() {
   }, [fetchData]);
 
   // ── Real-time: refetch chart when properties change ────────────────────────
-  usePropertiesRealtime(() => {
+  usePropertiesChangeListener(() => {
     fetchData();
   });
 

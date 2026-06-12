@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Icon from '@/components/ui/AppIcon';
 import { createClient } from '@/lib/supabase/client';
-import { usePropertiesRealtime } from '@/hooks/useRealtimeSync';
+import { usePropertiesChangeListener } from '@/contexts/PropertiesRealtimeContext';
 import Link from 'next/link';
 
 interface MetricCardProps {
@@ -205,7 +205,7 @@ export default function MetricsBentoGrid() {
   }, [fetchKpis]);
 
   // ── Real-time: refetch KPIs when properties change ─────────────────────────
-  usePropertiesRealtime(() => {
+  usePropertiesChangeListener(() => {
     fetchKpis();
   });
 

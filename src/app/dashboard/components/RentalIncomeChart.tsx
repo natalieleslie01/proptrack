@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
-import { usePropertiesRealtime } from '@/hooks/useRealtimeSync';
+import { usePropertiesChangeListener } from '@/contexts/PropertiesRealtimeContext';
 
 interface MonthlyData {
   month: string;
@@ -137,7 +137,7 @@ export default function RentalIncomeChart() {
   }, [fetchData]);
 
   // ── Real-time: refetch chart when properties change ────────────────────────
-  usePropertiesRealtime(() => {
+  usePropertiesChangeListener(() => {
     fetchData();
   });
 

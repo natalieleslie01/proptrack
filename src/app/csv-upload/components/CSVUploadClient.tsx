@@ -497,7 +497,7 @@ function sanitizeRow(raw: Record<string, string>): DbPropertyRow | null {
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 type UploadStep = 'idle' | 'preview' | 'summary' | 'importing' | 'done';
-type ImportMode = 'upsert' | 'skip' | 'replace' | 'pricing-update';
+type ImportMode = 'upsert' | 'skip' | 'replace' | 'pricing-update' | 'update-by-shortcode';
 
 const BATCH_SIZE = 50;
 
@@ -651,6 +651,12 @@ export default function CSVUploadClient() {
         results.errors.slice(0, 5).forEach((e) => errors.push(`Parse error row ${e.row}: ${e.message}`));
         setParsedRows(rows);
         setParseErrors(errors);
+
+        // ── Auto-select update-by-shortcode mode when CSV has short_code but no pid ──
+        // This prevents duplicate creation — only updates existing records matched by short_code
+        if (hasShortCodeCol && !hasPidCol) {
+          setImportMode('update-by-shortcode');
+        }
       },
       error: (err) => {
         setParseErrors([`Failed to parse file: ${err.message}`]);
@@ -918,6 +924,83 @@ export default function CSVUploadClient() {
     let skipped = 0;
     const errors: string[] = [];
     const startTime = Date.now();
+
+    // ── update-by-shortcode mode: UPDATE only, never INSERT ──────────────────
+    if (importMode === 'update-by-shortcode') {
+      for (let i = 0; i < totalBatches; i++) {
+        if (abortRef.aborted) break;
+        const batch = parsedRows.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+        setCurrentBatch(i + 1);
+        setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'processing' } : b));
+
+        const batchErrors: string[] = [];
+        let batchSuccess = 0;
+        let batchSkipped = 0;
+
+        await Promise.all(batch.map(async (row) => {
+          const sc = row.short_code;
+          if (!sc) {
+            batchSkipped++;
+            return;
+          }
+
+          // Build update payload — exclude property_ref (the PID from IReM) and short_code itself
+          // Only include fields that are actually present/meaningful in this row
+          const { property_ref: _ref, short_code: _sc, ...updateFields } = row;
+
+          // Remove undefined values so we don't overwrite DB data with nulls
+          const updatePayload: Record<string, unknown> = {};
+          Object.entries(updateFields).forEach(([k, v]) => {
+            if (v !== undefined) updatePayload[k] = v;
+          });
+
+          if (Object.keys(updatePayload).length === 0) {
+            batchSkipped++;
+            return;
+          }
+
+          const { error, count } = await supabase
+            .from('properties')
+            .update(updatePayload)
+            .eq('short_code', sc)
+            .select('id', { count: 'exact', head: true });
+
+          if (error) {
+            batchErrors.push(`${sc}: ${error.message}`);
+            batchSkipped++;
+          } else if ((count ?? 0) === 0) {
+            batchErrors.push(`${sc}: no matching property found — skipped (not inserted)`);
+            batchSkipped++;
+          } else {
+            batchSuccess++;
+          }
+        }));
+
+        success += batchSuccess;
+        skipped += batchSkipped;
+        if (batchErrors.length > 0) {
+          errors.push(...batchErrors.slice(0, 5));
+          if (batchErrors.length > 5) errors.push(`…and ${batchErrors.length - 5} more in batch ${i + 1}`);
+          setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: `${batchErrors.length} row(s) skipped` } : b));
+        } else {
+          setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'success' } : b));
+        }
+      }
+
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      setSummary({ totalRows, success, skipped, errors, duration });
+      setStep('done');
+      trackEvent('csv_upload', {
+        total_rows: totalRows,
+        success_rows: success,
+        skipped_rows: skipped,
+        error_count: errors.length,
+        duration_seconds: duration,
+        import_mode: importMode,
+        file_name: file?.name ?? null,
+      });
+      return;
+    }
 
     for (let i = 0; i < totalBatches; i++) {
       if (abortRef.aborted) break;
@@ -1306,7 +1389,26 @@ export default function CSVUploadClient() {
             {!isPricingCsv && (
             <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl p-5">
               <h3 className="text-sm font-semibold text-[hsl(215,25%,18%)] mb-3">Import Mode</h3>
-              <div className="grid grid-cols-3 gap-3">
+              {importMode === 'update-by-shortcode' && (
+                <div className="mb-3 flex items-start gap-2 px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+                  <Icon name="InformationCircleIcon" size={14} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700">
+                    <strong>Update by Short Code mode auto-selected:</strong> This CSV has a <code className="font-mono bg-blue-100 px-1 rounded">short_code</code> column but no <code className="font-mono bg-blue-100 px-1 rounded">pid</code>. Only existing properties matched by short code will be updated — no new properties will be created.
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setImportMode('update-by-shortcode')}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${importMode === 'update-by-shortcode' ? 'border-[#8B1A2B] bg-[#8B1A2B]/5' : 'border-[hsl(214,20%,88%)] hover:border-[#8B1A2B]/30'}`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon name="PencilSquareIcon" size={15} className={importMode === 'update-by-shortcode' ? 'text-[#8B1A2B]' : 'text-[hsl(215,15%,52%)]'} />
+                    <span className={`text-sm font-semibold ${importMode === 'update-by-shortcode' ? 'text-[#8B1A2B]' : 'text-[hsl(215,25%,18%)]'}`}>Update by Short Code</span>
+                    {importMode === 'update-by-shortcode' && <span className="ml-auto text-xs font-medium px-1.5 py-0.5 rounded-full bg-[#8B1A2B] text-white">Recommended</span>}
+                  </div>
+                  <p className="text-xs text-[hsl(215,15%,52%)]">Updates existing properties matched by <strong>short_code</strong> only. <strong className="text-[hsl(215,25%,18%)]">Never creates new properties.</strong> Unmatched rows are skipped.</p>
+                </button>
                 <button
                   onClick={() => setImportMode('upsert')}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${importMode === 'upsert' ? 'border-[#8B1A2B] bg-[#8B1A2B]/5' : 'border-[hsl(214,20%,88%)] hover:border-[#8B1A2B]/30'}`}
@@ -1314,7 +1416,6 @@ export default function CSVUploadClient() {
                   <div className="flex items-center gap-2 mb-1">
                     <Icon name="RefreshCwIcon" size={15} className={importMode === 'upsert' ? 'text-[#8B1A2B]' : 'text-[hsl(215,15%,52%)]'} />
                     <span className={`text-sm font-semibold ${importMode === 'upsert' ? 'text-[#8B1A2B]' : 'text-[hsl(215,25%,18%)]'}`}>Upsert — Merge &amp; Update</span>
-                    {importMode === 'upsert' && <span className="ml-auto text-xs font-medium px-1.5 py-0.5 rounded-full bg-[#8B1A2B] text-white">Recommended</span>}
                   </div>
                   <p className="text-xs text-[hsl(215,15%,52%)]">Merges new data into existing properties and inserts any new ones. <strong className="text-[hsl(215,25%,18%)]">Does not delete anything.</strong></p>
                 </button>

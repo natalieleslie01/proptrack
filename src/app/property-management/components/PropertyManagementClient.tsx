@@ -587,7 +587,9 @@ function dbRowToProperty(row: Record<string, any>): Property {
       ? new Date(row.updated_at).toLocaleDateString('en-GB')
       : '',
     updatedBy: '',
-    agentNotes: row.notes || row.p_english || row.p_eng_res || '',
+    agentNotes: row.notes || row.p_eng_res || '',
+    engRemark: row.p_english || '',
+    chiRemark: row.p_chinese || '',
     photos: [],
     hasFloorPlan: false,
     comments: [],

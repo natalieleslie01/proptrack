@@ -2693,9 +2693,8 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                           </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
               </div>
 
               {/* 3. Agent Comments */}

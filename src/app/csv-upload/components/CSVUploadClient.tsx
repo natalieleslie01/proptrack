@@ -927,6 +927,27 @@ export default function CSVUploadClient() {
 
     // ── update-by-shortcode mode: UPDATE only, never INSERT ──────────────────
     if (importMode === 'update-by-shortcode') {
+      // Pre-fetch all properties: build case-insensitive short_code → id map
+      let scToId = new Map<string, string>(); // UPPER(short_code.trim()) → property id
+      {
+        let from = 0;
+        const PAGE = 1000;
+        while (true) {
+          const { data, error } = await supabase
+            .from('properties')
+            .select('id, short_code')
+            .range(from, from + PAGE - 1);
+          if (error || !data || data.length === 0) break;
+          (data as { id: string; short_code: string | null }[]).forEach((row) => {
+            if (row.short_code) {
+              scToId.set(row.short_code.trim().toUpperCase(), row.id);
+            }
+          });
+          if (data.length < PAGE) break;
+          from += PAGE;
+        }
+      }
+
       for (let i = 0; i < totalBatches; i++) {
         if (abortRef.aborted) break;
         const batch = parsedRows.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
@@ -959,17 +980,23 @@ export default function CSVUploadClient() {
             return;
           }
 
-          const { error, count } = await supabase
+          // Case-insensitive lookup via pre-fetched map
+          const lookupKey = sc.trim().toUpperCase();
+          const propertyId = scToId.get(lookupKey);
+
+          if (!propertyId) {
+            batchErrors.push(`${sc}: no matching property found — skipped (not inserted)`);
+            batchSkipped++;
+            return;
+          }
+
+          const { error } = await supabase
             .from('properties')
             .update(updatePayload)
-            .eq('short_code', sc)
-            .select('id', { count: 'exact', head: true });
+            .eq('id', propertyId);
 
           if (error) {
             batchErrors.push(`${sc}: ${error.message}`);
-            batchSkipped++;
-          } else if ((count ?? 0) === 0) {
-            batchErrors.push(`${sc}: no matching property found — skipped (not inserted)`);
             batchSkipped++;
           } else {
             batchSuccess++;
@@ -1123,6 +1150,28 @@ export default function CSVUploadClient() {
     const errors: string[] = [];
     const startTime = Date.now();
 
+    // ── Pre-fetch all properties: build case-insensitive short_code → id map ──
+    // This avoids case/whitespace mismatch when matching by short_code
+    let shortCodeToId = new Map<string, string>(); // UPPER(short_code.trim()) → property id
+    {
+      let from = 0;
+      const PAGE = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('properties')
+          .select('id, short_code')
+          .range(from, from + PAGE - 1);
+        if (error || !data || data.length === 0) break;
+        (data as { id: string; short_code: string | null }[]).forEach((row) => {
+          if (row.short_code) {
+            shortCodeToId.set(row.short_code.trim().toUpperCase(), row.id);
+          }
+        });
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+    }
+
     for (let i = 0; i < totalBatches; i++) {
       if (abortRef.aborted) break;
       const batch = pricingRows.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
@@ -1130,7 +1179,7 @@ export default function CSVUploadClient() {
       setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'processing' } : b));
 
       try {
-        // For each row in the batch, update the matching property by short_code
+        // For each row in the batch, update the matching property by id (looked up via short_code)
         const batchErrors: string[] = [];
         let batchSuccess = 0;
         let batchSkipped = 0;
@@ -1149,17 +1198,23 @@ export default function CSVUploadClient() {
             return;
           }
 
-          const { error, count } = await supabase
+          // Case-insensitive lookup: normalise the CSV short_code to UPPER for map lookup
+          const lookupKey = pRow.short_code.trim().toUpperCase();
+          const propertyId = shortCodeToId.get(lookupKey);
+
+          if (!propertyId) {
+            batchErrors.push(`${pRow.short_code}: no matching property found`);
+            batchSkipped++;
+            return;
+          }
+
+          const { error } = await supabase
             .from('properties')
             .update(updatePayload)
-            .eq('short_code', pRow.short_code)
-            .select('id', { count: 'exact', head: true });
+            .eq('id', propertyId);
 
           if (error) {
             batchErrors.push(`${pRow.short_code}: ${error.message}`);
-            batchSkipped++;
-          } else if ((count ?? 0) === 0) {
-            batchErrors.push(`${pRow.short_code}: no matching property found`);
             batchSkipped++;
           } else {
             batchSuccess++;

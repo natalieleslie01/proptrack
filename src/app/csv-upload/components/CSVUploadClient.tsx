@@ -925,92 +925,54 @@ export default function CSVUploadClient() {
     const errors: string[] = [];
     const startTime = Date.now();
 
-    // ── update-by-shortcode mode: UPDATE only, never INSERT ──────────────────
+    // ── update-by-shortcode mode: UPDATE only via server API (bypasses RLS) ──
     if (importMode === 'update-by-shortcode') {
-      // Pre-fetch all properties: build case-insensitive short_code → id map
-      let scToId = new Map<string, string>(); // UPPER(short_code.trim()) → property id
-      {
-        let from = 0;
-        const PAGE = 1000;
-        while (true) {
-          const { data, error } = await supabase
-            .from('properties')
-            .select('id, short_code')
-            .range(from, from + PAGE - 1);
-          if (error || !data || data.length === 0) break;
-          (data as { id: string; short_code: string | null }[]).forEach((row) => {
-            if (row.short_code) {
-              scToId.set(row.short_code.trim().toUpperCase(), row.id);
-            }
-          });
-          if (data.length < PAGE) break;
-          from += PAGE;
-        }
-      }
+      // Build rows for the API: each row needs short_code + update fields
+      const apiRows = parsedRows.map((row) => {
+        const { property_ref: _ref, ...rest } = row;
+        // Remove undefined values
+        const cleaned: Record<string, unknown> = {};
+        Object.entries(rest).forEach(([k, v]) => {
+          if (v !== undefined) cleaned[k] = v;
+        });
+        return cleaned;
+      }).filter((r) => r.short_code);
 
       for (let i = 0; i < totalBatches; i++) {
         if (abortRef.aborted) break;
-        const batch = parsedRows.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+        const batchRows = apiRows.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
         setCurrentBatch(i + 1);
         setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'processing' } : b));
 
-        const batchErrors: string[] = [];
-        let batchSuccess = 0;
-        let batchSkipped = 0;
-
-        await Promise.all(batch.map(async (row) => {
-          const sc = row.short_code;
-          if (!sc) {
-            batchSkipped++;
-            return;
-          }
-
-          // Build update payload — exclude property_ref (the PID from IReM) and short_code itself
-          // Only include fields that are actually present/meaningful in this row
-          const { property_ref: _ref, short_code: _sc, ...updateFields } = row;
-
-          // Remove undefined values so we don't overwrite DB data with nulls
-          const updatePayload: Record<string, unknown> = {};
-          Object.entries(updateFields).forEach(([k, v]) => {
-            if (v !== undefined) updatePayload[k] = v;
+        try {
+          const res = await fetch('/api/csv-bulk-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows: batchRows, mode: 'update-by-shortcode' }),
           });
+          const result = await res.json();
 
-          if (Object.keys(updatePayload).length === 0) {
-            batchSkipped++;
-            return;
-          }
-
-          // Case-insensitive lookup via pre-fetched map
-          const lookupKey = sc.trim().toUpperCase();
-          const propertyId = scToId.get(lookupKey);
-
-          if (!propertyId) {
-            batchErrors.push(`${sc}: no matching property found — skipped (not inserted)`);
-            batchSkipped++;
-            return;
-          }
-
-          const { error } = await supabase
-            .from('properties')
-            .update(updatePayload)
-            .eq('id', propertyId);
-
-          if (error) {
-            batchErrors.push(`${sc}: ${error.message}`);
-            batchSkipped++;
+          if (!res.ok || !result.success) {
+            const msg = result.error || `Batch ${i + 1} failed`;
+            errors.push(`Batch ${i + 1}: ${msg}`);
+            skipped += batchRows.length;
+            setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: msg } : b));
           } else {
-            batchSuccess++;
+            success += result.successCount ?? 0;
+            skipped += result.skippedCount ?? 0;
+            if (result.errors && result.errors.length > 0) {
+              errors.push(...result.errors.slice(0, 5));
+              if (result.errorCount > 5) errors.push(`…and ${result.errorCount - 5} more in batch ${i + 1}`);
+              setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: `${result.errorCount} row(s) skipped` } : b));
+            } else {
+              setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'success' } : b));
+            }
           }
-        }));
-
-        success += batchSuccess;
-        skipped += batchSkipped;
-        if (batchErrors.length > 0) {
-          errors.push(...batchErrors.slice(0, 5));
-          if (batchErrors.length > 5) errors.push(`…and ${batchErrors.length - 5} more in batch ${i + 1}`);
-          setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: `${batchErrors.length} row(s) skipped` } : b));
-        } else {
-          setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'success' } : b));
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Unexpected error';
+          errors.push(`Batch ${i + 1}: ${msg}`);
+          skipped += batchRows.length;
+          setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: msg } : b));
         }
       }
 
@@ -1150,28 +1112,6 @@ export default function CSVUploadClient() {
     const errors: string[] = [];
     const startTime = Date.now();
 
-    // ── Pre-fetch all properties: build case-insensitive short_code → id map ──
-    // This avoids case/whitespace mismatch when matching by short_code
-    let shortCodeToId = new Map<string, string>(); // UPPER(short_code.trim()) → property id
-    {
-      let from = 0;
-      const PAGE = 1000;
-      while (true) {
-        const { data, error } = await supabase
-          .from('properties')
-          .select('id, short_code')
-          .range(from, from + PAGE - 1);
-        if (error || !data || data.length === 0) break;
-        (data as { id: string; short_code: string | null }[]).forEach((row) => {
-          if (row.short_code) {
-            shortCodeToId.set(row.short_code.trim().toUpperCase(), row.id);
-          }
-        });
-        if (data.length < PAGE) break;
-        from += PAGE;
-      }
-    }
-
     for (let i = 0; i < totalBatches; i++) {
       if (abortRef.aborted) break;
       const batch = pricingRows.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
@@ -1179,56 +1119,39 @@ export default function CSVUploadClient() {
       setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'processing' } : b));
 
       try {
-        // For each row in the batch, update the matching property by id (looked up via short_code)
-        const batchErrors: string[] = [];
-        let batchSuccess = 0;
-        let batchSkipped = 0;
+        // Build API rows: include only fields that are present in each pricing row
+        const apiRows = batch.map((pRow) => {
+          const rowPayload: Record<string, unknown> = { short_code: pRow.short_code };
+          if ('asking_price' in pRow) rowPayload.asking_price = pRow.asking_price; // null clears it
+          if ('asking_rent' in pRow) rowPayload.asking_rent = pRow.asking_rent;   // null clears it
+          if (pRow.p_english !== undefined) rowPayload.p_english = pRow.p_english;
+          if (pRow.publish_dt !== undefined) rowPayload.publish_dt = pRow.publish_dt;
+          if (pRow.status !== undefined) rowPayload.status = pRow.status;
+          return rowPayload;
+        });
 
-        await Promise.all(batch.map(async (pRow) => {
-          // Build the update payload — only include fields that are present
-          const updatePayload: Record<string, unknown> = {};
-          if ('asking_price' in pRow) updatePayload.asking_price = pRow.asking_price; // null clears it
-          if ('asking_rent' in pRow) updatePayload.asking_rent = pRow.asking_rent;   // null clears it
-          if (pRow.p_english !== undefined) updatePayload.p_english = pRow.p_english;
-          if (pRow.publish_dt !== undefined) updatePayload.publish_dt = pRow.publish_dt;
-          if (pRow.status !== undefined) updatePayload.status = pRow.status;
+        const res = await fetch('/api/csv-bulk-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: apiRows, mode: 'pricing-update' }),
+        });
+        const result = await res.json();
 
-          if (Object.keys(updatePayload).length === 0) {
-            batchSkipped++;
-            return;
-          }
-
-          // Case-insensitive lookup: normalise the CSV short_code to UPPER for map lookup
-          const lookupKey = pRow.short_code.trim().toUpperCase();
-          const propertyId = shortCodeToId.get(lookupKey);
-
-          if (!propertyId) {
-            batchErrors.push(`${pRow.short_code}: no matching property found`);
-            batchSkipped++;
-            return;
-          }
-
-          const { error } = await supabase
-            .from('properties')
-            .update(updatePayload)
-            .eq('id', propertyId);
-
-          if (error) {
-            batchErrors.push(`${pRow.short_code}: ${error.message}`);
-            batchSkipped++;
-          } else {
-            batchSuccess++;
-          }
-        }));
-
-        success += batchSuccess;
-        skipped += batchSkipped;
-        if (batchErrors.length > 0) {
-          errors.push(...batchErrors.slice(0, 5));
-          if (batchErrors.length > 5) errors.push(`…and ${batchErrors.length - 5} more in batch ${i + 1}`);
-          setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: `${batchErrors.length} row(s) failed` } : b));
+        if (!res.ok || !result.success) {
+          const msg = result.error || `Batch ${i + 1} failed`;
+          errors.push(`Batch ${i + 1}: ${msg}`);
+          skipped += batch.length;
+          setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: msg } : b));
         } else {
-          setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'success' } : b));
+          success += result.successCount ?? 0;
+          skipped += result.skippedCount ?? 0;
+          if (result.errors && result.errors.length > 0) {
+            errors.push(...result.errors.slice(0, 5));
+            if (result.errorCount > 5) errors.push(`…and ${result.errorCount - 5} more in batch ${i + 1}`);
+            setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: `${result.errorCount} row(s) failed` } : b));
+          } else {
+            setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'success' } : b));
+          }
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unexpected error';
@@ -1249,7 +1172,7 @@ export default function CSVUploadClient() {
       duration_seconds: duration,
       file_name: file?.name ?? null,
     });
-  }, [file, pricingRows, supabase, abortRef]);
+  }, [file, pricingRows, abortRef]);
 
   // ── Clear all properties then import ──────────────────────────────────────
 

@@ -538,7 +538,7 @@ function dbRowToProperty(row: Record<string, any>): Property {
   return {
     id: row.id,
     ref: row.property_ref as string || undefined,
-    unit: row.unit || row.property_ref || '',
+    unit: row.unit || row.block || '',
     building: row.building_name || row.area || row.tower || row.village || 'Discovery Bay',
     shortCode: row.short_code || undefined,
     district: row.village || 'Discovery Bay',

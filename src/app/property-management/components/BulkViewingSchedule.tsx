@@ -420,7 +420,7 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
       toast.error('Please enter the client name before printing');
       return;
     }
-    // Serialize all schedule data to localStorage, then open the dedicated print page
+    // Serialize all schedule data and pass via URL parameter (base64-encoded JSON)
     const printData = {
       properties,
       mode,
@@ -431,8 +431,8 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
       propertyTimes,
       photoUrls,
     };
-    localStorage.setItem('bulk-viewing-schedule-print', JSON.stringify(printData));
-    window.open('/print-viewing-schedule', '_blank');
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(printData))));
+    window.open(`/print-viewing-schedule?data=${encoded}`, '_blank');
   }
 
   return (

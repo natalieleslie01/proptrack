@@ -76,21 +76,22 @@ export default function PrintViewingSchedulePage() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('bulk-viewing-schedule-print');
-      if (!raw) {
+      const params = new URLSearchParams(window.location.search);
+      const encoded = params.get('data');
+      if (!encoded) {
         setError('No print data found. Please go back and try again.');
         return;
       }
-      const parsed: PrintData = JSON.parse(raw);
+      const jsonStr = decodeURIComponent(escape(atob(encoded)));
+      const parsed: PrintData = JSON.parse(jsonStr);
       setData(parsed);
     } catch {
-      setError('Failed to load print data.');
+      setError('Failed to load print data. The URL may be malformed.');
     }
   }, []);
 
   useEffect(() => {
     if (data) {
-      // Give images a moment to load before printing
       const timer = setTimeout(() => {
         window.print();
       }, 800);

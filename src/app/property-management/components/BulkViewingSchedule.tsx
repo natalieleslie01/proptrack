@@ -426,7 +426,7 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
                 const advertisingBullets = parseAdvertisingRemarks(advertisingText);
 
                 return (
-                  <div key={property.id} className={idx > 0 ? 'page-break pt-4' : ''}>
+                  <div key={property.id} className={idx > 0 ? 'pt-4' : ''}>
                     {/* Property heading row */}
                     <div className="flex items-start justify-between mb-1">
                       <div>

@@ -76,7 +76,7 @@ export default function PrintViewingSchedulePage() {
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem('bulk-viewing-schedule-print');
+      const raw = localStorage.getItem('bulk-viewing-schedule-print');
       if (!raw) {
         setError('No print data found. Please go back and try again.');
         return;

@@ -40,7 +40,7 @@ const navItems: NavItem[] = [
   { id: 'nav-viewings', label: 'Viewings', icon: 'CalendarIcon', href: '/agent-viewings', badge: 4, group: 'main' },
   { id: 'nav-calendar', label: 'Calendar', icon: 'CalendarDaysIcon', href: '/calendar', group: 'main' },
   { id: 'nav-landlords', label: 'Landlords', icon: 'UserIcon', href: '/landlords', group: 'main' },
-  { id: 'nav-transactions', label: 'Transactions', icon: 'ArrowLeftRightIcon', href: '/property-management', group: 'main' },
+  { id: 'nav-transactions', label: 'Transactions', icon: 'ArrowLeftRightIcon', href: '/transactions', group: 'main' },
   { id: 'nav-forms', label: 'HK Forms', icon: 'FileTextIcon', href: '/property-management', badge: 5, group: 'compliance' },
   { id: 'nav-commission', label: 'Commission', icon: 'BadgeDollarSignIcon', href: '/commission', group: 'compliance', minRole: 'manager' },
   { id: 'nav-reports', label: 'Reports', icon: 'BarChart3Icon', href: '/reports', group: 'compliance', minRole: 'manager' },
@@ -119,6 +119,7 @@ const ACTIVE_ROUTES: Record<string, string> = {
   'nav-sales-workflow': '/sales-workflow',
   'nav-workflow-summary': '/workflow-summary',
   'nav-landlords': '/landlords',
+  'nav-transactions': '/transactions',
 };
 
 function roleAllowed(itemMinRole: UserRole | undefined, userRole: UserRole | null): boolean {

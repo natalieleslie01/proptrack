@@ -315,11 +315,6 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   const [propertyStatusCode, setPropertyStatusCode] = useState<string>(
     (property as any).contactStatusCode != null ? String((property as any).contactStatusCode) : ''
   );
-  // Sole Agent & Key Log state
-  const [soleAgent, setSoleAgent] = useState<string>((property as any).soleAgent ?? '');
-  const [soleAgentName, setSoleAgentName] = useState<string>((property as any).soleAgentName ?? '');
-  const [keyStatus, setKeyStatus] = useState<string>((property as any).keyStatus ?? '');
-  const [keyNumberLocation, setKeyNumberLocation] = useState<string>((property as any).keyNumberLocation ?? '');
   const [editingPropertyDetails, setEditingPropertyDetails] = useState(false);
   const [editingWebsite, setEditingWebsite] = useState(false);
   const [websiteDraft, setWebsiteDraft] = useState<string>(property.websiteLink ?? '');
@@ -1979,7 +1974,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                 </div>
                 {!collapsedSections['identity'] && (
                   <div className="px-3 pb-2 pt-1">
-                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                       {/* Building Name */}
                       <div className="col-span-1 sm:col-span-2 bg-white border border-[#1B4F8A]/20 rounded-lg px-2.5 py-1.5">
                         <p className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
@@ -2082,9 +2077,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                 )}
               </div>
 
-              {/* 1. Pricing & Listing + Key Log — side by side */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5">
-              {/* 1a. Pricing & Listing Dates — compact */}
+              {/* 1. Pricing & Listing Dates — compact */}
               <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
                 <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
@@ -2095,10 +2088,10 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                 </div>
                 {!collapsedSections['pricing'] && (
                   <div className="px-3 pb-2 pt-1">
-                    {/* All pricing fields in a compact 4-5 col grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2">
+                    {/* Status & Listing Type dropdowns */}
+                    <div className="flex flex-wrap gap-3 mb-2">
                       <div>
-                        <label className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Status</label>
+                        <label className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Status:</label>
                         <select
                           value={propertyStatusCode}
                           onChange={(e) => {
@@ -2109,7 +2102,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                               toast.success('Status updated');
                             });
                           }}
-                          className="input-base w-full text-xs"
+                          className="input-base text-xs w-44"
                         >
                           <option value="">---</option>
                           <option value="0">Active</option>
@@ -2122,7 +2115,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </select>
                       </div>
                       <div>
-                        <label className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Listing Type</label>
+                        <label className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Listing Type:</label>
                         <select
                           value={listingType}
                           onChange={(e) => {
@@ -2133,7 +2126,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                               toast.success('Listing type updated');
                             });
                           }}
-                          className="input-base w-full text-xs"
+                          className="input-base text-xs w-44"
                         >
                           <option value="">----</option>
                           <option value="Sale">Sale</option>
@@ -2141,145 +2134,158 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           <option value="Rent & Sale">Rent &amp; Sale</option>
                         </select>
                       </div>
-                      <div>
-                        <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Sale Price (HKD)</label>
-                        <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_price', e.target.value)} placeholder="e.g. 8500000" className="input-base w-full font-mono text-xs" />
-                        {salePrice && <p className="text-[9px] text-[hsl(215,15%,52%)] mt-0.5">≈ HK${(Number(salePrice) / 1000000).toFixed(2)}M</p>}
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Rental Price / Month</label>
-                        <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_rent', e.target.value)} placeholder="e.g. 28500" className="input-base w-full font-mono text-xs" />
-                        {rentalPrice && <p className="text-[9px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo</p>}
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Gross Sqft</label>
-                        <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} placeholder="e.g. 1200" className="input-base w-full font-mono text-xs" />
-                      </div>
-                      <div className="relative">
-                        <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Listing Date</label>
-                        <div className="flex items-center gap-1">
-                          <input type="text" value={listingDate} onChange={(e) => setListingDate(e.target.value)} onBlur={(e) => autoSavePricingDate('listing_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
-                          <button
-                            type="button"
-                            onClick={() => { setShowListingCalendar(!showListingCalendar); setShowVacantCalendar(false); }}
-                            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
-                            title="Open calendar"
-                          >
-                            <Icon name="CalendarIcon" size={13} />
-                          </button>
-                        </div>
-                        {showListingCalendar && (
-                          <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
-                            <div className="flex items-center justify-between mb-2">
-                              <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                <Icon name="ChevronLeftIcon" size={14} />
-                              </button>
-                              <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                                {listingCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                              </span>
-                              <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                <Icon name="ChevronRightIcon" size={14} />
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-7 mb-1">
-                              {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                                <div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>
-                              ))}
-                            </div>
-                            <div className="grid grid-cols-7 gap-y-0.5">
-                              {(() => {
-                                const year = listingCalMonth.getFullYear();
-                                const month = listingCalMonth.getMonth();
-                                const firstDay = new Date(year, month, 1).getDay();
-                                const daysInMonth = new Date(year, month + 1, 0).getDate();
-                                const cells: React.ReactNode[] = [];
-                                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
-                                for (let day = 1; day <= daysInMonth; day++) {
-                                  const dd = String(day).padStart(2, '0');
-                                  const mm = String(month + 1).padStart(2, '0');
-                                  const dateStr = `${dd}/${mm}/${year}`;
-                                  const isSelected = listingDate === dateStr;
-                                  cells.push(
-                                    <button key={day} type="button"
-                                      onClick={() => { setListingDate(dateStr); setShowListingCalendar(false); autoSavePricingDate('listing_date', dateStr); }}
-                                      className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}
-                                    >{day}</button>
-                                  );
-                                }
-                                return cells;
-                              })()}
-                            </div>
-                            {listingDate && (
-                              <button type="button" onClick={() => { setListingDate(''); setShowListingCalendar(false); autoSavePricingDate('listing_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
-                                Clear date
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="relative">
-                        <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Vacant Date</label>
-                        <div className="flex items-center gap-1">
-                          <input type="text" value={vacantDate} onChange={(e) => setVacantDate(e.target.value)} onBlur={(e) => autoSavePricingDate('vacant_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
-                          <button
-                            type="button"
-                            onClick={() => { setShowVacantCalendar(!showVacantCalendar); setShowListingCalendar(false); }}
-                            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
-                            title="Open calendar"
-                          >
-                            <Icon name="CalendarIcon" size={13} />
-                          </button>
-                        </div>
-                        {showVacantCalendar && (
-                          <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
-                            <div className="flex items-center justify-between mb-2">
-                              <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                <Icon name="ChevronLeftIcon" size={14} />
-                              </button>
-                              <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                                {vacantCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                              </span>
-                              <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                <Icon name="ChevronRightIcon" size={14} />
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-7 mb-1">
-                              {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                                <div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>
-                              ))}
-                            </div>
-                            <div className="grid grid-cols-7 gap-y-0.5">
-                              {(() => {
-                                const year = vacantCalMonth.getFullYear();
-                                const month = vacantCalMonth.getMonth();
-                                const firstDay = new Date(year, month, 1).getDay();
-                                const daysInMonth = new Date(year, month + 1, 0).getDate();
-                                const cells: React.ReactNode[] = [];
-                                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
-                                for (let day = 1; day <= daysInMonth; day++) {
-                                  const dd = String(day).padStart(2, '0');
-                                  const mm = String(month + 1).padStart(2, '0');
-                                  const dateStr = `${dd}/${mm}/${year}`;
-                                  const isSelected = vacantDate === dateStr;
-                                  cells.push(
-                                    <button key={day} type="button"
-                                      onClick={() => { setVacantDate(dateStr); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', dateStr); }}
-                                      className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}
-                                    >{day}</button>
-                                  );
-                                }
-                                return cells;
-                              })()}
-                            </div>
-                            {vacantDate && (
-                              <button type="button" onClick={() => { setVacantDate(''); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
-                                Clear date
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
                     </div>
+                    {/* Pricing fields — always editable */}
+                    <div className="space-y-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                          <div>
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Sale Price (HKD)</label>
+                            <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_price', e.target.value)} placeholder="e.g. 8500000" className="input-base w-full font-mono text-xs" />
+                            {salePrice && <p className="text-[9px] text-[hsl(215,15%,52%)] mt-0.5">≈ HK${(Number(salePrice) / 1000000).toFixed(2)}M</p>}
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Rental Price / Month</label>
+                            <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_rent', e.target.value)} placeholder="e.g. 28500" className="input-base w-full font-mono text-xs" />
+                            {rentalPrice && <p className="text-[9px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo</p>}
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Gross Sqft</label>
+                            <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} placeholder="e.g. 1200" className="input-base w-full font-mono text-xs" />
+                          </div>
+                          <div className="relative">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Listing Date</label>
+                            <div className="flex items-center gap-1">
+                              <input type="text" value={listingDate} onChange={(e) => setListingDate(e.target.value)} onBlur={(e) => autoSavePricingDate('listing_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
+                              <button
+                                type="button"
+                                onClick={() => { setShowListingCalendar(!showListingCalendar); setShowVacantCalendar(false); }}
+                                className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
+                                title="Open calendar"
+                              >
+                                <Icon name="CalendarIcon" size={13} />
+                              </button>
+                            </div>
+                            {showListingCalendar && (
+                              <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
+                                {/* Month navigation */}
+                                <div className="flex items-center justify-between mb-2">
+                                  <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
+                                    <Icon name="ChevronLeftIcon" size={14} />
+                                  </button>
+                                  <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">
+                                    {listingCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                                  </span>
+                                  <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
+                                    <Icon name="ChevronRightIcon" size={14} />
+                                  </button>
+                                </div>
+                                {/* Day headers */}
+                                <div className="grid grid-cols-7 mb-1">
+                                  {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+                                    <div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>
+                                  ))}
+                                </div>
+                                {/* Days grid */}
+                                <div className="grid grid-cols-7 gap-y-0.5">
+                                  {(() => {
+                                    const year = listingCalMonth.getFullYear();
+                                    const month = listingCalMonth.getMonth();
+                                    const firstDay = new Date(year, month, 1).getDay();
+                                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                                    const cells: React.ReactNode[] = [];
+                                    for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
+                                    for (let day = 1; day <= daysInMonth; day++) {
+                                      const dd = String(day).padStart(2, '0');
+                                      const mm = String(month + 1).padStart(2, '0');
+                                      const dateStr = `${dd}/${mm}/${year}`;
+                                      const isSelected = listingDate === dateStr;
+                                      cells.push(
+                                        <button key={day} type="button"
+                                          onClick={() => { setListingDate(dateStr); setShowListingCalendar(false); autoSavePricingDate('listing_date', dateStr); }}
+                                          className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}
+                                        >{day}</button>
+                                      );
+                                    }
+                                    return cells;
+                                  })()}
+                                </div>
+                                {/* Clear button */}
+                                {listingDate && (
+                                  <button type="button" onClick={() => { setListingDate(''); setShowListingCalendar(false); autoSavePricingDate('listing_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
+                                    Clear date
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Vacant Date</label>
+                            <div className="flex items-center gap-1">
+                              <input type="text" value={vacantDate} onChange={(e) => setVacantDate(e.target.value)} onBlur={(e) => autoSavePricingDate('vacant_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
+                              <button
+                                type="button"
+                                onClick={() => { setShowVacantCalendar(!showVacantCalendar); setShowListingCalendar(false); }}
+                                className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
+                                title="Open calendar"
+                              >
+                                <Icon name="CalendarIcon" size={13} />
+                              </button>
+                            </div>
+                            {showVacantCalendar && (
+                              <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
+                                {/* Month navigation */}
+                                <div className="flex items-center justify-between mb-2">
+                                  <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
+                                    <Icon name="ChevronLeftIcon" size={14} />
+                                  </button>
+                                  <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">
+                                    {vacantCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                                  </span>
+                                  <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
+                                    <Icon name="ChevronRightIcon" size={14} />
+                                  </button>
+                                </div>
+                                {/* Day headers */}
+                                <div className="grid grid-cols-7 mb-1">
+                                  {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+                                    <div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>
+                                  ))}
+                                </div>
+                                {/* Days grid */}
+                                <div className="grid grid-cols-7 gap-y-0.5">
+                                  {(() => {
+                                    const year = vacantCalMonth.getFullYear();
+                                    const month = vacantCalMonth.getMonth();
+                                    const firstDay = new Date(year, month, 1).getDay();
+                                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+                                    const cells: React.ReactNode[] = [];
+                                    for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
+                                    for (let day = 1; day <= daysInMonth; day++) {
+                                      const dd = String(day).padStart(2, '0');
+                                      const mm = String(month + 1).padStart(2, '0');
+                                      const dateStr = `${dd}/${mm}/${year}`;
+                                      const isSelected = vacantDate === dateStr;
+                                      cells.push(
+                                        <button key={day} type="button"
+                                          onClick={() => { setVacantDate(dateStr); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', dateStr); }}
+                                          className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}
+                                        >{day}</button>
+                                      );
+                                    }
+                                    return cells;
+                                  })()}
+                                </div>
+                                {/* Clear button */}
+                                {vacantDate && (
+                                  <button type="button" onClick={() => { setVacantDate(''); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
+                                    Clear date
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
 
                     {/* Publish to Website — always visible */}
                     <div className={`mt-2 rounded-lg border-2 overflow-hidden ${publishToWebsite ? 'border-emerald-300 bg-emerald-50' : 'border-dashed border-[hsl(214,20%,80%)] bg-[hsl(210,20%,98%)]'}`}>
@@ -2394,102 +2400,6 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                 )}
               </div>
 
-            {/* KEY LOG — side by side with Pricing & Listing */}
-            <div className="border border-amber-200 rounded-lg overflow-hidden bg-amber-50/30">
-              <div className="px-3 pt-1.5 pb-1.5 bg-amber-50">
-                <SectionHeader
-                  sectionKey="keylog"
-                  icon="KeyIcon"
-                  iconColor="text-amber-600"
-                  title="Key Log"
-                />
-              </div>
-              {!collapsedSections['keylog'] && (
-                <div className="px-3 pb-2 pt-1">
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {/* Sole Agent */}
-                    <div>
-                      <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Sole Agent</label>
-                      <select
-                        value={soleAgent}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setSoleAgent(val);
-                          const supabase = createClient();
-                          supabase.from('properties').update({ sole_agent: val || null } as any).eq('id', property.id).then(() => {
-                            toast.success('Sole agent updated');
-                          });
-                        }}
-                        className="input-base w-full text-xs"
-                      >
-                        <option value="">— Select —</option>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                      </select>
-                    </div>
-                    {/* Sole Agent Name */}
-                    <div>
-                      <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Sole Agent Name</label>
-                      <input
-                        type="text"
-                        value={soleAgentName}
-                        onChange={(e) => setSoleAgentName(e.target.value)}
-                        onBlur={(e) => {
-                          const val = e.target.value;
-                          const supabase = createClient();
-                          supabase.from('properties').update({ sole_agent_name: val || null } as any).eq('id', property.id).then(() => {
-                            toast.success('Sole agent name saved');
-                          });
-                        }}
-                        placeholder="Agent name"
-                        className="input-base w-full text-xs"
-                      />
-                    </div>
-                    {/* Key */}
-                    <div>
-                      <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Key</label>
-                      <select
-                        value={keyStatus}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setKeyStatus(val);
-                          const supabase = createClient();
-                          supabase.from('properties').update({ key_status: val || null } as any).eq('id', property.id).then(() => {
-                            toast.success('Key status updated');
-                          });
-                        }}
-                        className="input-base w-full text-xs"
-                      >
-                        <option value="">— Select —</option>
-                        <option value="yes">Yes</option>
-                        <option value="no">No</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-                    {/* Key Number / Location */}
-                    <div>
-                      <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Key Number / Location</label>
-                      <input
-                        type="text"
-                        value={keyNumberLocation}
-                        onChange={(e) => setKeyNumberLocation(e.target.value)}
-                        onBlur={(e) => {
-                          const val = e.target.value;
-                          const supabase = createClient();
-                          supabase.from('properties').update({ key_number_location: val || null } as any).eq('id', property.id).then(() => {
-                            toast.success('Key number/location saved');
-                          });
-                        }}
-                        placeholder="e.g. K-042 / Office drawer"
-                        className="input-base w-full text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            </div>{/* end side-by-side grid */}
-
               {/* 2. Property Specifications — compact */}
               <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
                 <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
@@ -2503,7 +2413,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   <div className="px-3 pb-2 pt-1">
                     {/* Property specs — always editable */}
                     <div className="space-y-2">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                           <div>
                             <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Bedrooms</label>
                             <select value={bedrooms} onChange={(e) => { const val = e.target.value; setBedrooms(val); autoSaveSpecsField({ bedrooms: val === 'Studio' ? 0 : val ? Number(val) : null }); }} className="input-base w-full min-h-[34px] text-xs">

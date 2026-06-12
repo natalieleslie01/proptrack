@@ -62,7 +62,7 @@ export default function LoginClient() {
     try {
       await signIn(data.email, data.password);
       toast.success(`Welcome back!`);
-      window.location.href = '/dashboard';
+      router.push('/dashboard');
     } catch (err: any) {
       const msg: string = err?.message || '';
       if (msg.toLowerCase().includes('email not confirmed')) {

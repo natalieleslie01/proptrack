@@ -1623,7 +1623,7 @@ export default function PropertyManagementClient() {
         {/* Search fields grid */}
         <div className="bg-white divide-y divide-[hsl(36,25%,88%)]">
           {/* Row 1: Keyword, S.Price Min/Max, Availability, Directions, Beds, Unit */}
-          <div className="grid grid-cols-7 divide-x divide-[hsl(36,25%,88%)]">
+          <div className="grid grid-cols-8 divide-x divide-[hsl(36,25%,88%)]">
             {/* Keyword / Fast Key */}
             <div className="flex items-center gap-1.5 px-3 py-2">
               <input
@@ -1635,7 +1635,7 @@ export default function PropertyManagementClient() {
               />
             </div>
             {/* S.Price Min / Max */}
-            <div className="flex items-center gap-1 px-3 py-2 col-span-1">
+            <div className="flex items-center gap-1 px-3 py-2 col-span-2">
               <input
                 type="number"
                 placeholder="S.Pr Min"
@@ -1703,7 +1703,7 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* Unit */}
-            <div className="flex items-center gap-1.5 px-3 py-2 col-span-2">
+            <div className="flex items-center gap-1.5 px-3 py-2 col-span-1">
               <input
                 type="text"
                 placeholder="Unit"
@@ -1716,7 +1716,7 @@ export default function PropertyManagementClient() {
           </div>
 
           {/* Row 2: Active, L.Price Min/Max, Features, Views, Bathrooms, Contact Person */}
-          <div className="grid grid-cols-7 divide-x divide-[hsl(36,25%,88%)]">
+          <div className="grid grid-cols-8 divide-x divide-[hsl(36,25%,88%)]">
             {/* Active */}
             <div className="flex items-center px-3 py-2">
               <select
@@ -1735,7 +1735,7 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* Range 20-30 */}
-            <div className="flex items-center gap-1 px-3 py-2">
+            <div className="flex items-center gap-1 px-3 py-2 col-span-2">
               <input
                 type="number"
                 placeholder="L.Pr Min"
@@ -1794,7 +1794,7 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* Contact Person */}
-            <div className="flex items-center gap-1.5 px-3 py-2 col-span-2">
+            <div className="flex items-center gap-1.5 px-3 py-2 col-span-1">
               <input
                 type="text"
                 placeholder="Contact Person"
@@ -1807,7 +1807,7 @@ export default function PropertyManagementClient() {
           </div>
 
           {/* Row 3: Rent, G.Size Min/Max, Furnishing, Property Type, Decorations, Phone Number */}
-          <div className="grid grid-cols-7 divide-x divide-[hsl(36,25%,88%)]">
+          <div className="grid grid-cols-8 divide-x divide-[hsl(36,25%,88%)]">
             {/* Rent type */}
             <div className="flex items-center px-3 py-2">
               <select
@@ -1824,7 +1824,7 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* G.Size Min / Max */}
-            <div className="flex items-center gap-1 px-3 py-2">
+            <div className="flex items-center gap-1 px-3 py-2 col-span-2">
               <input
                 type="number"
                 placeholder="G.Sz Min"
@@ -1885,7 +1885,7 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* Phone Number */}
-            <div className="flex items-center gap-1.5 px-3 py-2 col-span-2">
+            <div className="flex items-center gap-1.5 px-3 py-2 col-span-1">
               <input
                 type="text"
                 placeholder="Phone Number"

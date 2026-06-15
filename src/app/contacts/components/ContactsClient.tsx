@@ -774,18 +774,27 @@ export default function ContactsClient() {
   const fetchContacts = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('property_contacts')
-        .select('*')
-        .order('short_code', { ascending: true })
-        .order('contact_person', { ascending: true });
+      let allContacts: PropertyContact[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('property_contacts')
+          .select('*')
+          .order('short_code', { ascending: true })
+          .order('contact_person', { ascending: true })
+          .range(from, from + pageSize - 1);
 
-      if (error) {
-        console.error('Error fetching contacts:', error.message);
-        setContacts([]);
-      } else {
-        setContacts(data || []);
+        if (error) {
+          console.error('Error fetching contacts:', error.message);
+          break;
+        }
+        if (!data || data.length === 0) break;
+        allContacts = allContacts.concat(data as PropertyContact[]);
+        if (data.length < pageSize) break;
+        from += pageSize;
       }
+      setContacts(allContacts);
     } catch {
       setContacts([]);
     } finally {

@@ -1638,15 +1638,15 @@ export default function PropertyManagementClient() {
             <div className="flex items-center gap-1 px-3 py-2 col-span-2">
               <input
                 type="number"
-                placeholder="S.Pr Min"
+                placeholder="Sale Price Min"
                 value={sPriceMin}
                 onChange={(e) => { setSPriceMin(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
+              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 self-center" />
               <input
                 type="number"
-                placeholder="S.Pr Max"
+                placeholder="Sale Price Max"
                 value={sPriceMax}
                 onChange={(e) => { setSPriceMax(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
@@ -1738,15 +1738,15 @@ export default function PropertyManagementClient() {
             <div className="flex items-center gap-1 px-3 py-2 col-span-2">
               <input
                 type="number"
-                placeholder="L.Pr Min"
+                placeholder="Lease Price Min"
                 value={lPriceMin}
                 onChange={(e) => { setLPriceMin(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
+              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 self-center" />
               <input
                 type="number"
-                placeholder="L.Pr Max"
+                placeholder="Lease Price Max"
                 value={lPriceMax}
                 onChange={(e) => { setLPriceMax(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
@@ -1827,15 +1827,15 @@ export default function PropertyManagementClient() {
             <div className="flex items-center gap-1 px-3 py-2 col-span-2">
               <input
                 type="number"
-                placeholder="G.Sz Min"
+                placeholder="Gross Size Min"
                 value={gSizeMin}
                 onChange={(e) => { setGSizeMin(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
+              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 self-center" />
               <input
                 type="number"
-                placeholder="G.Sz Max"
+                placeholder="Gross Size Max"
                 value={gSizeMax}
                 onChange={(e) => { setGSizeMax(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
@@ -1917,15 +1917,15 @@ export default function PropertyManagementClient() {
             <div className="flex items-center gap-1 px-3 py-2">
               <input
                 type="number"
-                placeholder="S.Sz Min"
+                placeholder="Sale Size Min"
                 value={sSizeMin}
                 onChange={(e) => { setSSizeMin(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
+              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 self-center" />
               <input
                 type="number"
-                placeholder="S.Sz Max"
+                placeholder="Sale Size Max"
                 value={sSizeMax}
                 onChange={(e) => { setSSizeMax(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"

@@ -1628,7 +1628,7 @@ export default function PropertyManagementClient() {
             <div className="flex items-center gap-1.5 px-3 py-2">
               <input
                 type="text"
-                placeholder="Keyword / Fast Key"
+                placeholder="Keyword"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
@@ -1643,7 +1643,7 @@ export default function PropertyManagementClient() {
                 onChange={(e) => { setSPriceMin(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 self-center" />
+              <span className="flex items-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
                 placeholder="Sale Price Max"
@@ -1743,7 +1743,7 @@ export default function PropertyManagementClient() {
                 onChange={(e) => { setLPriceMin(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 self-center" />
+              <span className="flex items-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
                 placeholder="Lease Price Max"
@@ -1832,7 +1832,7 @@ export default function PropertyManagementClient() {
                 onChange={(e) => { setGSizeMin(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 self-center" />
+              <span className="flex items-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
                 placeholder="Gross Size Max"
@@ -1898,7 +1898,7 @@ export default function PropertyManagementClient() {
           </div>
 
           {/* Row 4: Villages, S.Size Min/Max, Floor From/To, Highlight */}
-          <div className="grid grid-cols-6 divide-x divide-[hsl(36,25%,88%)]">
+          <div className="grid grid-cols-7 divide-x divide-[hsl(36,25%,88%)]">
             {/* Villages */}
             <div className="flex items-center px-3 py-2">
               <select
@@ -1922,7 +1922,7 @@ export default function PropertyManagementClient() {
                 onChange={(e) => { setSSizeMin(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 self-center" />
+              <span className="flex items-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
                 placeholder="Sale Size Max"
@@ -1932,7 +1932,7 @@ export default function PropertyManagementClient() {
               />
             </div>
             {/* Floor From / To */}
-            <div className="flex items-center gap-1 px-3 py-2">
+            <div className="flex items-center gap-1 px-3 py-2 col-span-2">
               <input
                 type="number"
                 placeholder="Floor From"
@@ -1940,7 +1940,7 @@ export default function PropertyManagementClient() {
                 onChange={(e) => { setFloorFrom(e.target.value); setPage(1); }}
                 className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
+              <span className="flex items-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
                 placeholder="Floor To"

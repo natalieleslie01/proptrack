@@ -113,7 +113,7 @@ function parseCsv(text: string): CsvRow[] {
   // Detect numbered indices once from headers (not per-row)
   const numberedIndices = new Set<number>();
   headers.forEach((h) => {
-    const m = h.match(/^contact_(?:person|number|email|role|name)(\d+)$/);
+    const m = h.match(/^contact_(?:person|number|email|role|name)_?(\d+)$/);
     if (m) numberedIndices.add(parseInt(m[1], 10));
   });
   const sortedNumberedIndices = Array.from(numberedIndices).sort((a, b) => a - b);
@@ -144,8 +144,11 @@ function parseCsv(text: string): CsvRow[] {
       for (const idx of sortedNumberedIndices) {
         const contactPerson =
           row[`contact_person${idx}`] ||
+          row[`contact_person_${idx}`] ||
           row[`contact_name${idx}`] ||
+          row[`contact_name_${idx}`] ||
           row[`name${idx}`] ||
+          row[`name_${idx}`] ||
           '';
         if (!contactPerson) continue;
 
@@ -153,10 +156,10 @@ function parseCsv(text: string): CsvRow[] {
           short_code: shortCode,
           property_ref: propertyRef,
           contact_person: contactPerson,
-          contact_number: row[`contact_number${idx}`] || row[`phone${idx}`] || row[`mobile${idx}`] || '',
-          contact_email: row[`contact_email${idx}`] || row[`email${idx}`] || '',
-          contact_role: row[`contact_role${idx}`] || row[`role${idx}`] || 'owner',
-          notes: row[`notes${idx}`] || notes || '',
+          contact_number: row[`contact_number${idx}`] || row[`contact_number_${idx}`] || row[`phone${idx}`] || row[`phone_${idx}`] || row[`mobile${idx}`] || row[`mobile_${idx}`] || '',
+          contact_email: row[`contact_email${idx}`] || row[`contact_email_${idx}`] || row[`email${idx}`] || row[`email_${idx}`] || '',
+          contact_role: row[`contact_role${idx}`] || row[`contact_role_${idx}`] || row[`role${idx}`] || row[`role_${idx}`] || 'owner',
+          notes: row[`notes${idx}`] || row[`notes_${idx}`] || notes || '',
         });
         addedAny = true;
       }

@@ -1649,7 +1649,7 @@ export default function PropertyManagementClient() {
                 placeholder="Sale Price Max"
                 value={sPriceMax}
                 onChange={(e) => { setSPriceMax(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
+                className="min-w-0 flex-1 text-xs text-right text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Availability */}
@@ -1749,7 +1749,7 @@ export default function PropertyManagementClient() {
                 placeholder="Lease Price Max"
                 value={lPriceMax}
                 onChange={(e) => { setLPriceMax(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
+                className="min-w-0 flex-1 text-xs text-right text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Features */}
@@ -1838,7 +1838,7 @@ export default function PropertyManagementClient() {
                 placeholder="Gross Size Max"
                 value={gSizeMax}
                 onChange={(e) => { setGSizeMax(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
+                className="min-w-0 flex-1 text-xs text-right text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Furnishing */}
@@ -1928,7 +1928,7 @@ export default function PropertyManagementClient() {
                 placeholder="Sale Size Max"
                 value={sSizeMax}
                 onChange={(e) => { setSSizeMax(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
+                className="min-w-0 flex-1 text-xs text-right text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Floor From / To */}
@@ -1946,7 +1946,7 @@ export default function PropertyManagementClient() {
                 placeholder="Floor To"
                 value={floorTo}
                 onChange={(e) => { setFloorTo(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
+                className="min-w-0 flex-1 text-xs text-right text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Highlight */}

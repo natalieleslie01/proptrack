@@ -281,6 +281,143 @@ function PropertiesTab() {
   const [page, setPage] = useState(1);
   const perPage = 25;
 
+  // ─── Property Contact Panel state ─────────────────────────────────────────
+  const [selectedProperty, setSelectedProperty] = useState<DbProperty | null>(null);
+  const [propContacts, setPropContacts] = useState<PropertyContact[]>([]);
+  const [propContactsLoading, setPropContactsLoading] = useState(false);
+
+  // Edit state
+  const [editingContact, setEditingContact] = useState<PropertyContact | null>(null);
+  const [editForm, setEditForm] = useState<Partial<PropertyContact>>({});
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Add new contact state
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addForm, setAddForm] = useState({
+    contact_person: '',
+    contact_number: '',
+    contact_email: '',
+    contact_role: 'Owner' as string,
+    notes: '',
+  });
+  const [savingAdd, setSavingAdd] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const fetchPropContacts = useCallback(async (shortCode: string) => {
+    setPropContactsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('property_contacts')
+        .select('*')
+        .eq('short_code', shortCode)
+        .order('contact_person', { ascending: true });
+      if (error) throw error;
+      setPropContacts((data as PropertyContact[]) || []);
+    } catch {
+      setPropContacts([]);
+    } finally {
+      setPropContactsLoading(false);
+    }
+  }, [supabase]);
+
+  const handleSelectProperty = useCallback((p: DbProperty) => {
+    setSelectedProperty(p);
+    setEditingContact(null);
+    setShowAddForm(false);
+    setAddForm({ contact_person: '', contact_number: '', contact_email: '', contact_role: 'Owner', notes: '' });
+    if (p.short_code) fetchPropContacts(p.short_code);
+    else setPropContacts([]);
+  }, [fetchPropContacts]);
+
+  const handleClosePanel = () => {
+    setSelectedProperty(null);
+    setPropContacts([]);
+    setEditingContact(null);
+    setShowAddForm(false);
+  };
+
+  const handleStartEdit = (c: PropertyContact) => {
+    setEditingContact(c);
+    setEditForm({
+      contact_person: c.contact_person,
+      contact_number: c.contact_number,
+      contact_email: c.contact_email,
+      contact_role: c.contact_role,
+      notes: c.notes || '',
+    });
+    setShowAddForm(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingContact) return;
+    setSavingEdit(true);
+    try {
+      const { error } = await supabase
+        .from('property_contacts')
+        .update({
+          contact_person: editForm.contact_person || '',
+          contact_number: editForm.contact_number || '',
+          contact_email: editForm.contact_email || '',
+          contact_role: editForm.contact_role || 'Owner',
+          notes: editForm.notes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', editingContact.id);
+      if (!error) {
+        setPropContacts((prev) =>
+          prev.map((c) =>
+            c.id === editingContact.id
+              ? { ...c, ...editForm, notes: editForm.notes || null, updated_at: new Date().toISOString() }
+              : c
+          )
+        );
+        setEditingContact(null);
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteContact = async (id: string) => {
+    if (!window.confirm('Delete this contact?')) return;
+    setDeletingId(id);
+    try {
+      const { error } = await supabase.from('property_contacts').delete().eq('id', id);
+      if (!error) {
+        setPropContacts((prev) => prev.filter((c) => c.id !== id));
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleAddContact = async () => {
+    if (!selectedProperty?.short_code || !addForm.contact_person.trim()) return;
+    setSavingAdd(true);
+    try {
+      const { data, error } = await supabase
+        .from('property_contacts')
+        .insert({
+          short_code: selectedProperty.short_code,
+          property_ref: selectedProperty.property_ref || null,
+          contact_person: addForm.contact_person.trim(),
+          contact_number: addForm.contact_number.trim(),
+          contact_email: addForm.contact_email.trim(),
+          contact_role: addForm.contact_role,
+          notes: addForm.notes.trim() || null,
+        })
+        .select('*')
+        .single();
+      if (!error && data) {
+        setPropContacts((prev) => [...prev, data as PropertyContact]);
+        setAddForm({ contact_person: '', contact_number: '', contact_email: '', contact_role: 'Owner', notes: '' });
+        setShowAddForm(false);
+      }
+    } finally {
+      setSavingAdd(false);
+    }
+  };
+
   const fetchProperties = useCallback(async () => {
     setLoading(true);
     try {
@@ -679,7 +816,17 @@ function PropertiesTab() {
                   </tr>
                 ) : (
                   paginated.map((p, idx) => (
-                    <tr key={p.id} className={`border-b border-[hsl(214,20%,92%)] hover:bg-[hsl(210,15%,97%)] transition-colors ${idx % 2 !== 0 ? 'bg-[hsl(210,20%,98.5%)]' : ''}`}>
+                    <tr
+                      key={p.id}
+                      onClick={() => handleSelectProperty(p)}
+                      className={`border-b border-[hsl(214,20%,92%)] cursor-pointer transition-colors ${
+                        selectedProperty?.id === p.id
+                          ? 'bg-[#8B1A2B]/5 ring-1 ring-inset ring-[#8B1A2B]/20'
+                          : idx % 2 !== 0
+                          ? 'bg-[hsl(210,20%,98.5%)] hover:bg-[#8B1A2B]/5'
+                          : 'hover:bg-[#8B1A2B]/5'
+                      }`}
+                    >
                       <td className="px-3 py-2 font-mono font-semibold text-[hsl(215,25%,18%)] whitespace-nowrap">{p.short_code ?? '—'}</td>
                       <td className="px-3 py-2 text-[hsl(215,15%,42%)] whitespace-nowrap">{p.property_ref ?? '—'}</td>
                       <td className="px-3 py-2 text-[hsl(215,25%,28%)] whitespace-nowrap">{[p.unit, p.building_name].filter(Boolean).join(' ') || '—'}</td>
@@ -740,6 +887,282 @@ function PropertiesTab() {
           </div>
         )}
       </div>
+
+      {/* ── Property Contact Slide-Over Panel ── */}
+      {selectedProperty && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/30 z-40"
+            onClick={handleClosePanel}
+          />
+          {/* Panel */}
+          <div className="fixed right-0 top-0 h-full w-[480px] max-w-full bg-white shadow-2xl z-50 flex flex-col">
+            {/* Panel Header */}
+            <div className="flex-shrink-0 bg-[#8B1A2B] px-5 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <Icon name="BuildingOffice2Icon" size={16} className="text-white/80 flex-shrink-0" />
+                    <h2 className="text-base font-bold text-white truncate">{selectedProperty.short_code ?? 'Property'}</h2>
+                  </div>
+                  <p className="text-xs text-white/70 truncate">
+                    {[selectedProperty.unit, selectedProperty.building_name, selectedProperty.village].filter(Boolean).join(' · ') || 'No address details'}
+                  </p>
+                  {selectedProperty.property_ref && (
+                    <p className="text-xs text-white/50 mt-0.5">PID: {selectedProperty.property_ref}</p>
+                  )}
+                </div>
+                <button
+                  onClick={handleClosePanel}
+                  className="flex-shrink-0 p-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white transition-colors"
+                >
+                  <Icon name="XMarkIcon" size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Contacts List */}
+            <div className="flex-1 overflow-y-auto">
+              {propContactsLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <div className="w-6 h-6 border-2 border-[#8B1A2B]/20 border-t-[#8B1A2B] rounded-full animate-spin" />
+                </div>
+              ) : (
+                <div className="p-4 space-y-3">
+                  {propContacts.length === 0 && !showAddForm && (
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <Icon name="UsersIcon" size={32} className="text-[hsl(215,15%,72%)] mb-2" />
+                      <p className="text-sm font-semibold text-[hsl(215,25%,18%)]">No contacts yet</p>
+                      <p className="text-xs text-[hsl(215,15%,52%)] mt-1">Add the first contact for this property</p>
+                    </div>
+                  )}
+
+                  {propContacts.map((c) => (
+                    <div key={c.id} className="rounded-xl border border-[hsl(214,20%,88%)] bg-white overflow-hidden">
+                      {editingContact?.id === c.id ? (
+                        /* Edit Form */
+                        <div className="p-4 space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Name *</label>
+                              <input
+                                type="text"
+                                value={editForm.contact_person ?? ''}
+                                onChange={(e) => setEditForm((f) => ({ ...f, contact_person: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs border border-[hsl(214,20%,88%)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#8B1A2B]/30 focus:border-[#8B1A2B]/50"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Role</label>
+                              <select
+                                value={editForm.contact_role ?? 'Owner'}
+                                onChange={(e) => setEditForm((f) => ({ ...f, contact_role: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs border border-[hsl(214,20%,88%)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#8B1A2B]/30 focus:border-[#8B1A2B]/50 bg-white"
+                              >
+                                {CONTACT_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Phone</label>
+                              <input
+                                type="text"
+                                value={editForm.contact_number ?? ''}
+                                onChange={(e) => setEditForm((f) => ({ ...f, contact_number: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs border border-[hsl(214,20%,88%)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#8B1A2B]/30 focus:border-[#8B1A2B]/50"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Email</label>
+                              <input
+                                type="email"
+                                value={editForm.contact_email ?? ''}
+                                onChange={(e) => setEditForm((f) => ({ ...f, contact_email: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 text-xs border border-[hsl(214,20%,88%)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#8B1A2B]/30 focus:border-[#8B1A2B]/50"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Notes</label>
+                            <textarea
+                              value={editForm.notes ?? ''}
+                              onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                              rows={2}
+                              className="w-full px-2.5 py-1.5 text-xs border border-[hsl(214,20%,88%)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#8B1A2B]/30 focus:border-[#8B1A2B]/50 resize-none"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              onClick={handleSaveEdit}
+                              disabled={savingEdit || !editForm.contact_person?.trim()}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8B1A2B] text-white text-xs font-semibold rounded-lg hover:bg-[#7a1626] disabled:opacity-50 transition-colors"
+                            >
+                              {savingEdit ? <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> : <Icon name="CheckIcon" size={12} />}
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingContact(null)}
+                              className="px-3 py-1.5 text-xs font-semibold text-[hsl(215,15%,42%)] rounded-lg hover:bg-[hsl(210,15%,96%)] border border-[hsl(214,20%,88%)] transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Contact Card */
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className="text-sm font-semibold text-[hsl(215,25%,18%)] truncate">{c.contact_person}</span>
+                                <span className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded border font-semibold ${getRoleColor(c.contact_role)}`}>
+                                  {c.contact_role}
+                                </span>
+                              </div>
+                              {c.contact_number && (
+                                <div className="flex items-center gap-1.5 text-xs text-[hsl(215,15%,42%)] mb-0.5">
+                                  <Icon name="PhoneIcon" size={11} className="flex-shrink-0 text-[hsl(215,15%,60%)]" />
+                                  {c.contact_number}
+                                </div>
+                              )}
+                              {c.contact_email && (
+                                <div className="flex items-center gap-1.5 text-xs text-[hsl(215,15%,42%)] mb-0.5">
+                                  <Icon name="EnvelopeIcon" size={11} className="flex-shrink-0 text-[hsl(215,15%,60%)]" />
+                                  {c.contact_email}
+                                </div>
+                              )}
+                              {c.notes && (
+                                <p className="text-xs text-[hsl(215,15%,52%)] mt-1.5 italic">{c.notes}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => handleStartEdit(c)}
+                                className="p-1.5 rounded-lg text-[hsl(215,15%,52%)] hover:bg-[hsl(210,15%,94%)] hover:text-[#8B1A2B] transition-colors"
+                                title="Edit contact"
+                              >
+                                <Icon name="PencilSquareIcon" size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteContact(c.id)}
+                                disabled={deletingId === c.id}
+                                className="p-1.5 rounded-lg text-[hsl(215,15%,52%)] hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
+                                title="Delete contact"
+                              >
+                                {deletingId === c.id
+                                  ? <div className="w-3.5 h-3.5 border border-red-300 border-t-red-600 rounded-full animate-spin" />
+                                  : <Icon name="TrashIcon" size={14} />
+                                }
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Add Contact Form */}
+                  {showAddForm && (
+                    <div className="rounded-xl border-2 border-dashed border-[#8B1A2B]/30 bg-[#8B1A2B]/3 p-4 space-y-3">
+                      <p className="text-xs font-semibold text-[#8B1A2B] mb-2">New Contact</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Name *</label>
+                          <input
+                            type="text"
+                            placeholder="Full name"
+                            value={addForm.contact_person}
+                            onChange={(e) => setAddForm((f) => ({ ...f, contact_person: e.target.value }))}
+                            className="w-full px-2.5 py-1.5 text-xs border border-[hsl(214,20%,88%)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#8B1A2B]/30 focus:border-[#8B1A2B]/50 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Role</label>
+                          <select
+                            value={addForm.contact_role}
+                            onChange={(e) => setAddForm((f) => ({ ...f, contact_role: e.target.value }))}
+                            className="w-full px-2.5 py-1.5 text-xs border border-[hsl(214,20%,88%)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#8B1A2B]/30 focus:border-[#8B1A2B]/50 bg-white"
+                          >
+                            {CONTACT_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Phone</label>
+                          <input
+                            type="text"
+                            placeholder="Phone number"
+                            value={addForm.contact_number}
+                            onChange={(e) => setAddForm((f) => ({ ...f, contact_number: e.target.value }))}
+                            className="w-full px-2.5 py-1.5 text-xs border border-[hsl(214,20%,88%)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#8B1A2B]/30 focus:border-[#8B1A2B]/50 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Email</label>
+                          <input
+                            type="email"
+                            placeholder="Email address"
+                            value={addForm.contact_email}
+                            onChange={(e) => setAddForm((f) => ({ ...f, contact_email: e.target.value }))}
+                            className="w-full px-2.5 py-1.5 text-xs border border-[hsl(214,20%,88%)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#8B1A2B]/30 focus:border-[#8B1A2B]/50 bg-white"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Notes</label>
+                        <textarea
+                          placeholder="Optional notes…"
+                          value={addForm.notes}
+                          onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
+                          rows={2}
+                          className="w-full px-2.5 py-1.5 text-xs border border-[hsl(214,20%,88%)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#8B1A2B]/30 focus:border-[#8B1A2B]/50 resize-none bg-white"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          onClick={handleAddContact}
+                          disabled={savingAdd || !addForm.contact_person.trim()}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8B1A2B] text-white text-xs font-semibold rounded-lg hover:bg-[#7a1626] disabled:opacity-50 transition-colors"
+                        >
+                          {savingAdd ? <div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> : <Icon name="PlusIcon" size={12} />}
+                          Add Contact
+                        </button>
+                        <button
+                          onClick={() => setShowAddForm(false)}
+                          className="px-3 py-1.5 text-xs font-semibold text-[hsl(215,15%,42%)] rounded-lg hover:bg-[hsl(210,15%,96%)] border border-[hsl(214,20%,88%)] transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Panel Footer */}
+            <div className="flex-shrink-0 border-t border-[hsl(214,20%,88%)] px-4 py-3 bg-[hsl(210,20%,97%)]">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-[hsl(215,15%,52%)]">
+                  <span className="font-semibold text-[hsl(215,25%,18%)]">{propContacts.length}</span> contact{propContacts.length !== 1 ? 's' : ''}
+                </p>
+                {!showAddForm && (
+                  <button
+                    onClick={() => { setShowAddForm(true); setEditingContact(null); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8B1A2B] text-white text-xs font-semibold rounded-lg hover:bg-[#7a1626] transition-colors"
+                  >
+                    <Icon name="PlusIcon" size={13} />
+                    Add Contact
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -58,56 +58,90 @@ function getRoleColor(role: string): string {
 
 // ─── CSV Parser ───────────────────────────────────────────────────────────────
 
-function parseCsv(text: string): CsvRow[] {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return [];
+function detectDelimiter(firstLine: string): string {
+  const counts: Record<string, number> = { ',': 0, '\t': 0, ';': 0, '|': 0 };
+  let inQuotes = false;
+  for (const ch of firstLine) {
+    if (ch === '"') { inQuotes = !inQuotes; continue; }
+    if (!inQuotes && ch in counts) counts[ch]++;
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+}
 
-  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''));
+function splitLine(line: string, delimiter: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let j = 0; j < line.length; j++) {
+    const ch = line[j];
+    if (ch === '"') {
+      if (inQuotes && line[j + 1] === '"') {
+        current += '"';
+        j++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === delimiter && !inQuotes) {
+      values.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  values.push(current.trim());
+  return values;
+}
+
+function parseCsv(text: string): CsvRow[] {
+  // Strip BOM if present
+  const cleanText = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = cleanText.split('\n');
+
+  // Find first non-empty line as header
+  let headerLineIdx = 0;
+  while (headerLineIdx < lines.length && !lines[headerLineIdx].trim()) headerLineIdx++;
+  if (headerLineIdx >= lines.length - 1) return [];
+
+  const headerLine = lines[headerLineIdx];
+  const delimiter = detectDelimiter(headerLine);
+
+  const rawHeaders = splitLine(headerLine, delimiter);
+  const headers = rawHeaders.map((h) =>
+    h.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+  );
+
+  // Detect numbered indices once from headers (not per-row)
+  const numberedIndices = new Set<number>();
+  headers.forEach((h) => {
+    const m = h.match(/^contact_(?:person|number|email|role|name)(\d+)$/);
+    if (m) numberedIndices.add(parseInt(m[1], 10));
+  });
+  const sortedNumberedIndices = Array.from(numberedIndices).sort((a, b) => a - b);
+  const hasNumberedColumns = numberedIndices.size > 0;
 
   const rows: CsvRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
+
+  for (let i = headerLineIdx + 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Handle quoted fields
-    const values: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    for (let j = 0; j < line.length; j++) {
-      const ch = line[j];
-      if (ch === '"') {
-        inQuotes = !inQuotes;
-      } else if (ch === ',' && !inQuotes) {
-        values.push(current.trim());
-        current = '';
-      } else {
-        current += ch;
-      }
-    }
-    values.push(current.trim());
+    const values = splitLine(line, delimiter);
 
     const row: Record<string, string> = {};
     headers.forEach((h, idx) => {
-      row[h] = values[idx] || '';
+      row[h] = (values[idx] || '').trim();
     });
 
-    const shortCode = row['short_code'] || row['shortcode'] || row['short code'] || '';
+    const shortCode = row['short_code'] || row['shortcode'] || row['short_code_'] || row['short code'] || '';
     if (!shortCode) continue;
 
     const propertyRef = row['property_ref'] || row['pid'] || row['property_id'] || undefined;
     const notes = row['notes'] || row['note'] || '';
 
-    // ── Detect numbered contact columns (contact_person1, contact_number1, etc.) ──
-    const numberedIndices = new Set<number>();
-    headers.forEach((h) => {
-      const m = h.match(/^contact_(?:person|number|email|role|name)(\d+)$/);
-      if (m) numberedIndices.add(parseInt(m[1], 10));
-    });
-
-    if (numberedIndices.size > 0) {
+    if (hasNumberedColumns) {
       // Numbered columns mode — emit one row per numbered index that has a name
-      const sortedIndices = Array.from(numberedIndices).sort((a, b) => a - b);
-      for (const idx of sortedIndices) {
+      let addedAny = false;
+      for (const idx of sortedNumberedIndices) {
         const contactPerson =
           row[`contact_person${idx}`] ||
           row[`contact_name${idx}`] ||
@@ -124,6 +158,7 @@ function parseCsv(text: string): CsvRow[] {
           contact_role: row[`contact_role${idx}`] || row[`role${idx}`] || 'owner',
           notes: row[`notes${idx}`] || notes || '',
         });
+        addedAny = true;
       }
 
       // Also check for an un-numbered contact_person on the same row
@@ -138,18 +173,29 @@ function parseCsv(text: string): CsvRow[] {
           contact_role: row['contact_role'] || row['role'] || row['type'] || 'owner',
           notes: notes || '',
         });
+        addedAny = true;
       }
+
+      // If no numbered or base contact found, try any column that looks like a name
+      if (!addedAny) continue;
     } else {
       // Standard single-contact-per-row mode
-      const contactPerson = row['contact_person'] || row['name'] || row['contact_name'] || row['full_name'] || '';
+      const contactPerson =
+        row['contact_person'] ||
+        row['name'] ||
+        row['contact_name'] ||
+        row['full_name'] ||
+        row['person'] ||
+        row['contact'] ||
+        '';
       if (!contactPerson) continue;
 
       rows.push({
         short_code: shortCode,
         property_ref: propertyRef,
         contact_person: contactPerson,
-        contact_number: row['contact_number'] || row['phone'] || row['mobile'] || row['number'] || '',
-        contact_email: row['contact_email'] || row['email'] || '',
+        contact_number: row['contact_number'] || row['phone'] || row['mobile'] || row['number'] || row['phone_number'] || '',
+        contact_email: row['contact_email'] || row['email'] || row['email_address'] || '',
         contact_role: row['contact_role'] || row['role'] || row['type'] || 'owner',
         notes: notes || '',
       });
@@ -253,7 +299,14 @@ export default function ContactsClient() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
+      // Debug: log first 500 chars and line count
+      const cleanText = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const lines = cleanText.split('\n').filter(l => l.trim());
+      console.log('[CSV Debug] File:', file.name, '| Lines:', lines.length);
+      console.log('[CSV Debug] Header line:', lines[0]);
+      console.log('[CSV Debug] First data line:', lines[1]);
       const rows = parseCsv(text);
+      console.log('[CSV Debug] Parsed rows:', rows.length, rows.slice(0, 3));
       setCsvPreview(rows);
     };
     reader.readAsText(file);

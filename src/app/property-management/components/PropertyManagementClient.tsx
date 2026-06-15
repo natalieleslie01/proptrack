@@ -1635,21 +1635,21 @@ export default function PropertyManagementClient() {
               />
             </div>
             {/* S.Price Min / Max */}
-            <div className="flex items-center gap-1 px-3 py-2 col-span-3">
+            <div className="flex items-stretch gap-1 px-3 py-2 col-span-3">
               <input
                 type="number"
                 placeholder="Sale Price Min"
                 value={sPriceMin}
                 onChange={(e) => { setSPriceMin(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
-              <span className="flex items-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
+              <span className="flex items-center self-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
                 placeholder="Sale Price Max"
                 value={sPriceMax}
                 onChange={(e) => { setSPriceMax(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Availability */}
@@ -1735,21 +1735,21 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* Range 20-30 */}
-            <div className="flex items-center gap-1 px-3 py-2 col-span-3">
+            <div className="flex items-stretch gap-1 px-3 py-2 col-span-3">
               <input
                 type="number"
                 placeholder="Lease Price Min"
                 value={lPriceMin}
                 onChange={(e) => { setLPriceMin(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
-              <span className="flex items-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
+              <span className="flex items-center self-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
                 placeholder="Lease Price Max"
                 value={lPriceMax}
                 onChange={(e) => { setLPriceMax(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Features */}
@@ -1824,21 +1824,21 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* G.Size Min / Max */}
-            <div className="flex items-center gap-1 px-3 py-2 col-span-3">
+            <div className="flex items-stretch gap-1 px-3 py-2 col-span-3">
               <input
                 type="number"
                 placeholder="Gross Size Min"
                 value={gSizeMin}
                 onChange={(e) => { setGSizeMin(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
-              <span className="flex items-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
+              <span className="flex items-center self-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
                 placeholder="Gross Size Max"
                 value={gSizeMax}
                 onChange={(e) => { setGSizeMax(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Furnishing */}
@@ -1914,39 +1914,39 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* S.Size Min / Max */}
-            <div className="flex items-center gap-1 px-3 py-2 col-span-2">
+            <div className="flex items-stretch gap-1 px-3 py-2 col-span-2">
               <input
                 type="number"
                 placeholder="Sale Size Min"
                 value={sSizeMin}
                 onChange={(e) => { setSSizeMin(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
-              <span className="flex items-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
+              <span className="flex items-center self-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
                 placeholder="Sale Size Max"
                 value={sSizeMax}
                 onChange={(e) => { setSSizeMax(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Floor From / To */}
-            <div className="flex items-center gap-1 px-3 py-2 col-span-2">
+            <div className="flex items-stretch gap-1 px-3 py-2 col-span-2">
               <input
                 type="number"
                 placeholder="Floor From"
                 value={floorFrom}
                 onChange={(e) => { setFloorFrom(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
-              <span className="flex items-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
+              <span className="flex items-center self-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
                 placeholder="Floor To"
                 value={floorTo}
                 onChange={(e) => { setFloorTo(e.target.value); setPage(1); }}
-                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Highlight */}

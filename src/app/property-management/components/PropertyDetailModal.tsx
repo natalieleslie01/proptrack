@@ -95,6 +95,14 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
   const [importedContactDraft, setImportedContactDraft] = useState<{ contact_person: string; contact_number: string; contact_email: string; contact_role: string }>({ contact_person: '', contact_number: '', contact_email: '', contact_role: '' });
   const [savingImportedContact, setSavingImportedContact] = useState(false);
 
+  // Add Owner / Add Landlord inline form state
+  const [showAddOwnerForm, setShowAddOwnerForm] = useState(false);
+  const [showAddLandlordForm, setShowAddLandlordForm] = useState(false);
+  const [newOwnerDraft, setNewOwnerDraft] = useState({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' });
+  const [newLandlordDraft, setNewLandlordDraft] = useState({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' });
+  const [savingNewOwner, setSavingNewOwner] = useState(false);
+  const [savingNewLandlord, setSavingNewLandlord] = useState(false);
+
   // Gross sqft state
   const [grossSqft, setGrossSqft] = useState<string>(property.grossSqft ? String(property.grossSqft) : '');
   // Net sqft state
@@ -809,6 +817,86 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
       toast.error('Failed to save contact');
     } finally {
       setSavingImportedContact(false);
+    }
+  }
+
+  async function saveNewOwner() {
+    setSavingNewOwner(true);
+    try {
+      const supabase = createClient();
+      const propertyRef = property.ref || property.unit;
+      const shortCode = (property as Record<string, unknown>).shortCode as string | undefined;
+      const { data, error } = await supabase
+        .from('property_contacts')
+        .insert({
+          contact_role: 'Owner',
+          contact_person: newOwnerDraft.contact_person,
+          contact_number: newOwnerDraft.contact_number,
+          contact_email: newOwnerDraft.contact_email,
+          property_ref: propertyRef || null,
+          short_code: shortCode || null,
+        })
+        .select('id, contact_role, contact_person, contact_number, contact_email, short_code, property_ref')
+        .single();
+      if (error) throw error;
+      if (data) {
+        setImportedContacts((prev) => [...prev, {
+          id: data.id,
+          contact_role: data.contact_role || 'Owner',
+          contact_person: data.contact_person || '',
+          contact_number: data.contact_number || '',
+          contact_email: data.contact_email || '',
+          short_code: data.short_code,
+          property_ref: data.property_ref,
+        }]);
+      }
+      setNewOwnerDraft({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' });
+      setShowAddOwnerForm(false);
+      toast.success('Owner added');
+    } catch {
+      toast.error('Failed to add owner');
+    } finally {
+      setSavingNewOwner(false);
+    }
+  }
+
+  async function saveNewLandlord() {
+    setSavingNewLandlord(true);
+    try {
+      const supabase = createClient();
+      const propertyRef = property.ref || property.unit;
+      const shortCode = (property as Record<string, unknown>).shortCode as string | undefined;
+      const { data, error } = await supabase
+        .from('property_contacts')
+        .insert({
+          contact_role: 'Landlord',
+          contact_person: newLandlordDraft.contact_person,
+          contact_number: newLandlordDraft.contact_number,
+          contact_email: newLandlordDraft.contact_email,
+          property_ref: propertyRef || null,
+          short_code: shortCode || null,
+        })
+        .select('id, contact_role, contact_person, contact_number, contact_email, short_code, property_ref')
+        .single();
+      if (error) throw error;
+      if (data) {
+        setImportedContacts((prev) => [...prev, {
+          id: data.id,
+          contact_role: data.contact_role || 'Landlord',
+          contact_person: data.contact_person || '',
+          contact_number: data.contact_number || '',
+          contact_email: data.contact_email || '',
+          short_code: data.short_code,
+          property_ref: data.property_ref,
+        }]);
+      }
+      setNewLandlordDraft({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' });
+      setShowAddLandlordForm(false);
+      toast.success('Landlord added');
+    } catch {
+      toast.error('Failed to add landlord');
+    } finally {
+      setSavingNewLandlord(false);
     }
   }
 
@@ -2883,6 +2971,7 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
+                        onClick={() => { setShowAddOwnerForm((v) => !v); setShowAddLandlordForm(false); }}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
                       >
                         <Icon name="PlusIcon" size={13} className="text-white" />
@@ -2890,12 +2979,118 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                       </button>
                       <button
                         type="button"
+                        onClick={() => { setShowAddLandlordForm((v) => !v); setShowAddOwnerForm(false); }}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
                       >
                         <Icon name="PlusIcon" size={13} className="text-white" />
                         Add Landlord
                       </button>
                     </div>
+
+                    {/* Inline Add Owner Form */}
+                    {showAddOwnerForm && (
+                      <div className="card p-2 border border-violet-200 bg-violet-50/40 space-y-1.5">
+                        <p className="text-[9px] font-semibold text-violet-600 uppercase tracking-wider">New Owner</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newOwnerDraft.contact_person}
+                              onChange={(e) => setNewOwnerDraft((prev) => ({ ...prev, contact_person: e.target.value }))}
+                              placeholder="Full name"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Phone</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newOwnerDraft.contact_number}
+                              onChange={(e) => setNewOwnerDraft((prev) => ({ ...prev, contact_number: e.target.value }))}
+                              placeholder="Phone number"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newOwnerDraft.contact_email}
+                              onChange={(e) => setNewOwnerDraft((prev) => ({ ...prev, contact_email: e.target.value }))}
+                              placeholder="Email address"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-1.5 justify-end pt-0.5">
+                          <button
+                            onClick={() => { setShowAddOwnerForm(false); setNewOwnerDraft({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' }); }}
+                            className="btn-ghost py-0.5 px-2 text-xs min-h-[26px]"
+                            disabled={savingNewOwner}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={saveNewOwner}
+                            className="btn-primary py-0.5 px-2 text-xs min-h-[26px]"
+                            disabled={savingNewOwner}
+                          >
+                            {savingNewOwner ? <Icon name="LoaderIcon" size={11} className="animate-spin" /> : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Inline Add Landlord Form */}
+                    {showAddLandlordForm && (
+                      <div className="card p-2 border border-violet-200 bg-violet-50/40 space-y-1.5">
+                        <p className="text-[9px] font-semibold text-violet-600 uppercase tracking-wider">New Landlord</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newLandlordDraft.contact_person}
+                              onChange={(e) => setNewLandlordDraft((prev) => ({ ...prev, contact_person: e.target.value }))}
+                              placeholder="Full name"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Phone</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newLandlordDraft.contact_number}
+                              onChange={(e) => setNewLandlordDraft((prev) => ({ ...prev, contact_number: e.target.value }))}
+                              placeholder="Phone number"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newLandlordDraft.contact_email}
+                              onChange={(e) => setNewLandlordDraft((prev) => ({ ...prev, contact_email: e.target.value }))}
+                              placeholder="Email address"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-1.5 justify-end pt-0.5">
+                          <button
+                            onClick={() => { setShowAddLandlordForm(false); setNewLandlordDraft({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' }); }}
+                            className="btn-ghost py-0.5 px-2 text-xs min-h-[26px]"
+                            disabled={savingNewLandlord}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={saveNewLandlord}
+                            className="btn-primary py-0.5 px-2 text-xs min-h-[26px]"
+                            disabled={savingNewLandlord}
+                          >
+                            {savingNewLandlord ? <Icon name="LoaderIcon" size={11} className="animate-spin" /> : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Landlord details */}
                     <div className="card p-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                       <div className="col-span-2 sm:col-span-4">

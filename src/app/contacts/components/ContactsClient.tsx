@@ -444,9 +444,42 @@ function PropertiesTab() {
     }
   }, [supabase]);
 
+  // Index of all property_contacts keyed by short_code for fast filter lookups
+  const [contactsIndex, setContactsIndex] = useState<Map<string, PropertyContact[]>>(new Map());
+
+  const fetchAllContacts = useCallback(async () => {
+    try {
+      let allContacts: PropertyContact[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data, error } = await supabase
+          .from('property_contacts')
+          .select('id, property_ref, short_code, contact_role, contact_person, contact_number, contact_email, notes, created_at, updated_at')
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allContacts = allContacts.concat(data as PropertyContact[]);
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+      const idx = new Map<string, PropertyContact[]>();
+      for (const c of allContacts) {
+        const key = (c.short_code ?? '').toLowerCase();
+        if (!key) continue;
+        if (!idx.has(key)) idx.set(key, []);
+        idx.get(key)!.push(c);
+      }
+      setContactsIndex(idx);
+    } catch (err) {
+      console.error('fetchAllContacts error:', err);
+    }
+  }, [supabase]);
+
   useEffect(() => {
     fetchProperties();
-  }, [fetchProperties]);
+    fetchAllContacts();
+  }, [fetchProperties, fetchAllContacts]);
 
   const filtered = useMemo(() => {
     let data = [...properties];
@@ -503,15 +536,36 @@ function PropertiesTab() {
     if (highlightFilter) data = data.filter((p) => (p.highlight as string ?? '').toLowerCase().includes(highlightFilter.toLowerCase()));
     if (contactPerson) {
       const cq = contactPerson.toLowerCase();
-      data = data.filter((p) => (p.landlord_name ?? '').toLowerCase().includes(cq));
+      data = data.filter((p) => {
+        // Check landlord_name on the property record
+        if ((p.landlord_name ?? '').toLowerCase().includes(cq)) return true;
+        // Also check all linked property_contacts
+        const linked = contactsIndex.get((p.short_code ?? '').toLowerCase()) ?? [];
+        return linked.some((c) => (c.contact_person ?? '').toLowerCase().includes(cq));
+      });
     }
     if (phoneNumber) {
-      const pq = phoneNumber.toLowerCase();
-      data = data.filter((p) => (p.landlord_phone ?? '').toLowerCase().includes(pq));
+      // Normalise: strip all non-digit characters for comparison
+      const normalise = (s: string) => s.replace(/\D/g, '');
+      const pqRaw = phoneNumber.toLowerCase();
+      const pqDigits = normalise(phoneNumber);
+      data = data.filter((p) => {
+        // Check landlord_phone on the property record (raw substring + digit-normalised)
+        const lpRaw = (p.landlord_phone ?? '').toLowerCase();
+        const lpDigits = normalise(p.landlord_phone ?? '');
+        if (lpRaw.includes(pqRaw) || (pqDigits && lpDigits.includes(pqDigits))) return true;
+        // Also check all linked property_contacts contact_number
+        const linked = contactsIndex.get((p.short_code ?? '').toLowerCase()) ?? [];
+        return linked.some((c) => {
+          const cnRaw = (c.contact_number ?? '').toLowerCase();
+          const cnDigits = normalise(c.contact_number ?? '');
+          return cnRaw.includes(pqRaw) || (pqDigits && cnDigits.includes(pqDigits));
+        });
+      });
     }
 
     return data;
-  }, [properties, search, villageFilter, phaseFilter, availability, activeStatus, directionFilter, bedsFilter, bathroomsFilter, unitFilter, viewsFilter, propertyTypeFilter, decorationsFilter, rentType, sPriceMin, sPriceMax, lPriceMin, lPriceMax, gSizeMin, gSizeMax, sSizeMin, sSizeMax, floorFrom, floorTo, highlightFilter, contactPerson, phoneNumber]);
+  }, [properties, contactsIndex, search, villageFilter, phaseFilter, availability, activeStatus, directionFilter, bedsFilter, bathroomsFilter, unitFilter, viewsFilter, propertyTypeFilter, decorationsFilter, rentType, sPriceMin, sPriceMax, lPriceMin, lPriceMax, gSizeMin, gSizeMax, sSizeMin, sSizeMax, floorFrom, floorTo, highlightFilter, contactPerson, phoneNumber]);
 
   const totalPages = Math.ceil(filtered.length / perPage);
   const paginated = filtered.slice((page - 1) * perPage, page * perPage);

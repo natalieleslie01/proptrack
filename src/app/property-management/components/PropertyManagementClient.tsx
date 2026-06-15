@@ -1633,7 +1633,6 @@ export default function PropertyManagementClient() {
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
-              <Icon name="SearchIcon" size={13} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
             </div>
             {/* S.Price Min / Max */}
             <div className="flex items-center gap-1 px-3 py-2 col-span-1">

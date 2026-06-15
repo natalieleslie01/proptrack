@@ -321,29 +321,36 @@ export default function ContactsClient() {
     setImportResult(null);
 
     const result: ImportResult = { inserted: 0, skipped: 0, errors: [] };
+    const BATCH_SIZE = 500;
 
-    for (const row of csvPreview) {
+    for (let i = 0; i < csvPreview.length; i += BATCH_SIZE) {
+      const batch = csvPreview.slice(i, i + BATCH_SIZE).map((row) => ({
+        short_code: row.short_code,
+        property_ref: row.property_ref || null,
+        contact_person: row.contact_person,
+        contact_number: row.contact_number || '',
+        contact_email: row.contact_email || '',
+        contact_role: row.contact_role || 'owner',
+        notes: row.notes || null,
+      }));
+
       try {
-        const { error } = await supabase.from('property_contacts').insert({
-          short_code: row.short_code,
-          property_ref: row.property_ref || null,
-          contact_person: row.contact_person,
-          contact_number: row.contact_number || '',
-          contact_email: row.contact_email || '',
-          contact_role: row.contact_role || 'owner',
-          notes: row.notes || null,
-        });
+        const { error, data } = await supabase
+          .from('property_contacts')
+          .insert(batch)
+          .select('id');
 
         if (error) {
-          result.errors.push(`${row.contact_person} (${row.short_code}): ${error.message}`);
-          result.skipped++;
+          // If batch fails, record the error and count all as skipped
+          result.errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1} (rows ${i + 1}–${i + batch.length}): ${error.message}`);
+          result.skipped += batch.length;
         } else {
-          result.inserted++;
+          result.inserted += data?.length ?? batch.length;
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Unknown error';
-        result.errors.push(`${row.contact_person}: ${msg}`);
-        result.skipped++;
+        result.errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1} (rows ${i + 1}–${i + batch.length}): ${msg}`);
+        result.skipped += batch.length;
       }
     }
 

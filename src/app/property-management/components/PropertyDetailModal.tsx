@@ -2879,14 +2879,23 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                 </div>
                 {!collapsedSections['owner-landlord'] && (
                   <div className="px-3 pb-2 pt-1 space-y-1.5">
-                    {/* Add Owner button */}
-                    <button
-                      type="button"
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
-                    >
-                      <Icon name="PlusIcon" size={13} className="text-white" />
-                      Add Owner
-                    </button>
+                    {/* Add Owner / Add Landlord buttons */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
+                      >
+                        <Icon name="PlusIcon" size={13} className="text-white" />
+                        Add Owner
+                      </button>
+                      <button
+                        type="button"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
+                      >
+                        <Icon name="PlusIcon" size={13} className="text-white" />
+                        Add Landlord
+                      </button>
+                    </div>
                     {/* Landlord details */}
                     <div className="card p-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                       <div className="col-span-2 sm:col-span-4">

@@ -92,19 +92,68 @@ function parseCsv(text: string): CsvRow[] {
     });
 
     const shortCode = row['short_code'] || row['shortcode'] || row['short code'] || '';
-    const contactPerson = row['contact_person'] || row['name'] || row['contact_name'] || row['full_name'] || '';
+    if (!shortCode) continue;
 
-    if (!shortCode || !contactPerson) continue;
+    const propertyRef = row['property_ref'] || row['pid'] || row['property_id'] || undefined;
+    const notes = row['notes'] || row['note'] || '';
 
-    rows.push({
-      short_code: shortCode,
-      property_ref: row['property_ref'] || row['pid'] || row['property_id'] || undefined,
-      contact_person: contactPerson,
-      contact_number: row['contact_number'] || row['phone'] || row['mobile'] || row['number'] || '',
-      contact_email: row['contact_email'] || row['email'] || '',
-      contact_role: row['contact_role'] || row['role'] || row['type'] || 'owner',
-      notes: row['notes'] || row['note'] || '',
+    // ── Detect numbered contact columns (contact_person1, contact_number1, etc.) ──
+    const numberedIndices = new Set<number>();
+    headers.forEach((h) => {
+      const m = h.match(/^contact_(?:person|number|email|role|name)(\d+)$/);
+      if (m) numberedIndices.add(parseInt(m[1], 10));
     });
+
+    if (numberedIndices.size > 0) {
+      // Numbered columns mode — emit one row per numbered index that has a name
+      const sortedIndices = Array.from(numberedIndices).sort((a, b) => a - b);
+      for (const idx of sortedIndices) {
+        const contactPerson =
+          row[`contact_person${idx}`] ||
+          row[`contact_name${idx}`] ||
+          row[`name${idx}`] ||
+          '';
+        if (!contactPerson) continue;
+
+        rows.push({
+          short_code: shortCode,
+          property_ref: propertyRef,
+          contact_person: contactPerson,
+          contact_number: row[`contact_number${idx}`] || row[`phone${idx}`] || row[`mobile${idx}`] || '',
+          contact_email: row[`contact_email${idx}`] || row[`email${idx}`] || '',
+          contact_role: row[`contact_role${idx}`] || row[`role${idx}`] || 'owner',
+          notes: row[`notes${idx}`] || notes || '',
+        });
+      }
+
+      // Also check for an un-numbered contact_person on the same row
+      const basePerson = row['contact_person'] || row['name'] || row['contact_name'] || row['full_name'] || '';
+      if (basePerson) {
+        rows.push({
+          short_code: shortCode,
+          property_ref: propertyRef,
+          contact_person: basePerson,
+          contact_number: row['contact_number'] || row['phone'] || row['mobile'] || row['number'] || '',
+          contact_email: row['contact_email'] || row['email'] || '',
+          contact_role: row['contact_role'] || row['role'] || row['type'] || 'owner',
+          notes: notes || '',
+        });
+      }
+    } else {
+      // Standard single-contact-per-row mode
+      const contactPerson = row['contact_person'] || row['name'] || row['contact_name'] || row['full_name'] || '';
+      if (!contactPerson) continue;
+
+      rows.push({
+        short_code: shortCode,
+        property_ref: propertyRef,
+        contact_person: contactPerson,
+        contact_number: row['contact_number'] || row['phone'] || row['mobile'] || row['number'] || '',
+        contact_email: row['contact_email'] || row['email'] || '',
+        contact_role: row['contact_role'] || row['role'] || row['type'] || 'owner',
+        notes: notes || '',
+      });
+    }
   }
   return rows;
 }
@@ -383,13 +432,17 @@ export default function ContactsClient() {
                 <div className="px-6 py-4 border-b border-[hsl(214,20%,88%)] bg-[hsl(210,15%,97%)]">
                   <h2 className="text-base font-bold text-[hsl(215,25%,18%)]">Import Contacts from CSV</h2>
                   <p className="text-xs text-[hsl(215,15%,52%)] mt-0.5">
-                    CSV must include <code className="bg-[hsl(210,15%,92%)] px-1 rounded">short_code</code> and{' '}
-                    <code className="bg-[hsl(210,15%,92%)] px-1 rounded">contact_person</code> columns.
-                    Optional: <code className="bg-[hsl(210,15%,92%)] px-1 rounded">contact_number</code>,{' '}
+                    CSV must include <code className="bg-[hsl(210,15%,92%)] px-1 rounded">short_code</code>.
+                    Supports numbered contact columns per row:{' '}
+                    <code className="bg-[hsl(210,15%,92%)] px-1 rounded">contact_person1</code>,{' '}
+                    <code className="bg-[hsl(210,15%,92%)] px-1 rounded">contact_number1</code>,{' '}
+                    <code className="bg-[hsl(210,15%,92%)] px-1 rounded">contact_person2</code>,{' '}
+                    <code className="bg-[hsl(210,15%,92%)] px-1 rounded">contact_number2</code>, … — each pair is imported as a separate contact.
+                    Also supports single-contact columns:{' '}
+                    <code className="bg-[hsl(210,15%,92%)] px-1 rounded">contact_person</code>,{' '}
+                    <code className="bg-[hsl(210,15%,92%)] px-1 rounded">contact_number</code>,{' '}
                     <code className="bg-[hsl(210,15%,92%)] px-1 rounded">contact_email</code>,{' '}
-                    <code className="bg-[hsl(210,15%,92%)] px-1 rounded">contact_role</code>,{' '}
-                    <code className="bg-[hsl(210,15%,92%)] px-1 rounded">property_ref</code>,{' '}
-                    <code className="bg-[hsl(210,15%,92%)] px-1 rounded">notes</code>
+                    <code className="bg-[hsl(210,15%,92%)] px-1 rounded">contact_role</code>.
                   </p>
                 </div>
 
@@ -403,7 +456,7 @@ export default function ContactsClient() {
                     {csvFile ? (
                       <div>
                         <p className="text-sm font-semibold text-[hsl(215,25%,18%)]">{csvFile.name}</p>
-                        <p className="text-xs text-[hsl(215,15%,52%)] mt-1">{csvPreview.length} valid rows detected</p>
+                        <p className="text-xs text-[hsl(215,15%,52%)] mt-1">{csvPreview.length} contact records detected</p>
                       </div>
                     ) : (
                       <div>

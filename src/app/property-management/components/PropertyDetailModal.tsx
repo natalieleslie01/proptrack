@@ -2879,45 +2879,14 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                 </div>
                 {!collapsedSections['owner-landlord'] && (
                   <div className="px-3 pb-2 pt-1 space-y-1.5">
-                    {/* Owner bubble */}
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setShowOwnerBubble((v) => !v)}
-                        className="flex items-center gap-2 w-full text-left bg-violet-50 border border-violet-200 rounded-lg px-2.5 py-2 hover:bg-violet-100 transition-colors group"
-                      >
-                        <div className="w-7 h-7 rounded-full bg-violet-200 flex items-center justify-center flex-shrink-0">
-                          <Icon name="UserIcon" size={13} className="text-violet-700" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-violet-800">{property.owner ?? property.landlord.name}</p>
-                          <p className="text-[9px] text-violet-600">Property Owner — tap to view details</p>
-                        </div>
-                        <Icon
-                          name={showOwnerBubble ? 'ChevronUpIcon' : 'ChevronDownIcon'}
-                          size={13}
-                          className="text-violet-500 flex-shrink-0 transition-transform"
-                        />
-                      </button>
-                      {showOwnerBubble && (
-                        <div className="mt-1 bg-white border border-violet-200 rounded-lg shadow-lg p-2.5 space-y-1 animate-fade-in">
-                          <p className="text-[9px] font-semibold text-violet-600 uppercase tracking-wider mb-0.5">Owner Details</p>
-                          <div className="grid grid-cols-2 gap-1">
-                            {[
-                              { label: 'Name', value: property.owner ?? property.landlord.name },
-                              { label: 'Phone', value: property.landlord.phone },
-                              { label: 'Email', value: property.landlord.email },
-                              { label: 'ID / CR No.', value: property.landlord.idNumber },
-                            ].map((item) => (
-                              <div key={`owner-detail-${item.label}`} className="bg-violet-50 rounded-lg px-2 py-1">
-                                <p className="text-[9px] text-violet-500 mb-0.5">{item.label}</p>
-                                <p className="text-xs font-medium text-violet-900 break-all">{item.value}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    {/* Add Owner button */}
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
+                    >
+                      <Icon name="PlusIcon" size={13} className="text-white" />
+                      Add Owner
+                    </button>
                     {/* Landlord details */}
                     <div className="card p-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                       <div className="col-span-2 sm:col-span-4">

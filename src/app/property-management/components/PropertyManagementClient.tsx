@@ -1638,18 +1638,18 @@ export default function PropertyManagementClient() {
             <div className="flex items-center gap-1 px-3 py-2 col-span-1">
               <input
                 type="number"
-                placeholder="S.Price Min"
+                placeholder="S.Pr Min"
                 value={sPriceMin}
                 onChange={(e) => { setSPriceMin(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
               <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
               <input
                 type="number"
-                placeholder="S.Price Max"
+                placeholder="S.Pr Max"
                 value={sPriceMax}
                 onChange={(e) => { setSPriceMax(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
             </div>
             {/* Availability */}
@@ -1738,18 +1738,18 @@ export default function PropertyManagementClient() {
             <div className="flex items-center gap-1 px-3 py-2">
               <input
                 type="number"
-                placeholder="L.Price Min"
+                placeholder="L.Pr Min"
                 value={lPriceMin}
                 onChange={(e) => { setLPriceMin(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
               <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
               <input
                 type="number"
-                placeholder="L.Price Max"
+                placeholder="L.Pr Max"
                 value={lPriceMax}
                 onChange={(e) => { setLPriceMax(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
             </div>
             {/* Features */}
@@ -1827,18 +1827,18 @@ export default function PropertyManagementClient() {
             <div className="flex items-center gap-1 px-3 py-2">
               <input
                 type="number"
-                placeholder="G.Size Min"
+                placeholder="G.Sz Min"
                 value={gSizeMin}
                 onChange={(e) => { setGSizeMin(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
               <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
               <input
                 type="number"
-                placeholder="G.Size Max"
+                placeholder="G.Sz Max"
                 value={gSizeMax}
                 onChange={(e) => { setGSizeMax(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
             </div>
             {/* Furnishing */}
@@ -1917,36 +1917,36 @@ export default function PropertyManagementClient() {
             <div className="flex items-center gap-1 px-3 py-2">
               <input
                 type="number"
-                placeholder="S.Size Min"
+                placeholder="S.Sz Min"
                 value={sSizeMin}
                 onChange={(e) => { setSSizeMin(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
               <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
               <input
                 type="number"
-                placeholder="S.Size Max"
+                placeholder="S.Sz Max"
                 value={sSizeMax}
                 onChange={(e) => { setSSizeMax(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
             </div>
             {/* Floor From / To */}
             <div className="flex items-center gap-1 px-3 py-2">
               <input
                 type="number"
-                placeholder="Floor (From)"
+                placeholder="Floor From"
                 value={floorFrom}
                 onChange={(e) => { setFloorFrom(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
               <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
               <input
                 type="number"
-                placeholder="Floor (To)"
+                placeholder="Floor To"
                 value={floorTo}
                 onChange={(e) => { setFloorTo(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
             </div>
             {/* Highlight */}

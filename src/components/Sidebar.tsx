@@ -39,6 +39,7 @@ const navItems: NavItem[] = [
   { id: 'nav-maintenance', label: 'Maintenance', icon: 'WrenchScrewdriverIcon', href: '/maintenance', badge: 3, group: 'main' },
   { id: 'nav-viewings', label: 'Viewings', icon: 'EyeIcon', href: '/agent-viewings', badge: 4, group: 'main' },
   { id: 'nav-calendar', label: 'Calendar', icon: 'CalendarDaysIcon', href: '/calendar', group: 'main' },
+  { id: 'nav-contacts', label: 'Contacts', icon: 'IdentificationIcon', href: '/contacts', group: 'main' },
   { id: 'nav-landlords', label: 'Landlords', icon: 'UserIcon', href: '/landlords', group: 'main' },
   { id: 'nav-transactions', label: 'Transactions', icon: 'ArrowsRightLeftIcon', href: '/transactions', group: 'main' },
   { id: 'nav-forms', label: 'HK Forms', icon: 'DocumentTextIcon', href: '/property-management', badge: 5, group: 'compliance' },
@@ -119,6 +120,7 @@ const ACTIVE_ROUTES: Record<string, string> = {
   'nav-sales-workflow': '/sales-workflow',
   'nav-workflow-summary': '/workflow-summary',
   'nav-landlords': '/landlords',
+  'nav-contacts': '/contacts',
   'nav-transactions': '/transactions',
 };
 

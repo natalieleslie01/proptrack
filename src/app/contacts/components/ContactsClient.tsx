@@ -372,6 +372,26 @@ export default function ContactsClient() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const handleClearAllContacts = async () => {
+    if (!window.confirm('This will permanently delete ALL imported contacts from the database. Are you sure you want to continue?')) return;
+    try {
+      const { error } = await supabase
+        .from('property_contacts')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) {
+        alert(`Failed to clear contacts: ${error.message}`);
+        return;
+      }
+      setContacts([]);
+      setSelectedShortCode(null);
+      setImportResult(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      alert(`Failed to clear contacts: ${msg}`);
+    }
+  };
+
   // ─── Role Update ─────────────────────────────────────────────────────────────
 
   const handleRoleChange = async (contactId: string, newRole: string) => {
@@ -403,13 +423,23 @@ export default function ContactsClient() {
         <div className="px-4 py-4 border-b border-[hsl(214,20%,88%)]">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-base font-bold text-[hsl(215,25%,18%)]">Contacts</h1>
-            <button
-              onClick={() => { setShowImportPanel(!showImportPanel); setSelectedShortCode(null); }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#8B1A2B] text-white text-xs font-semibold rounded-lg hover:bg-[#7a1626] transition-colors"
-            >
-              <Icon name="CloudArrowUpIcon" size={14} />
-              Import CSV
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleClearAllContacts}
+                title="Delete all imported contacts"
+                className="flex items-center gap-1 px-2 py-1.5 bg-red-50 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-100 border border-red-200 transition-colors"
+              >
+                <Icon name="TrashIcon" size={13} />
+                Clear All
+              </button>
+              <button
+                onClick={() => { setShowImportPanel(!showImportPanel); setSelectedShortCode(null); }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-[#8B1A2B] text-white text-xs font-semibold rounded-lg hover:bg-[#7a1626] transition-colors"
+              >
+                <Icon name="CloudArrowUpIcon" size={14} />
+                Import CSV
+              </button>
+            </div>
           </div>
           <div className="relative">
             <Icon name="MagnifyingGlassIcon" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[hsl(215,15%,52%)]" />
@@ -621,6 +651,12 @@ export default function ContactsClient() {
                         Clear
                       </button>
                     )}
+                    <button
+                      onClick={handleClearAllContacts}
+                      className="px-3 py-2 text-sm text-[hsl(215,15%,42%)] hover:text-[hsl(215,25%,18%)] transition-colors"
+                    >
+                      Clear All Contacts
+                    </button>
                   </div>
                 </div>
               </div>

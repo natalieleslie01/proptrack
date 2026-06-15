@@ -71,8 +71,7 @@ interface DbProperty {
   notes?: string;
   updated_at?: string;
   list_type?: string;
-  highlight?: string;
-  [key: string]: unknown;
+    [key: string]: unknown;
 }
 
 const villages = [
@@ -291,7 +290,7 @@ function PropertiesTab() {
       while (true) {
         const { data, error } = await supabase
           .from('properties')
-          .select('id, property_ref, unit, building_name, village, short_code, bedrooms, bathrooms, saleable_area, gross_area, floor_type, prop_types, direction_id, view_id, decor_id, asking_rent, asking_price, status, occupancy, contact_status, landlord_name, landlord_phone, landlord_email, phase, notes, updated_at, list_type, highlight')
+          .select('id, property_ref, unit, building_name, village, short_code, bedrooms, bathrooms, saleable_area, gross_area, floor_type, prop_types, direction_id, view_id, decor_id, asking_rent, asking_price, status, occupancy, contact_status, landlord_name, landlord_phone, landlord_email, phase, notes, updated_at, list_type')
           .range(from, from + pageSize - 1)
           .order('property_ref', { ascending: true });
         if (error) throw error;

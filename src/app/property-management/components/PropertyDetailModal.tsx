@@ -80,6 +80,14 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
   const [showAddContact, setShowAddContact] = useState(false);
   const [newContact, setNewContact] = useState<PropertyContact>(emptyContact());
 
+  // Decision Maker state
+  const [decisionMaker, setDecisionMaker] = useState<{ name: string; phone: string; email: string }>(() => {
+    const dm = (property.contacts ?? []).find((c) => c.isDecisionMaker);
+    return { name: dm?.name ?? '', phone: dm?.mobile ?? '', email: dm?.email ?? '' };
+  });
+  const [editingDecisionMaker, setEditingDecisionMaker] = useState(false);
+  const [decisionMakerDraft, setDecisionMakerDraft] = useState<{ name: string; phone: string; email: string }>({ name: '', phone: '', email: '' });
+
   // Imported contacts from property_contacts table (CSV-uploaded)
   const [importedContacts, setImportedContacts] = useState<Array<{ id: string; contact_role: string; contact_person: string; contact_number: string; contact_email: string; short_code: string | null; property_ref: string | null }>>([]);
   const [importedContactsLoading, setImportedContactsLoading] = useState(false);
@@ -2924,6 +2932,127 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                 </div>
                 {!collapsedSections['contacts'] && (
                   <div className="px-3 pb-2 pt-1">
+                    {/* Decision Maker Sub-section */}
+                    <div className="mb-3 border border-amber-200 rounded-lg overflow-hidden">
+                      <div className="flex items-center justify-between px-2.5 py-1.5 bg-amber-50">
+                        <div className="flex items-center gap-1.5">
+                          <Icon name="StarIcon" size={11} className="text-amber-500" />
+                          <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider">Decision Maker</span>
+                        </div>
+                        {!editingDecisionMaker && (
+                          <button
+                            onClick={() => {
+                              setDecisionMakerDraft({ ...decisionMaker });
+                              setEditingDecisionMaker(true);
+                            }}
+                            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-amber-600 hover:bg-amber-100 transition-colors"
+                          >
+                            <Icon name="PencilSquareIcon" size={10} />
+                            {decisionMaker.name ? 'Edit' : 'Add'}
+                          </button>
+                        )}
+                      </div>
+                      <div className="px-2.5 py-2 bg-white">
+                        {editingDecisionMaker ? (
+                          <div className="space-y-1.5">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                              <div>
+                                <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name *</label>
+                                <input
+                                  type="text"
+                                  value={decisionMakerDraft.name}
+                                  onChange={(e) => setDecisionMakerDraft({ ...decisionMakerDraft, name: e.target.value })}
+                                  className="input-base w-full min-h-[30px] text-xs"
+                                  placeholder="Full name"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Phone</label>
+                                <input
+                                  type="text"
+                                  value={decisionMakerDraft.phone}
+                                  onChange={(e) => setDecisionMakerDraft({ ...decisionMakerDraft, phone: e.target.value })}
+                                  className="input-base w-full min-h-[30px] text-xs"
+                                  placeholder="+852 9xxx xxxx"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                                <input
+                                  type="email"
+                                  value={decisionMakerDraft.email}
+                                  onChange={(e) => setDecisionMakerDraft({ ...decisionMakerDraft, email: e.target.value })}
+                                  className="input-base w-full min-h-[30px] text-xs"
+                                  placeholder="email@example.com"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  if (!decisionMakerDraft.name.trim()) {
+                                    toast.error('Decision maker name is required');
+                                    return;
+                                  }
+                                  setDecisionMaker({ ...decisionMakerDraft });
+                                  setEditingDecisionMaker(false);
+                                  toast.success('Decision maker saved');
+                                }}
+                                className="btn-primary py-0.5 px-2.5 text-xs min-h-[28px]"
+                              >
+                                <Icon name="CheckIcon" size={10} />
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingDecisionMaker(false)}
+                                className="btn-ghost py-0.5 px-2.5 text-xs min-h-[28px]"
+                              >
+                                Cancel
+                              </button>
+                              {decisionMaker.name && (
+                                <button
+                                  onClick={() => {
+                                    setDecisionMaker({ name: '', phone: '', email: '' });
+                                    setDecisionMakerDraft({ name: '', phone: '', email: '' });
+                                    setEditingDecisionMaker(false);
+                                    toast.success('Decision maker removed');
+                                  }}
+                                  className="ml-auto text-[9px] text-red-500 hover:text-red-700 hover:bg-red-50 px-1.5 py-0.5 rounded transition-colors"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : decisionMaker.name ? (
+                          <div className="flex items-start gap-2">
+                            <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <Icon name="StarIcon" size={12} className="text-amber-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{decisionMaker.name}</p>
+                              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                {decisionMaker.phone && (
+                                  <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                                    <Icon name="PhoneIcon" size={9} className="text-amber-400 flex-shrink-0" />
+                                    {decisionMaker.phone}
+                                  </p>
+                                )}
+                                {decisionMaker.email && (
+                                  <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
+                                    <Icon name="MailIcon" size={9} className="text-amber-400 flex-shrink-0" />
+                                    {decisionMaker.email}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[9px] text-[hsl(215,15%,62%)] italic">No decision maker assigned yet</p>
+                        )}
+                      </div>
+                    </div>
+
                     {contacts.length === 0 && !showAddContact && (
                       <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg p-3 text-center">
                         <Icon name="UsersIcon" size={20} className="text-[hsl(215,15%,62%)] mx-auto mb-1" />

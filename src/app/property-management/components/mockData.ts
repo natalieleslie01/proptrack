@@ -56,6 +56,7 @@ export interface PropertyContact {
   email: string;
   telephone: string;
   customerCode?: string;
+  isDecisionMaker?: boolean;
 }
 
 export interface AgentCommission {

@@ -2938,43 +2938,35 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                         </div>
                       ))}
                     </div>
-                    {/* Owner contacts from CSV import */}
-                    {importedContacts.filter((c) => c.contact_role?.toLowerCase() === 'owner').length > 0 && (
-                      <div className="space-y-1.5">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider flex items-center gap-1">
-                          <Icon name="UserCheckIcon" size={9} className="text-violet-500" />
-                          Owner Contacts (from CSV)
-                        </p>
-                        {importedContacts
-                          .filter((c) => c.contact_role?.toLowerCase() === 'owner')
-                          .map((c) => (
-                            <div key={`owner-csv-${c.id}`} className="card p-2 border border-violet-100 bg-violet-50/40">
-                              <div className="flex items-start gap-2">
-                                <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                  <Icon name="UserIcon" size={12} className="text-violet-600" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-violet-900">{c.contact_person || '—'}</p>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 mt-0.5">
-                                    {c.contact_number && (
-                                      <p className="text-[9px] text-violet-600 flex items-center gap-1">
-                                        <Icon name="PhoneIcon" size={9} className="flex-shrink-0" />
-                                        <span>{c.contact_number}</span>
-                                      </p>
-                                    )}
-                                    {c.contact_email && (
-                                      <p className="text-[9px] text-violet-600 flex items-center gap-1 break-all">
-                                        <Icon name="MailIcon" size={9} className="flex-shrink-0" />
-                                        <span>{c.contact_email}</span>
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
+                    {/* Owner contacts from CSV — shown inline within Owner & Landlord Details */}
+                    {importedContacts
+                      .filter((c) => c.contact_role?.toLowerCase() === 'owner')
+                      .map((c) => (
+                        <div key={`owner-csv-${c.id}`} className="card p-2 border border-violet-100 bg-violet-50/40">
+                          <div className="flex items-start gap-2">
+                            <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <Icon name="UserIcon" size={12} className="text-violet-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-violet-900">{c.contact_person || '—'}</p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 mt-0.5">
+                                {c.contact_number && (
+                                  <p className="text-[9px] text-violet-600 flex items-center gap-1">
+                                    <Icon name="PhoneIcon" size={9} className="flex-shrink-0" />
+                                    <span>{c.contact_number}</span>
+                                  </p>
+                                )}
+                                {c.contact_email && (
+                                  <p className="text-[9px] text-violet-600 flex items-center gap-1 break-all">
+                                    <Icon name="MailIcon" size={9} className="flex-shrink-0" />
+                                    <span>{c.contact_email}</span>
+                                  </p>
+                                )}
                               </div>
                             </div>
-                          ))}
-                      </div>
-                    )}
+                          </div>
+                        </div>
+                      ))}
                   </div>
                 )}
               </div>

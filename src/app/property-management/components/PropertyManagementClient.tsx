@@ -2073,7 +2073,6 @@ export default function PropertyManagementClient() {
                   { label: 'Rental Price', key: 'monthlyRent' as SortKey },
                   { label: 'Key', key: 'none' as SortKey },
                   { label: 'Owner', key: 'none' as SortKey },
-                  { label: 'Contacts', key: 'none' as SortKey },
                   { label: 'sq ft', key: 'sqft' as SortKey },
                   { label: 'Lease End', key: 'none' as SortKey },
                   { label: 'Highlight / Comments', key: 'none' as SortKey },
@@ -2237,47 +2236,27 @@ export default function PropertyManagementClient() {
                           <KeyLocationPopover prop={prop} />
                         </Popover>
                       </td>
-                      <td className="px-3 py-2">
-                        <p className="text-xs text-[hsl(215,25%,18%)] whitespace-nowrap">{prop.owner ?? prop.landlord.name}</p>
-                      </td>
-                      {/* Contacts — inline display + popover for full details */}
-                      <td className="px-3 py-2 min-w-[140px]" onClick={(e) => e.stopPropagation()}>
+                      {/* Owner — first owner from property_contacts, clickable to show all contact details */}
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         {(() => {
                           const contacts = prop.contacts ?? [];
-                          const landlord = prop.landlord;
-                          const primaryContact = contacts.length > 0 ? contacts[0] : null;
-                          const displayName = primaryContact?.name || landlord.name;
-                          const displayPhone = primaryContact?.mobile || landlord.phone;
-                          const displayEmail = primaryContact?.email || landlord.email;
-                          const hasAnyContact = displayName || displayPhone || displayEmail;
-                          return hasAnyContact ? (
+                          // Find first contact with role "Owner", fallback to first contact, fallback to landlord
+                          const ownerContact = contacts.find((c) => (c.relationship ?? '').toLowerCase() === 'owner') ?? contacts[0] ?? null;
+                          const ownerName = ownerContact?.name || prop.owner || prop.landlord.name;
+                          if (!ownerName) return <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>;
+                          return (
                             <Popover
                               trigger={
-                                <button className="text-left hover:bg-[hsl(210,15%,92%)] rounded-lg px-1 py-0.5 transition-colors w-full" title="View all contacts">
-                                  <div className="flex flex-col gap-0.5">
-                                    {displayName && (
-                                      <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] leading-tight truncate max-w-[130px]">{displayName}</p>
-                                    )}
-                                    {displayPhone && (
-                                      <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1 leading-tight">
-                                        <Icon name="PhoneIcon" size={9} className="text-[#1B4F8A] flex-shrink-0" />
-                                        {displayPhone}
-                                      </p>
-                                    )}
-                                    {displayEmail && (
-                                      <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1 leading-tight truncate max-w-[130px]">
-                                        <Icon name="MailIcon" size={9} className="text-[hsl(215,15%,62%)] flex-shrink-0" />
-                                        <span className="truncate">{displayEmail}</span>
-                                      </p>
-                                    )}
-                                  </div>
+                                <button
+                                  className="text-left hover:underline hover:text-[#1B4F8A] transition-colors"
+                                  title="View owner contact details"
+                                >
+                                  <p className="text-xs font-semibold text-[#1B4F8A] whitespace-nowrap">{ownerName}</p>
                                 </button>
                               }
                             >
                               <ContactsPopover prop={prop} />
                             </Popover>
-                          ) : (
-                            <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>
                           );
                         })()}
                       </td>

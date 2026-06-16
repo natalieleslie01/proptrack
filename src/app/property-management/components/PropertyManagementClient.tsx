@@ -639,6 +639,17 @@ function dbRowToProperty(row: Record<string, any>): Property {
           agentPhone: (row.key_location as Record<string, string>).agentPhone ?? undefined,
         }
       : undefined,
+    contacts: Array.isArray(row._contacts)
+      ? (row._contacts as Record<string, unknown>[]).map((c) => ({
+          id: String(c.id ?? ''),
+          name: String(c.contact_person ?? ''),
+          relationship: String(c.contact_role ?? 'Owner'),
+          mobile: String(c.contact_number ?? ''),
+          email: String(c.contact_email ?? ''),
+          telephone: '',
+          customerCode: undefined,
+        }))
+      : [],
   } as Property & { listingType: string; contactStatusCode: number | undefined };
 }
 
@@ -1194,6 +1205,36 @@ export default function PropertyManagementClient() {
         if (data.length < pageSize) break;
         from += pageSize;
       }
+
+      // Fetch all property_contacts and attach to matching property rows
+      const { data: contactRows } = await supabase
+        .from('property_contacts')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (contactRows && contactRows.length > 0) {
+        // Build lookup maps: by property_ref and by short_code
+        const contactsByRef: Record<string, typeof contactRows> = {};
+        const contactsByShortCode: Record<string, typeof contactRows> = {};
+        for (const c of contactRows) {
+          if (c.property_ref) {
+            if (!contactsByRef[c.property_ref]) contactsByRef[c.property_ref] = [];
+            contactsByRef[c.property_ref].push(c);
+          }
+          if (c.short_code) {
+            if (!contactsByShortCode[c.short_code]) contactsByShortCode[c.short_code] = [];
+            contactsByShortCode[c.short_code].push(c);
+          }
+        }
+        // Attach contacts to each property row
+        allRows = allRows.map((row) => {
+          const ref = row.property_ref as string | undefined;
+          const sc = row.short_code as string | undefined;
+          const matched = (ref && contactsByRef[ref]) || (sc && contactsByShortCode[sc]) || [];
+          return { ...row, _contacts: matched };
+        });
+      }
+
       setDbProperties(allRows.map(dbRowToProperty));
 
       // Keep selectedProperty in sync so the modal reflects the latest saved values

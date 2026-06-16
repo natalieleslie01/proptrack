@@ -376,14 +376,16 @@ export default function PropertyMatchingClient() {
     if (budgetMin) {
       const min = Number(budgetMin);
       data = data.filter((p) => {
-        const price = p.asking_rent ?? p.asking_price ?? 0;
+        const price = p.asking_rent ?? p.asking_price ?? null;
+        if (price === null || price === 0) return true; // no price data — keep it
         return price >= min;
       });
     }
     if (budgetMax) {
       const max = Number(budgetMax);
       data = data.filter((p) => {
-        const price = p.asking_rent ?? p.asking_price ?? 0;
+        const price = p.asking_rent ?? p.asking_price ?? null;
+        if (price === null || price === 0) return true; // no price data — keep it
         return price <= max;
       });
     }

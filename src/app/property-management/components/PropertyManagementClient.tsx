@@ -426,6 +426,93 @@ function KeyLocationPopover({ prop }: { prop: Property }) {
   );
 }
 
+// ── OwnerCell: fetches contacts directly from property_contacts per property ──
+interface OwnerContactRow {
+  id: string;
+  property_ref: string | null;
+  short_code: string | null;
+  contact_person: string;
+  contact_role: string;
+  contact_number: string;
+  contact_email: string;
+}
+
+function OwnerCell({ prop }: { prop: Property }) {
+  const [contacts, setContacts] = React.useState<OwnerContactRow[] | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const supabase = createClient();
+      // Try property_ref first, then short_code
+      const ref = prop.ref?.trim();
+      const sc = (prop as any).shortCode?.trim();
+
+      let rows: OwnerContactRow[] = [];
+
+      if (ref) {
+        const { data } = await supabase
+          .from('property_contacts')
+          .select('id, property_ref, short_code, contact_person, contact_role, contact_number, contact_email')
+          .eq('property_ref', ref)
+          .order('created_at', { ascending: true });
+        if (data && data.length > 0) rows = data as OwnerContactRow[];
+      }
+
+      if (rows.length === 0 && sc) {
+        const { data } = await supabase
+          .from('property_contacts')
+          .select('id, property_ref, short_code, contact_person, contact_role, contact_number, contact_email')
+          .eq('short_code', sc)
+          .order('created_at', { ascending: true });
+        if (data && data.length > 0) rows = data as OwnerContactRow[];
+      }
+
+      if (!cancelled) setContacts(rows);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [prop.ref, (prop as any).shortCode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Still loading
+  if (contacts === null) {
+    return <span className="text-[11px] text-[hsl(215,15%,62%)] italic">…</span>;
+  }
+
+  const ownerRow = contacts.find((c) => (c.contact_role ?? '').toLowerCase() === 'owner') ?? contacts[0] ?? null;
+  const ownerName = ownerRow?.contact_person?.trim() || prop.owner || prop.landlord?.name;
+
+  if (!ownerName) {
+    return <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>;
+  }
+
+  const popoverContacts = contacts.map((c) => ({
+    id: c.id,
+    name: c.contact_person,
+    relationship: c.contact_role,
+    mobile: c.contact_number,
+    email: c.contact_email,
+    telephone: '',
+    customerCode: undefined,
+  }));
+  const propWithContacts = { ...prop, contacts: popoverContacts.length > 0 ? popoverContacts : prop.contacts };
+
+  return (
+    <Popover
+      trigger={
+        <button
+          className="text-left hover:underline hover:text-[#1B4F8A] transition-colors"
+          title="View owner contact details"
+        >
+          <p className="text-xs font-semibold text-[#1B4F8A] whitespace-nowrap">{ownerName}</p>
+        </button>
+      }
+    >
+      <ContactsPopover prop={propWithContacts} />
+    </Popover>
+  );
+}
+
 // ── Map DB property_status string → numeric PropertyStatus ────────────────────
 function dbStatusToNumeric(dbStatus: string | null | undefined): import('./mockData').PropertyStatus {
   switch (dbStatus) {
@@ -838,7 +925,7 @@ function BatchEditModal({ selectedIds, properties, onClose, onSuccess }: BatchEd
     setSubmitting(true);
     try {
       // Build rows: one per selected property, using property_ref as pid
-      const rows = selectedProps
+      let rows = selectedProps
         .filter((p) => p.ref)
         .map((p) => {
           const row: Record<string, unknown> = { pid: p.ref };
@@ -1182,18 +1269,6 @@ export default function PropertyManagementClient() {
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
 
-  // ── Owner map: keyed by property_ref and short_code → first owner name + all contacts ──
-  interface OwnerContactRow {
-    id: string;
-    property_ref: string | null;
-    short_code: string | null;
-    contact_person: string;
-    contact_role: string;
-    contact_number: string;
-    contact_email: string;
-  }
-  const [ownerMap, setOwnerMap] = useState<Record<string, OwnerContactRow[]>>({});
-
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
 
@@ -1275,42 +1350,6 @@ export default function PropertyManagementClient() {
   useEffect(() => {
     fetchProperties();
   }, [fetchProperties]);
-
-  // Fetch contacts separately whenever dbProperties changes (new approach)
-  useEffect(() => {
-    if (dbProperties.length === 0) return;
-    let cancelled = false;
-    async function fetchContacts() {
-      try {
-        const sb = createClient();
-        const { data, error } = await sb
-          .from('property_contacts')
-          .select('id, property_ref, short_code, contact_person, contact_role, contact_number, contact_email')
-          .order('created_at', { ascending: true });
-        if (error || !data || cancelled) return;
-        // Build map keyed by both property_ref and short_code
-        const map: Record<string, OwnerContactRow[]> = {};
-        for (const row of data as OwnerContactRow[]) {
-          if (row.property_ref) {
-            const key = row.property_ref.trim().toLowerCase();
-            if (!map[key]) map[key] = [];
-            map[key].push(row);
-          }
-          if (row.short_code) {
-            const key = row.short_code.trim().toLowerCase();
-            if (!map[key]) map[key] = [];
-            // avoid duplicates if same row matched both
-            if (!map[key].find((r) => r.id === row.id)) map[key].push(row);
-          }
-        }
-        if (!cancelled) setOwnerMap(map);
-      } catch {
-        // silently ignore
-      }
-    }
-    fetchContacts();
-    return () => { cancelled = true; };
-  }, [dbProperties]);
 
   const { can, isAdmin, isAdminOrManager } = useRole();
 
@@ -1467,7 +1506,7 @@ export default function PropertyManagementClient() {
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-    const rows = selectedProps.map((p) => `
+    let rows = selectedProps.map((p) => `
       <tr>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;">${p.shortCode ?? '—'}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;">${p.unit ?? ''} ${p.building ?? ''}</td>
@@ -1606,7 +1645,7 @@ export default function PropertyManagementClient() {
       return str;
     };
 
-    const rows = filtered.map((p) => {
+    let rows = filtered.map((p) => {
       const c1 = p.contacts?.[0];
       const c2 = p.contacts?.[1];
       return [
@@ -2327,38 +2366,7 @@ export default function PropertyManagementClient() {
                       </td>
                       {/* Owner — looked up directly from ownerMap by property_ref / short_code */}
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                        {(() => {
-                          const refKey = (prop.ref ?? '').trim().toLowerCase();
-                          const scKey = (prop.shortCode ?? '').trim().toLowerCase();
-                          const contactRows = (refKey && ownerMap[refKey]) || (scKey && ownerMap[scKey]) || [];
-                          const ownerRow = contactRows.find((c) => (c.contact_role ?? '').toLowerCase() === 'owner') ?? contactRows[0] ?? null;
-                          const ownerName = ownerRow?.contact_person?.trim() || prop.owner || prop.landlord.name;
-                          if (!ownerName) return <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>;
-                          const popoverContacts = contactRows.map((c) => ({
-                            id: c.id,
-                            name: c.contact_person,
-                            relationship: c.contact_role,
-                            mobile: c.contact_number,
-                            email: c.contact_email,
-                            telephone: '',
-                            customerCode: undefined,
-                          }));
-                          const propWithContacts = { ...prop, contacts: popoverContacts.length > 0 ? popoverContacts : prop.contacts };
-                          return (
-                            <Popover
-                              trigger={
-                                <button
-                                  className="text-left hover:underline hover:text-[#1B4F8A] transition-colors"
-                                  title="View owner contact details"
-                                >
-                                  <p className="text-xs font-semibold text-[#1B4F8A] whitespace-nowrap">{ownerName}</p>
-                                </button>
-                              }
-                            >
-                              <ContactsPopover prop={propWithContacts} />
-                            </Popover>
-                          );
-                        })()}
+                        <OwnerCell prop={prop} />
                       </td>
                       <td className="px-3 py-2 text-xs font-mono tabular-nums text-[hsl(215,25%,18%)] whitespace-nowrap">
                         {prop.sqft ? prop.sqft.toLocaleString() : '—'}

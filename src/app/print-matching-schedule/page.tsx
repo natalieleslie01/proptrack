@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { COMPANY } from '@/lib/company';
+import { agentProfiles, AgentProfile } from '@/app/property-management/components/mockData';
 
 interface MatchedProperty {
   id: string;
@@ -19,6 +20,12 @@ interface MatchedProperty {
   askingPrice: number | null;
   askingRent: number | null;
   status: string;
+  photoUrl?: string | null;
+  yearBuilt?: string | number | null;
+  view?: string | null;
+  direction?: string | null;
+  additionalFeatures?: string[];
+  engRemark?: string | null;
 }
 
 interface MatchScheduleData {
@@ -29,32 +36,37 @@ interface MatchScheduleData {
   printedAt: string;
 }
 
-function formatPrice(val: number | null): string {
+function formatPrice(val: number | null, isRent: boolean): string {
   if (!val) return '—';
-  if (val >= 1_000_000) return `HK$${(val / 1_000_000).toFixed(2)}M`;
+  if (isRent) {
+    if (val >= 1_000_000) return `HK$${(val / 1_000_000).toFixed(2)}M/mo`;
+    if (val >= 1_000) return `HK$${(val / 1_000).toFixed(0)}K/mo`;
+    return `HK$${val}/mo`;
+  }
+  if (val >= 1_000_000) return `HK$${(val / 1_000_000).toFixed(3)}M`;
   if (val >= 1_000) return `HK$${(val / 1_000).toFixed(0)}K`;
   return `HK$${val}`;
 }
 
-function statusLabel(status: string): string {
-  switch (status) {
-    case 'for-rent': return 'For Rent';
-    case 'for-sale': return 'For Sale';
-    case 'for-sale-and-rent': return 'For Sale & Rent';
-    case 'leased': return 'Leased';
-    case 'self-occupy': return 'Self Occupy';
-    default: return status;
-  }
+function hasMaidsRoom(features: string[] | undefined): boolean {
+  if (!features) return false;
+  return features.some((f) => f.toLowerCase().includes('maid'));
 }
 
-function statusColor(status: string): string {
-  switch (status) {
-    case 'for-rent': return '#1d4ed8';
-    case 'for-sale': return '#15803d';
-    case 'for-sale-and-rent': return '#7e22ce';
-    case 'leased': return '#b45309';
-    default: return '#6b7280';
-  }
+function getCarParking(features: string[] | undefined): string {
+  if (!features) return 'N/A';
+  const carFeature = features.find((f) =>
+    f.toLowerCase().includes('car') || f.toLowerCase().includes('parking') || f.toLowerCase().includes('garage')
+  );
+  return carFeature ? '1' : 'N/A';
+}
+
+function parseAdvertisingRemarks(text: string): string[] {
+  if (!text) return [];
+  return text
+    .split(/\n|\r\n|\r|\*(?=\s)|•/)
+    .map((l) => l.replace(/^\s*[\*•\-]\s*/, '').trim())
+    .filter((l) => l.length > 3);
 }
 
 export default function PrintMatchingSchedulePage() {
@@ -81,7 +93,7 @@ export default function PrintMatchingSchedulePage() {
     if (data) {
       const timer = setTimeout(() => {
         window.print();
-      }, 600);
+      }, 800);
       return () => clearTimeout(timer);
     }
   }, [data]);
@@ -110,15 +122,18 @@ export default function PrintMatchingSchedulePage() {
     day: '2-digit', month: 'long', year: 'numeric',
   });
 
+  // Use default agent profile (Natalie Leslie)
+  const agentProfile: AgentProfile | undefined = agentProfiles.find((a) => a.name === 'Natalie Leslie') ?? agentProfiles[0];
+
   return (
     <>
       <style>{`
         @media print {
-          @page { size: A4 portrait; margin: 14mm 14mm; }
+          @page { size: A4 portrait; margin: 12mm 12mm; }
           .no-print { display: none !important; }
         }
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background: white; }
+        body { margin: 0; padding: 0; font-family: sans-serif; background: white; }
       `}</style>
 
       {/* Print button (screen only) */}
@@ -137,7 +152,7 @@ export default function PrintMatchingSchedulePage() {
         </button>
       </div>
 
-      <div style={{ padding: '32px', background: 'white', fontFamily: 'sans-serif', maxWidth: '794px', margin: '0 auto' }}>
+      <div style={{ padding: '28px', background: 'white', fontFamily: 'sans-serif', maxWidth: '794px', margin: '0 auto' }}>
 
         {/* HEADER */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
@@ -152,116 +167,205 @@ export default function PrintMatchingSchedulePage() {
             />
             <div>
               <p style={{ fontSize: '18px', fontWeight: 900, color: '#1a2a3a', margin: 0, letterSpacing: '-0.5px' }}>{COMPANY.name}</p>
-              <p style={{ fontSize: '9px', fontWeight: 600, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '2px', margin: '2px 0 0' }}>Property Viewing Schedule</p>
+              <p style={{ fontSize: '9px', fontWeight: 600, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '2px', margin: '2px 0 0' }}>Property</p>
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: '10px', color: '#6b7a8d', margin: 0 }}>Prepared: {printDate}</p>
-            <p style={{ fontSize: '10px', color: '#6b7a8d', margin: '2px 0 0' }}>{data.properties.length} propert{data.properties.length === 1 ? 'y' : 'ies'} selected</p>
+            {agentProfile ? (
+              <>
+                <p style={{ fontSize: '12px', fontWeight: 700, color: '#1a2a3a', margin: 0 }}>{agentProfile.name}</p>
+                <p style={{ fontSize: '10px', color: '#6b7a8d', fontStyle: 'italic', margin: '2px 0 0' }}>
+                  {agentProfile.name === 'Natalie Leslie' ? 'Principal Director' :
+                   agentProfile.name === 'Nicola Baird' ? 'Senior Consultant' : 'Property Consultant'}
+                </p>
+                <p style={{ fontSize: '10px', color: '#4a5a6a', fontFamily: 'monospace', margin: '2px 0 0' }}>☎ {agentProfile.mobile}</p>
+                <p style={{ fontSize: '10px', color: '#4a5a6a', margin: '2px 0 0' }}>{agentProfile.email}</p>
+                <p style={{ fontSize: '9px', color: '#6b7a8d', fontFamily: 'monospace', margin: '2px 0 0' }}>{agentProfile.licenceNumber}</p>
+              </>
+            ) : (
+              <p style={{ fontSize: '10px', color: '#6b7a8d' }}>—</p>
+            )}
           </div>
         </div>
 
         {/* DIVIDER */}
-        <div style={{ borderTop: '2px solid #1B4F8A', marginBottom: '16px' }} />
+        <div style={{ borderTop: '1px solid #c8d0da', marginBottom: '16px' }} />
 
         {/* CLIENT INFO */}
-        <div style={{ background: '#f0f4f9', borderRadius: '8px', padding: '12px 16px', marginBottom: '24px', display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', marginBottom: '16px' }}>
           <div>
-            <p style={{ fontSize: '9px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 2px' }}>Client</p>
-            <p style={{ fontSize: '13px', fontWeight: 700, color: '#1a2a3a', margin: 0 }}>{data.clientName}</p>
+            <span style={{ fontSize: '9px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '1px' }}>Client: </span>
+            <span style={{ fontSize: '10px', fontWeight: 600, color: '#1a2a3a' }}>{data.clientName}</span>
+            {data.clientMobile && (
+              <span style={{ fontSize: '10px', color: '#6b7a8d', fontFamily: 'monospace', marginLeft: '8px' }}>{data.clientMobile}</span>
+            )}
           </div>
-          {data.clientMobile && (
-            <div>
-              <p style={{ fontSize: '9px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 2px' }}>Mobile</p>
-              <p style={{ fontSize: '12px', fontWeight: 600, color: '#1a2a3a', fontFamily: 'monospace', margin: 0 }}>{data.clientMobile}</p>
-            </div>
-          )}
           {data.clientBudget && data.clientBudget !== '—' && (
             <div>
-              <p style={{ fontSize: '9px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 2px' }}>Budget</p>
-              <p style={{ fontSize: '12px', fontWeight: 600, color: '#1a2a3a', margin: 0 }}>{data.clientBudget}</p>
+              <span style={{ fontSize: '9px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '1px' }}>Budget: </span>
+              <span style={{ fontSize: '10px', fontWeight: 600, color: '#1a2a3a' }}>{data.clientBudget}</span>
             </div>
           )}
         </div>
 
-        {/* PROPERTIES TABLE */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-          <thead>
-            <tr style={{ background: '#1B4F8A', color: 'white' }}>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', borderRadius: '0' }}>#</th>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ref</th>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Location</th>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status</th>
-              <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Beds</th>
-              <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Baths</th>
-              <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Area (ft²)</th>
-              <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Price</th>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Viewing Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.properties.map((prop, idx) => {
-              const location = [
-                prop.village,
-                prop.phase,
-                prop.block ? `Blk ${prop.block}` : null,
-                prop.floor ? `Fl.${prop.floor}` : null,
-                prop.unit ? `Unit ${prop.unit}` : null,
-              ].filter(Boolean).join(' · ');
-              const price = prop.askingRent ?? prop.askingPrice;
-              const priceLabel = prop.askingRent
-                ? `${formatPrice(prop.askingRent)}/mo`
-                : formatPrice(prop.askingPrice);
+        {/* PROPERTIES — card layout */}
+        {data.properties.map((property, idx) => {
+          const bedroomsLabel = property.bedrooms != null ? (property.bedrooms >= 5 ? '5+' : String(property.bedrooms)) : '—';
+          const bathroomsLabel = property.bathrooms != null ? (property.bathrooms >= 4 ? '4+' : String(property.bathrooms)) : '—';
+          const maidsRoom = hasMaidsRoom(property.additionalFeatures) ? 'Yes' : 'N/A';
+          const carParking = getCarParking(property.additionalFeatures);
 
-              return (
-                <tr
-                  key={prop.id}
-                  style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc', borderBottom: '1px solid #e2e8f0' }}
-                >
-                  <td style={{ padding: '10px 10px', color: '#6b7a8d', fontWeight: 600 }}>{idx + 1}</td>
-                  <td style={{ padding: '10px 10px', fontWeight: 700, color: '#1a2a3a', fontFamily: 'monospace' }}>{prop.ref}</td>
-                  <td style={{ padding: '10px 10px', color: '#374151', maxWidth: '180px' }}>{location || '—'}</td>
-                  <td style={{ padding: '10px 10px' }}>
-                    <span style={{
-                      fontSize: '10px',
-                      fontWeight: 600,
-                      color: statusColor(prop.status),
-                      background: `${statusColor(prop.status)}18`,
-                      padding: '2px 7px',
-                      borderRadius: '999px',
-                      border: `1px solid ${statusColor(prop.status)}30`,
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {statusLabel(prop.status)}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 10px', textAlign: 'center', color: '#1a2a3a', fontWeight: 600 }}>{prop.bedrooms ?? '—'}</td>
-                  <td style={{ padding: '10px 10px', textAlign: 'center', color: '#1a2a3a', fontWeight: 600 }}>{prop.bathrooms ?? '—'}</td>
-                  <td style={{ padding: '10px 10px', textAlign: 'center', color: '#1a2a3a' }}>{prop.saleableArea ? prop.saleableArea.toLocaleString() : '—'}</td>
-                  <td style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 700, color: '#1a2a3a', whiteSpace: 'nowrap' }}>{price ? priceLabel : '—'}</td>
-                  <td style={{ padding: '10px 10px', color: '#6b7a8d' }}>
-                    {/* Blank line for handwriting */}
-                    <span style={{ display: 'inline-block', borderBottom: '1px solid #c8d0da', width: '80px' }}>&nbsp;</span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+          const isRent = !!property.askingRent;
+          const priceValue = property.askingRent ?? property.askingPrice;
+          const priceDisplay = formatPrice(priceValue, isRent);
+
+          const saleableArea = property.saleableArea ? `${property.saleableArea.toLocaleString()} sq.ft` : '—';
+          const pricePerSqft = property.askingPrice && property.saleableArea
+            ? `$${Math.round(property.askingPrice / property.saleableArea).toLocaleString()} sq.ft`
+            : property.askingRent && property.saleableArea
+            ? `$${Math.round(property.askingRent / property.saleableArea).toLocaleString()}/sqft`
+            : '—';
+
+          const propertyHeading = [
+            property.village,
+            property.phase,
+            property.block ? `Blk ${property.block}` : null,
+          ].filter(Boolean).join(', ');
+
+          const subHeading = [
+            property.floor ? `Fl.${property.floor}` : null,
+            property.unit ? `Unit ${property.unit}` : null,
+            property.address,
+          ].filter(Boolean).join(' · ');
+
+          const features = property.additionalFeatures ?? [];
+          const advertisingText = property.engRemark ?? '';
+          const advertisingBullets = parseAdvertisingRemarks(advertisingText);
+
+          return (
+            <div key={property.id} style={{ marginTop: idx > 0 ? '24px' : '0' }}>
+              {idx > 0 && <div style={{ borderTop: '1px solid #d0d8e4', marginBottom: '20px' }} />}
+
+              {/* Property heading row */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <div>
+                  <h2 style={{ fontSize: '18px', fontWeight: 900, color: '#1a2a3a', margin: 0, letterSpacing: '-0.5px' }}>
+                    {propertyHeading || property.village}
+                  </h2>
+                  {subHeading && (
+                    <p style={{ fontSize: '11px', color: '#4a5a6a', margin: '2px 0 0' }}>
+                      📍 {subHeading}
+                    </p>
+                  )}
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '16px' }}>
+                  <p style={{ fontSize: '15px', fontWeight: 900, color: '#1a2a3a', margin: 0 }}>{priceDisplay}</p>
+                </div>
+              </div>
+
+              {/* Specs + Photo */}
+              <div style={{ display: 'flex', gap: '16px', marginTop: '8px', marginBottom: '8px' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* Specs table */}
+                  <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #c8d0da', marginBottom: '8px', fontSize: '10px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #c8d0da' }}>
+                        {['BEDS', 'BATHS', 'CAR', 'PRICE', 'SALEABLE AREA', 'PRICE/S.F.'].map((h) => (
+                          <th key={h} style={{ fontSize: '8px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 6px', borderRight: '1px solid #c8d0da', textAlign: 'left' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={{ fontSize: '11px', fontWeight: 700, color: '#1a2a3a', padding: '4px 6px', borderRight: '1px solid #c8d0da' }}>{bedroomsLabel}</td>
+                        <td style={{ fontSize: '11px', fontWeight: 700, color: '#1a2a3a', padding: '4px 6px', borderRight: '1px solid #c8d0da' }}>{bathroomsLabel}</td>
+                        <td style={{ fontSize: '11px', fontWeight: 700, color: '#1a2a3a', padding: '4px 6px', borderRight: '1px solid #c8d0da' }}>{carParking}</td>
+                        <td style={{ fontSize: '10px', fontWeight: 700, color: '#1a2a3a', padding: '4px 6px', borderRight: '1px solid #c8d0da', fontFamily: 'monospace' }}>{priceDisplay}</td>
+                        <td style={{ fontSize: '10px', fontWeight: 700, color: '#1a2a3a', padding: '4px 6px', borderRight: '1px solid #c8d0da', fontFamily: 'monospace' }}>{saleableArea}</td>
+                        <td style={{ fontSize: '10px', fontWeight: 700, color: '#1a2a3a', padding: '4px 6px', fontFamily: 'monospace' }}>{pricePerSqft}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {/* Extra details */}
+                  <div style={{ display: 'flex', gap: '20px', marginBottom: '6px' }}>
+                    <div>
+                      <p style={{ fontSize: '8px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>YEAR BUILT</p>
+                      <p style={{ fontSize: '10px', fontWeight: 700, color: '#1a2a3a', margin: '2px 0 0' }}>{property.yearBuilt ?? '—'}</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '8px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>HELPERS ROOM</p>
+                      <p style={{ fontSize: '10px', fontWeight: 700, color: '#1a2a3a', margin: '2px 0 0' }}>{maidsRoom}</p>
+                    </div>
+                    {property.view && (
+                      <div>
+                        <p style={{ fontSize: '8px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>VIEW</p>
+                        <p style={{ fontSize: '10px', fontWeight: 700, color: '#1a2a3a', margin: '2px 0 0' }}>{property.view}</p>
+                      </div>
+                    )}
+                    {property.direction && (
+                      <div>
+                        <p style={{ fontSize: '8px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>FACING</p>
+                        <p style={{ fontSize: '10px', fontWeight: 700, color: '#1a2a3a', margin: '2px 0 0' }}>{property.direction}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {features.length > 0 && (
+                    <div style={{ marginBottom: '6px' }}>
+                      <p style={{ fontSize: '8px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 2px' }}>FEATURES</p>
+                      <p style={{ fontSize: '9px', color: '#2a3a4a', lineHeight: 1.6, margin: 0 }}>{features.join(', ')}</p>
+                    </div>
+                  )}
+
+                  {advertisingBullets.length > 0 && (
+                    <ul style={{ margin: '4px 0 0', padding: 0, listStyle: 'none' }}>
+                      {advertisingBullets.slice(0, 6).map((bullet, i) => (
+                        <li key={i} style={{ fontSize: '9px', color: '#2a3a4a', lineHeight: 1.5, display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                          <span style={{ flexShrink: 0 }}>*</span>
+                          <span>{bullet}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Photo */}
+                <div style={{ flexShrink: 0, width: '190px' }}>
+                  {property.photoUrl ? (
+                    <div style={{ position: 'relative', width: '190px', height: '170px', border: '1px solid #c8d0da', overflow: 'hidden' }}>
+                      <Image
+                        src={property.photoUrl}
+                        alt={`${property.village ?? ''} ${property.unit ?? ''}`}
+                        fill
+                        style={{ objectFit: 'cover' }}
+                        unoptimized
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ width: '190px', height: '170px', border: '1px solid #c8d0da', background: '#f0f3f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <p style={{ fontSize: '9px', color: '#6b7a8d', margin: 0 }}>No photo available</p>
+                    </div>
+                  )}
+                  <p style={{ fontSize: '8px', fontWeight: 700, color: '#6b7a8d', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'right', margin: '4px 0 0' }}>
+                    PROPERTY ID &nbsp;<span style={{ color: '#1a2a3a' }}>{property.ref || property.id}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
 
         {/* FOOTER */}
-        <div style={{ marginTop: '32px', borderTop: '1px solid #c8d0da', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-          <div>
-            <p style={{ fontSize: '9px', color: '#9ca3af', margin: 0 }}>
-              This schedule was prepared by {COMPANY.name} for {data.clientName} on {printDate}.
+        <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #c8d0da' }}>
+          <p style={{ fontSize: '8px', color: '#6b7a8d', lineHeight: 1.6, margin: 0 }}>
+            A standard agency fee of 50% of one month&apos;s total rent is payable by both landlord and tenant upon signing a tenancy agreement. For sales, a 1% agency fee of the total purchase price is payable by both vendor and purchaser on completion. These particulars are for guidance only and do not form part of any offer or contract. All property details (including price, fees, rates, descriptions, and floor areas) are subject to change and should be verified by your solicitor before entering into any agreement. EA Licence {COMPANY.eaaLicense} · {COMPANY.name} · {COMPANY.address}
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+            <p style={{ fontSize: '8px', color: '#6b7a8d', margin: 0 }}>{COMPANY.name} is a leading specialist in Hong Kong property.</p>
+            <p style={{ fontSize: '8px', color: '#6b7a8d', fontFamily: 'monospace', margin: 0 }}>
+              Printed: {new Date().toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}
             </p>
-            <p style={{ fontSize: '9px', color: '#9ca3af', margin: '2px 0 0' }}>
-              All prices are indicative and subject to change. Please confirm viewing times with the agent.
-            </p>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: '9px', color: '#9ca3af', margin: 0 }}>Agent Signature</p>
-            <div style={{ borderBottom: '1px solid #c8d0da', width: '120px', marginTop: '20px' }} />
           </div>
         </div>
 

@@ -428,9 +428,28 @@ export default function PropertyMatchingClient() {
 
   // ── Print Viewing Schedule ─────────────────────────────────────────────────
 
-  const handlePrintViewingSchedule = () => {
+  const handlePrintViewingSchedule = async () => {
     if (!selectedClient || assignedPropertyIds.size === 0) return;
     const assignedProps = properties.filter((p) => assignedPropertyIds.has(p.id));
+
+    // Fetch cover photos for all assigned properties
+    const refs = assignedProps.map((p) => p.property_ref).filter(Boolean);
+    let photoMap: Record<string, string> = {};
+    if (refs.length > 0) {
+      const { data: photos } = await supabase
+        .from('property_photos')
+        .select('property_ref, public_url, display_order')
+        .in('property_ref', refs)
+        .order('display_order', { ascending: true });
+      if (photos) {
+        for (const photo of photos) {
+          if (photo.property_ref && !photoMap[photo.property_ref]) {
+            photoMap[photo.property_ref] = photo.public_url;
+          }
+        }
+      }
+    }
+
     const printData = {
       clientName: selectedClient.full_name,
       clientMobile: selectedClient.mobile ?? '',
@@ -450,7 +469,7 @@ export default function PropertyMatchingClient() {
         askingPrice: p.asking_price,
         askingRent: p.asking_rent,
         status: p.status,
-        photoUrl: null,
+        photoUrl: photoMap[p.property_ref] ?? null,
         yearBuilt: null,
         view: null,
         direction: null,

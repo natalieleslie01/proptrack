@@ -3031,11 +3031,11 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
               {/* 5. Owner & Landlord Details — combined */}
               <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
                 <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
-                  <SectionHeader sectionKey="owner-landlord" icon="UserIcon" iconColor="text-violet-600" title="Owner & Landlord Details" />
+                  <SectionHeader sectionKey="owner-landlord" icon="UserIcon" iconColor="text-violet-600" title="Owner Details" />
                 </div>
                 {!collapsedSections['owner-landlord'] && (
                   <div className="px-3 pb-2 pt-1 space-y-1.5">
-                    {/* Add Owner / Add Landlord buttons */}
+                    {/* Add Owner button */}
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -3044,14 +3044,6 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                       >
                         <Icon name="PlusIcon" size={13} className="text-white" />
                         Add Owner
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setShowAddLandlordForm((v) => !v); setShowAddOwnerForm(false); }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
-                      >
-                        <Icon name="PlusIcon" size={13} className="text-white" />
-                        Add Landlord
                       </button>
                     </div>
 

@@ -357,7 +357,13 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
   );
   const [buildingType, setBuildingType] = useState<BuildingType | ''>(property.buildingType ?? '');
   const [floorType, setFloorType] = useState<FloorType | ''>(property.floorType ?? '');
-  const [floorNumber, setFloorNumber] = useState<FloorNumber | ''>(property.floorNumber ?? '');
+  const [floorNumber, setFloorNumber] = useState<FloorNumber | ''>(() => {
+    const raw = (property.floorNumber ?? '') as string;
+    if (raw && /^[1-9]\d{2}$/.test(raw.trim())) {
+      return String(parseInt(raw.trim().slice(1), 10)) as FloorNumber;
+    }
+    return raw as FloorNumber | '';
+  });
   const [listingType, setListingType] = useState<string>((property as any).listingType ?? '');
   const [propertyStatusCode, setPropertyStatusCode] = useState<string>(
     (property as any).contactStatusCode != null ? String((property as any).contactStatusCode) : ''

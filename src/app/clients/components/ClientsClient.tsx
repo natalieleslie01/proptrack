@@ -801,7 +801,7 @@ export default function ClientsClient() {
                               return (
                                 <div key={match.id} className="bg-white rounded-lg border border-[hsl(214,20%,88%)] p-3 text-xs">
                                   <div className="flex items-center justify-between mb-1.5">
-                                    <span className="font-bold text-[hsl(215,25%,18%)] font-mono">{prop.property_ref}</span>
+                                    <span className="font-bold text-[hsl(215,25%,18%)] text-sm">{[prop.village, prop.unit].filter(Boolean).join(' · ') || prop.property_ref}</span>
                                     <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${
                                       prop.status === 'for-rent' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                                       prop.status === 'for-sale' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :

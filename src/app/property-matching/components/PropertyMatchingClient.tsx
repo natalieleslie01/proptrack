@@ -315,11 +315,14 @@ export default function PropertyMatchingClient() {
     setSelectedClientId(client.id);
     setClientSearch(client.full_name);
     setShowClientDropdown(false);
-    // Pre-fill filters from client prefs
+    // Pre-fill budget from client prefs (numeric — reliable match)
     setBudgetMin(client.budget_min ? String(client.budget_min) : '');
     setBudgetMax(client.budget_max ? String(client.budget_max) : '');
-    setDistrictFilter(client.preferred_areas ?? []);
-    setBedroomFilter(client.preferred_bedrooms ?? []);
+    // Do NOT auto-apply district/bedroom filters — stored preference values
+    // may not exactly match property village names, causing 0 results.
+    // The preferences are shown in the Client Preferences panel for reference.
+    setDistrictFilter([]);
+    setBedroomFilter([]);
     setTypeFilter('all');
     setSortBy('match');
   };

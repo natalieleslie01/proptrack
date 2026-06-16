@@ -3411,27 +3411,108 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                         ) : importedContacts.filter((c) => c.contact_role?.toLowerCase() === 'decision maker').length > 0 ? (
                           <div className="space-y-1.5">
                             {importedContacts.filter((c) => c.contact_role?.toLowerCase() === 'decision maker').map((c) => (
-                              <div key={c.id} className="flex items-start gap-2">
-                                <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                  <Icon name="StarIcon" size={12} className="text-amber-600" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{c.contact_person}</p>
-                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                                    {c.contact_number && (
-                                      <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
-                                        <Icon name="PhoneIcon" size={9} className="text-amber-400 flex-shrink-0" />
-                                        {c.contact_number}
-                                      </p>
-                                    )}
-                                    {c.contact_email && (
-                                      <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
-                                        <Icon name="MailIcon" size={9} className="text-amber-400 flex-shrink-0" />
-                                        {c.contact_email}
-                                      </p>
-                                    )}
+                              <div key={c.id} className="card p-2 border border-amber-100">
+                                {editingImportedContactId === c.id ? (
+                                  <div className="space-y-1.5">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                      <div>
+                                        <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name</label>
+                                        <input
+                                          className="input-field text-xs py-1 px-2 w-full"
+                                          value={importedContactDraft.contact_person}
+                                          onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_person: e.target.value }))}
+                                          placeholder="Full name"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Role</label>
+                                        <select
+                                          className="input-field text-xs py-1 px-2 w-full"
+                                          value={importedContactDraft.contact_role}
+                                          onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_role: e.target.value }))}
+                                        >
+                                          <option value="">Select role...</option>
+                                          <option value="Owner">Owner</option>
+                                          <option value="Tenant">Tenant</option>
+                                          <option value="Decision Maker">Decision Maker</option>
+                                          <option value="Landlord">Landlord</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Phone</label>
+                                        <input
+                                          className="input-field text-xs py-1 px-2 w-full"
+                                          value={importedContactDraft.contact_number}
+                                          onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_number: e.target.value }))}
+                                          placeholder="Phone number"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                                        <input
+                                          className="input-field text-xs py-1 px-2 w-full"
+                                          value={importedContactDraft.contact_email}
+                                          onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_email: e.target.value }))}
+                                          placeholder="Email address"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-1.5 justify-end pt-0.5">
+                                      <button
+                                        onClick={() => setEditingImportedContactId(null)}
+                                        className="btn-ghost py-0.5 px-2 text-xs min-h-[26px]"
+                                        disabled={savingImportedContact}
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        onClick={saveImportedContactEdit}
+                                        className="btn-primary py-0.5 px-2 text-xs min-h-[26px]"
+                                        disabled={savingImportedContact}
+                                      >
+                                        {savingImportedContact ? <Icon name="LoaderIcon" size={11} className="animate-spin" /> : 'Save'}
+                                      </button>
+                                    </div>
                                   </div>
-                                </div>
+                                ) : (
+                                  <div className="flex items-start gap-2">
+                                    <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                      <Icon name="StarIcon" size={12} className="text-amber-600" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{c.contact_person}</p>
+                                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                        {c.contact_number && (
+                                          <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                                            <Icon name="PhoneIcon" size={9} className="text-amber-400 flex-shrink-0" />
+                                            {c.contact_number}
+                                          </p>
+                                        )}
+                                        {c.contact_email && (
+                                          <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
+                                            <Icon name="MailIcon" size={9} className="text-amber-400 flex-shrink-0" />
+                                            {c.contact_email}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        setImportedContactDraft({
+                                          contact_person: c.contact_person,
+                                          contact_number: c.contact_number,
+                                          contact_email: c.contact_email,
+                                          contact_role: c.contact_role,
+                                        });
+                                        setEditingImportedContactId(c.id);
+                                      }}
+                                      className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-amber-600 hover:bg-amber-100 transition-colors flex-shrink-0"
+                                    >
+                                      <Icon name="PencilSquareIcon" size={10} />
+                                      Edit
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>

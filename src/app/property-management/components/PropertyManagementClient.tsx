@@ -155,14 +155,42 @@ function isLeaseExpiringSoon(leaseEnd: string): boolean {
 /** Derives flat label (last 3 chars) and floor number from a short_code.
  *  e.g. "H020009A" → { flat: "9A", floor: "9" }
  *  Strips leading zeros from the floor portion.
+ *  For 3-digit block+floor codes like "309" (Block 3, Floor 9),
+ *  the floor is extracted as the last 2 digits stripped of leading zeros.
  */
 function parseFlatFromShortCode(shortCode?: string): { flat: string; floor: string } | null {
   if (!shortCode || shortCode.length < 3) return null;
   const flat = shortCode.slice(-3).replace(/^0+/, '') || shortCode.slice(-3);
   // Floor is the numeric portion of the flat label (leading digits)
   const floorMatch = flat.match(/^(\d+)/);
-  const floor = floorMatch ? String(parseInt(floorMatch[1], 10)) : '';
+  if (!floorMatch) return { flat, floor: '' };
+  const rawFloor = floorMatch[1];
+  // If the numeric portion is exactly 3 digits and first digit is non-zero,
+  // it encodes Block + Floor (e.g. "309" = Block 3, Floor 9)
+  let floor: string;
+  if (/^[1-9]\d{2}$/.test(rawFloor)) {
+    floor = String(parseInt(rawFloor.slice(1), 10));
+  } else {
+    floor = String(parseInt(rawFloor, 10));
+  }
   return { flat, floor };
+}
+
+/**
+ * Formats a floor value for display.
+ * If the value is a 3-digit number (e.g. "309"), it is interpreted as
+ * Block <first digit>, Floor <remaining digits stripped of leading zeros>.
+ * e.g. "309" → "Block 3, Floor 9"  |  "308" → "Block 3, Floor 8" * Other values (e.g."9", "G", "LG") are returned as-is.
+ */
+function formatFloorDisplay(floor?: string | null): string {
+  if (!floor) return '—';
+  const trimmed = floor.trim();
+  if (/^[1-9]\d{2}$/.test(trimmed)) {
+    const block = trimmed[0];
+    const floorNum = String(parseInt(trimmed.slice(1), 10));
+    return `Block ${block}, Floor ${floorNum}`;
+  }
+  return trimmed;
 }
 
 function contactStatusBadge(status?: ContactStatus) {
@@ -1293,12 +1321,14 @@ export default function PropertyManagementClient() {
     if (sSizeMax) data = data.filter((p) => (p.sqft ?? 0) <= Number(sSizeMax));
     if (floorFrom) data = data.filter((p) => {
       const parsed = parseFlatFromShortCode(p.shortCode);
-      const floorNum = parsed ? parseInt(parsed.floor, 10) : parseInt(p.floor ?? '0', 10);
+      const rawFloor = p.floor ?? '0';
+      const floorNum = parsed ? parseInt(parsed.floor, 10) : (/^[1-9]\d{2}$/.test(rawFloor.trim()) ? parseInt(rawFloor.trim().slice(1), 10) : parseInt(rawFloor, 10));
       return !isNaN(floorNum) && floorNum >= Number(floorFrom);
     });
     if (floorTo) data = data.filter((p) => {
       const parsed = parseFlatFromShortCode(p.shortCode);
-      const floorNum = parsed ? parseInt(parsed.floor, 10) : parseInt(p.floor ?? '0', 10);
+      const rawFloor = p.floor ?? '0';
+      const floorNum = parsed ? parseInt(parsed.floor, 10) : (/^[1-9]\d{2}$/.test(rawFloor.trim()) ? parseInt(rawFloor.trim().slice(1), 10) : parseInt(rawFloor, 10));
       return !isNaN(floorNum) && floorNum <= Number(floorTo);
     });
     if (highlightFilter) data = data.filter((p) => (p.highlight ?? '').toLowerCase().includes(highlightFilter.toLowerCase()));

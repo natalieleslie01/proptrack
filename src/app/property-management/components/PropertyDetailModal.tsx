@@ -23,6 +23,24 @@ interface PropertyDetailModalProps {
   onSaved?: () => void;
 }
 
+/**
+ * Formats a floor value for display.
+ * If the value is a 3-digit number (e.g. "309"), it is interpreted as
+ * Block <first digit>, Floor <remaining digits stripped of leading zeros>.
+ * e.g. "309" → "Block 3, Floor 9" *"308"→ "Block 3, Floor 8" *"212"→ "Block 2, Floor 12" * Other values (e.g."9", "G", "LG") are returned as-is.
+ */
+function formatFloorDisplay(floor?: string | null): string {
+  if (!floor) return '—';
+  const trimmed = floor.trim();
+  // Match exactly 3 digits where first digit is non-zero (block number)
+  if (/^[1-9]\d{2}$/.test(trimmed)) {
+    const block = trimmed[0];
+    const floorNum = String(parseInt(trimmed.slice(1), 10));
+    return `Block ${block}, Floor ${floorNum}`;
+  }
+  return trimmed;
+}
+
 type Tab = 'overview' | 'tenancy' | 'documents' | 'transactions' | 'hk-forms' | 'history';
 
 const tabs: Array<{ id: Tab; label: string; icon: string }> = [
@@ -1904,7 +1922,7 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
       const labels: Record<number, string> = { 0: 'Active', 1: 'Leased', 2: 'Self Occupy', 3: 'No Contact', 4: 'Sold', 9: 'Unknown', 99: 'Blank' };
       return labels[property.status as number] ?? '—';
     })());
-    row('Floor', property.floor ?? '—');
+    row('Floor', formatFloorDisplay(property.floor));
     row('Bedrooms', bedroomsState || (property.bedrooms === 0 ? 'Studio' : property.bedrooms != null ? String(property.bedrooms) : '—'));
     row('Bathrooms', bathroomsState || (property.bathrooms != null ? String(property.bathrooms) : '—'));
     row('Saleable Area', `${property.sqft?.toLocaleString() ?? '—'} sq ft`);
@@ -2076,7 +2094,7 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                 )}
               </div>
               <p className="text-xs text-[hsl(215,15%,52%)] mt-0.5 line-clamp-2 sm:line-clamp-1">
-                {property.floor} · {property.street}, {property.district} ·{' '}
+                {formatFloorDisplay(property.floor)} · {property.street}, {property.district} ·{' '}
                 <span className="font-mono">{(property.sqft ?? 0).toLocaleString()} sq ft</span> ·
                 Built {property.yearBuilt ?? '—'}
               </p>
@@ -2284,7 +2302,7 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                       {/* Floor Number */}
                       <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
                         <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Floor</p>
-                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{floorNumber || property.floor || '—'}</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{floorNumber || formatFloorDisplay(property.floor)}</p>
                       </div>
                       {/* Flat / Unit Number */}
                       <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">

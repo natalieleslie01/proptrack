@@ -2302,7 +2302,7 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                       {/* Floor Number */}
                       <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
                         <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Floor</p>
-                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{floorNumber || formatFloorDisplay(property.floor)}</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{floorNumber || (() => { const f = property.floor?.trim(); if (!f) return '—'; if (/^[1-9]\d{2}$/.test(f)) return String(parseInt(f.slice(1), 10)); return f; })()}</p>
                       </div>
                       {/* Flat / Unit Number */}
                       <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">

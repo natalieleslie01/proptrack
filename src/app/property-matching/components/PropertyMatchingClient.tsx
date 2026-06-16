@@ -175,13 +175,13 @@ function PropertyCard({ property, isAssigned, matchScore, onAssign, onUnassign, 
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-[hsl(215,25%,18%)] text-sm">{property.property_ref}</span>
+              <span className="font-bold text-[hsl(215,25%,18%)] text-sm">{[property.village, property.unit].filter(Boolean).join(' · ') || property.property_ref}</span>
               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusColor(property.status)}`}>
                 {statusLabel(property.status)}
               </span>
             </div>
             <p className="text-xs text-[hsl(215,15%,52%)] mt-0.5 truncate">
-              {[property.village, property.phase, property.block && `Block ${property.block}`, property.floor && `Fl.${property.floor}`, property.unit && `Unit ${property.unit}`].filter(Boolean).join(' · ')}
+              {[property.phase, property.block && `Block ${property.block}`, property.floor && `Fl.${property.floor}`].filter(Boolean).join(' · ') || property.property_ref}
             </p>
           </div>
           {/* Match score badge */}
@@ -761,7 +761,7 @@ export default function PropertyMatchingClient() {
                   <Icon name="InfoIcon" size={15} className="text-[#1B4F8A] flex-shrink-0" />
                   <p className="text-xs text-[#1B4F8A]">Select a client from the left panel to enable match scoring and property assignment.</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {filteredProperties.map((property) => (
                     <PropertyCard
                       key={property.id}
@@ -802,7 +802,7 @@ export default function PropertyMatchingClient() {
 
             {/* Client selected — show matching properties */}
             {!loadingProps && selectedClientId && filteredProperties.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filteredProperties.map((property) => (
                   <PropertyCard
                     key={property.id}

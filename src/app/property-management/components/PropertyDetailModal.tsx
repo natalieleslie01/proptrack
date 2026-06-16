@@ -3409,7 +3409,7 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                       </div>
                     </div>
 
-                    {contacts.length === 0 && importedContacts.length === 0 && !showAddContact && (
+                    {contacts.length === 0 && importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner').length === 0 && !showAddContact && (
                       <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg p-3 text-center">
                         <Icon name="UsersIcon" size={20} className="text-[hsl(215,15%,62%)] mx-auto mb-1" />
                         <p className="text-xs font-medium text-[hsl(215,25%,18%)]">No contacts added yet</p>
@@ -3565,9 +3565,9 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                         Loading…
                       </div>
                     )}
-                    {!importedContactsLoading && importedContacts.length > 0 && (
+                    {!importedContactsLoading && importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner').length > 0 && (
                       <div className="space-y-1.5 mt-1.5">
-                        {importedContacts.map((c) => (
+                        {importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner').map((c) => (
                           <div key={c.id} className="card p-2 border border-purple-100">
                             {editingImportedContactId === c.id ? (
                               <div className="space-y-1.5">

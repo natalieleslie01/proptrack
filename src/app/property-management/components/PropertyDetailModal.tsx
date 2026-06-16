@@ -2388,6 +2388,20 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ id: property.id, updates: { contact_status_code: val !== '' ? parseInt(val, 10) : null } }),
                             }).then(() => toast.success('Status updated'));
+                            const statusLabels: Record<string, string> = {
+                              '0': 'Active', '1': 'Leased', '2': 'Self Occupy',
+                              '3': 'No Contact', '4': 'Sold', '9': 'Unknown',
+                            };
+                            const prevLabel = statusLabels[propertyStatusCode] ?? (propertyStatusCode ? propertyStatusCode : 'None');
+                            const newLabel = statusLabels[val] ?? (val ? val : 'None');
+                            const today = new Date().toLocaleDateString('en-GB').replace(/\//g, '/');
+                            const statusEntry: HistoryEntry = {
+                              id: `hl-status-${Date.now()}`,
+                              date: today,
+                              agent: agentNames[0] ?? 'System',
+                              action: `Status changed from ${prevLabel} → ${newLabel}`,
+                            };
+                            setHistoryLog((prev) => [statusEntry, ...prev]);
                           }}
                           className="input-base text-xs w-full min-h-[28px] py-0.5"
                         >

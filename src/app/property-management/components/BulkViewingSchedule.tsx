@@ -100,6 +100,200 @@ function TimePicker({ value, onChange }: TimePickerProps) {
   );
 }
 
+// ─── Calendar Date Picker ─────────────────────────────────────────────────────
+interface CalendarPickerProps {
+  value: string; // DD/MM/YYYY
+  onChange: (val: string) => void;
+}
+
+function CalendarPicker({ value, onChange }: CalendarPickerProps) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Parse DD/MM/YYYY → Date (or today)
+  function parseValue(): Date {
+    if (value && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+      const [d, m, y] = value.split('/').map(Number);
+      const dt = new Date(y, m - 1, d);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+    return new Date();
+  }
+
+  const parsed = parseValue();
+  const [viewYear, setViewYear] = useState(parsed.getFullYear());
+  const [viewMonth, setViewMonth] = useState(parsed.getMonth()); // 0-indexed
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  // Sync view to value when it changes externally
+  useEffect(() => {
+    const p = parseValue();
+    setViewYear(p.getFullYear());
+    setViewMonth(p.getMonth());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+  function getDaysInMonth(y: number, m: number) {
+    return new Date(y, m + 1, 0).getDate();
+  }
+  function getFirstDayOfMonth(y: number, m: number) {
+    return new Date(y, m, 1).getDay();
+  }
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+    else setViewMonth(m => m - 1);
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
+    else setViewMonth(m => m + 1);
+  }
+
+  function selectDay(day: number) {
+    const dd = String(day).padStart(2, '0');
+    const mm = String(viewMonth + 1).padStart(2, '0');
+    onChange(`${dd}/${mm}/${viewYear}`);
+    setOpen(false);
+  }
+
+  // Selected day in current view
+  let selectedDay: number | null = null;
+  if (value && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+    const [d, m, y] = value.split('/').map(Number);
+    if (m - 1 === viewMonth && y === viewYear) selectedDay = d;
+  }
+
+  const totalDays = getDaysInMonth(viewYear, viewMonth);
+  const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= totalDays; d++) cells.push(d);
+  // Pad to complete last row
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const today = new Date();
+  const todayDay = today.getDate();
+  const todayMonth = today.getMonth();
+  const todayYear = today.getFullYear();
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      {/* Input trigger */}
+      <div
+        className="input-base w-full font-mono flex items-center justify-between cursor-pointer select-none"
+        onClick={() => setOpen(o => !o)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setOpen(o => !o); }}
+      >
+        <span className={value ? 'text-[hsl(215,25%,18%)]' : 'text-[hsl(215,15%,65%)]'}>
+          {value || 'DD/MM/YYYY'}
+        </span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[#1B4F8A] flex-shrink-0 ml-2">
+          <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+          <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+        </svg>
+      </div>
+
+      {/* Calendar dropdown */}
+      {open && (
+        <div className="absolute z-[200] top-full left-0 mt-1 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-xl p-3 w-64">
+          {/* Month/Year navigation */}
+          <div className="flex items-center justify-between mb-2">
+            <button
+              type="button"
+              onClick={prevMonth}
+              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M6.5 1.5L3 5l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+            <span className="text-xs font-bold text-[hsl(215,25%,18%)]">
+              {MONTHS[viewMonth]} {viewYear}
+            </span>
+            <button
+              type="button"
+              onClick={nextMonth}
+              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3.5 1.5L7 5l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+          </div>
+
+          {/* Day headers */}
+          <div className="grid grid-cols-7 mb-1">
+            {DAYS.map(d => (
+              <div key={d} className="text-center text-[10px] font-bold text-[hsl(215,15%,52%)] py-0.5">{d}</div>
+            ))}
+          </div>
+
+          {/* Day cells */}
+          <div className="grid grid-cols-7 gap-y-0.5">
+            {cells.map((day, idx) => {
+              if (day === null) return <div key={idx} />;
+              const isSelected = day === selectedDay;
+              const isToday = day === todayDay && viewMonth === todayMonth && viewYear === todayYear;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => selectDay(day)}
+                  className={`w-8 h-8 mx-auto flex items-center justify-center rounded-lg text-xs font-medium transition-colors
+                    ${isSelected
+                      ? 'bg-[#1B4F8A] text-white font-bold'
+                      : isToday
+                      ? 'border border-[#1B4F8A] text-[#1B4F8A] font-bold hover:bg-[#1B4F8A]/10'
+                      : 'text-[hsl(215,25%,25%)] hover:bg-[#1B4F8A]/10 hover:text-[#1B4F8A]'
+                    }`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Today shortcut */}
+          <div className="mt-2 pt-2 border-t border-[hsl(214,20%,88%)] flex justify-between items-center">
+            <button
+              type="button"
+              onClick={() => {
+                const dd = String(todayDay).padStart(2, '0');
+                const mm = String(todayMonth + 1).padStart(2, '0');
+                onChange(`${dd}/${mm}/${todayYear}`);
+                setOpen(false);
+              }}
+              className="text-[10px] font-semibold text-[#1B4F8A] hover:underline"
+            >
+              Today
+            </button>
+            {value && (
+              <button
+                type="button"
+                onClick={() => { onChange(''); setOpen(false); }}
+                className="text-[10px] font-semibold text-red-400 hover:underline"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Printable Schedule Content (rendered once, outside modal) ────────────────
 interface PrintableScheduleProps {
   properties: Property[];
@@ -506,13 +700,7 @@ export default function BulkViewingSchedule({ properties, onClose }: BulkViewing
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Viewing Date</label>
-                  <input
-                    type="text"
-                    value={viewingDate}
-                    onChange={(e) => setViewingDate(e.target.value)}
-                    placeholder="DD/MM/YYYY"
-                    className="input-base w-full font-mono"
-                  />
+                  <CalendarPicker value={viewingDate} onChange={setViewingDate} />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Client Name *</label>

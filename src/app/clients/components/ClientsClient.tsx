@@ -418,7 +418,6 @@ export default function ClientsClient() {
             {loading ? 'Loading…' : `${filtered.length} client${filtered.length !== 1 ? 's' : ''}${clients.length !== filtered.length ? ` of ${clients.length}` : ''}`}
           </p>
         </div>
-        {isAdminOrManager && (
         <button
           className="btn-primary"
           onClick={() => { setAddingNew(true); setEditingId(null); setNewForm(EMPTY_FORM); }}
@@ -426,7 +425,6 @@ export default function ClientsClient() {
           <Icon name="PlusIcon" size={16} />
           Add Client
         </button>
-        )}
       </div>
 
       {/* Filters */}
@@ -642,7 +640,6 @@ export default function ClientsClient() {
                     {/* Actions */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        {isAdminOrManager && (
                         <button
                           onClick={() => startEdit(client)}
                           className="btn-ghost py-1 px-2 text-xs"
@@ -651,8 +648,6 @@ export default function ClientsClient() {
                           <Icon name="PencilIcon" size={13} />
                           Edit
                         </button>
-                        )}
-                        {isAdmin && (
                         <button
                           onClick={() => handleDelete(client.id)}
                           className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg text-red-500 hover:bg-red-50 transition-all duration-150"
@@ -660,7 +655,6 @@ export default function ClientsClient() {
                         >
                           <Icon name="Trash2Icon" size={13} />
                         </button>
-                        )}
                       </div>
                     </td>
                   </tr>

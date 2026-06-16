@@ -3159,26 +3159,6 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                       </div>
                     )}
 
-                    {/* Landlord details */}
-                    <div className="card p-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                      <div className="col-span-2 sm:col-span-4">
-                        <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 flex items-center gap-1">
-                          <Icon name="BuildingIcon" size={10} className="text-[#1B4F8A]" />
-                          Landlord Details
-                        </p>
-                      </div>
-                      {[
-                        { label: 'Name', value: property.landlord.name },
-                        { label: 'Phone', value: property.landlord.phone },
-                        { label: 'Email', value: property.landlord.email },
-                        { label: 'ID / CR No.', value: property.landlord.idNumber },
-                      ].map((item) => (
-                        <div key={`ll-${item.label}`}>
-                          <p className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5">{item.label}</p>
-                          <p className="text-xs font-medium text-[hsl(215,25%,18%)] break-all">{item.value}</p>
-                        </div>
-                      ))}
-                    </div>
                     {/* Owner contacts from CSV — shown inline within Owner & Landlord Details */}
                     {importedContacts
                       .filter((c) => c.contact_role?.toLowerCase() === 'owner')

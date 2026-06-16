@@ -3188,12 +3188,17 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                                 </div>
                                 <div>
                                   <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Role</label>
-                                  <input
+                                  <select
                                     className="input-field text-xs py-1 px-2 w-full"
                                     value={importedContactDraft.contact_role}
                                     onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_role: e.target.value }))}
-                                    placeholder="e.g. Owner"
-                                  />
+                                  >
+                                    <option value="">Select role...</option>
+                                    <option value="Owner">Owner</option>
+                                    <option value="Tenant">Tenant</option>
+                                    <option value="Decision Maker">Decision Maker</option>
+                                    <option value="Landlord">Landlord</option>
+                                  </select>
                                 </div>
                               </div>
                               <div className="flex gap-1.5 justify-end pt-0.5">
@@ -3583,12 +3588,17 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                                   </div>
                                   <div>
                                     <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Role</label>
-                                    <input
+                                    <select
                                       className="input-field text-xs py-1 px-2 w-full"
                                       value={importedContactDraft.contact_role}
                                       onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_role: e.target.value }))}
-                                      placeholder="e.g. Owner, Tenant"
-                                    />
+                                    >
+                                      <option value="">Select role...</option>
+                                      <option value="Owner">Owner</option>
+                                      <option value="Tenant">Tenant</option>
+                                      <option value="Decision Maker">Decision Maker</option>
+                                      <option value="Landlord">Landlord</option>
+                                    </select>
                                   </div>
                                   <div>
                                     <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Phone</label>

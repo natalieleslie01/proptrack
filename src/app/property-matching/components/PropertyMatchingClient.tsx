@@ -191,18 +191,18 @@ function PropertyCard({ property, isAssigned, matchScore, onAssign, onUnassign, 
         </div>
 
         {/* Details grid */}
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <div className="text-center bg-[hsl(210,15%,97%)] rounded-lg py-1.5 px-2">
+        <div className="grid grid-cols-3 gap-2 mb-3 overflow-hidden">
+          <div className="text-center bg-[hsl(210,15%,97%)] rounded-lg py-1.5 px-2 min-w-0">
             <p className="text-[10px] text-[hsl(215,15%,52%)] mb-0.5">Beds</p>
             <p className="text-sm font-semibold text-[hsl(215,25%,18%)]">{property.bedrooms ?? '—'}</p>
           </div>
           <div className="text-center bg-[hsl(210,15%,97%)] rounded-lg py-1.5 px-2">
             <p className="text-[10px] text-[hsl(215,15%,52%)] mb-0.5">Area</p>
-            <p className="text-sm font-semibold text-[hsl(215,25%,18%)]">{property.saleable_area ? `${property.saleable_area}ft²` : '—'}</p>
+            <p className="text-sm font-semibold text-[hsl(215,25%,18%)] truncate">{property.saleable_area ? `${property.saleable_area}ft²` : '—'}</p>
           </div>
-          <div className="text-center bg-[hsl(210,15%,97%)] rounded-lg py-1.5 px-2">
+          <div className="text-center bg-[hsl(210,15%,97%)] rounded-lg py-1.5 px-2 min-w-0">
             <p className="text-[10px] text-[hsl(215,15%,52%)] mb-0.5">Price</p>
-            <p className="text-sm font-semibold text-[hsl(215,25%,18%)]">{formatPrice(price)}</p>
+            <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] truncate leading-tight">{formatPrice(price)}</p>
           </div>
         </div>
 

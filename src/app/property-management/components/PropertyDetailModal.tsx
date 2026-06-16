@@ -2427,23 +2427,23 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                           </button>
                         </div>
                         {showListingCalendar && (
-                          <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
+                          <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3" style={{width: '280px'}}>
                             <div className="flex items-center justify-between mb-2">
                               <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronLeftIcon" size={14} /></button>
                               <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{listingCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
                               <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronRightIcon" size={14} /></button>
                             </div>
                             <div className="grid grid-cols-7 mb-1">{['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (<div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>))}</div>
-                            <div className="grid grid-cols-7 gap-y-0.5">
+                            <div className="grid grid-cols-7 gap-0.5">
                               {(() => {
                                 const year = listingCalMonth.getFullYear(); const month = listingCalMonth.getMonth();
                                 const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
                                 const cells: React.ReactNode[] = [];
-                                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
+                                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} style={{height:'32px'}} />);
                                 for (let day = 1; day <= daysInMonth; day++) {
                                   const dd = String(day).padStart(2, '0'); const mm = String(month + 1).padStart(2, '0');
                                   const dateStr = `${dd}/${mm}/${year}`; const isSelected = listingDate === dateStr;
-                                  cells.push(<button key={day} type="button" onClick={() => { setListingDate(dateStr); setShowListingCalendar(false); autoSavePricingDate('listing_date', dateStr); }} className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}>{day}</button>);
+                                  cells.push(<button key={day} type="button" onClick={() => { setListingDate(dateStr); setShowListingCalendar(false); autoSavePricingDate('listing_date', dateStr); }} style={{height:'32px'}} className={`text-[11px] w-full rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}>{day}</button>);
                                 }
                                 return cells;
                               })()}
@@ -2466,23 +2466,23 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                           </button>
                         </div>
                         {showVacantCalendar && (
-                          <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
+                          <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3" style={{width: '280px'}}>
                             <div className="flex items-center justify-between mb-2">
                               <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronLeftIcon" size={14} /></button>
                               <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{vacantCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
                               <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronRightIcon" size={14} /></button>
                             </div>
                             <div className="grid grid-cols-7 mb-1">{['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (<div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>))}</div>
-                            <div className="grid grid-cols-7 gap-y-0.5">
+                            <div className="grid grid-cols-7 gap-0.5">
                               {(() => {
                                 const year = vacantCalMonth.getFullYear(); const month = vacantCalMonth.getMonth();
                                 const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
                                 const cells: React.ReactNode[] = [];
-                                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
+                                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} style={{height:'32px'}} />);
                                 for (let day = 1; day <= daysInMonth; day++) {
                                   const dd = String(day).padStart(2, '0'); const mm = String(month + 1).padStart(2, '0');
                                   const dateStr = `${dd}/${mm}/${year}`; const isSelected = vacantDate === dateStr;
-                                  cells.push(<button key={day} type="button" onClick={() => { setVacantDate(dateStr); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', dateStr); }} className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}>{day}</button>);
+                                  cells.push(<button key={day} type="button" onClick={() => { setVacantDate(dateStr); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', dateStr); }} style={{height:'32px'}} className={`text-[11px] w-full rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}>{day}</button>);
                                 }
                                 return cells;
                               })()}

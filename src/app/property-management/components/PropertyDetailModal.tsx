@@ -2436,7 +2436,7 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                         {rentalPrice && <p className="text-[8px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo (enter thousands: 28 = 28,000)</p>}
                       </div>
                       <div>
-                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Gross ft²</label>
+                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Net ft²</label>
                         <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} placeholder="e.g. 1200" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
                       </div>
                       <div className="relative sm:col-span-2">

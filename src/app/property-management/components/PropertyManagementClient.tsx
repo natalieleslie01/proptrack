@@ -590,7 +590,8 @@ function dbRowToProperty(row: Record<string, any>): Property {
     additionalFeatures: additionalFeatures.length > 0 ? additionalFeatures : undefined,
     monthlyRent: row.asking_rent ?? null,
     salePrice: row.asking_price ?? null,
-    listingDate: row.publish_dt || undefined,
+    listingDate: row.publish_dt ? (() => { const d = new Date(row.publish_dt); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; })() : undefined,
+    vacantDate: row.vacant_date ? (() => { const d = new Date(row.vacant_date); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; })() : undefined,
     owner: row.landlord_name || undefined,
     landlord: {
       name: row.landlord_name || '',

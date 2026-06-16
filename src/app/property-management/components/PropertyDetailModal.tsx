@@ -1518,10 +1518,21 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
 
   async function autoSavePricingDate(field: 'listing_date' | 'vacant_date', value: string) {
     try {
+      const dbField = field === 'listing_date' ? 'publish_dt' : 'vacant_date';
+      // Convert DD/MM/YYYY to YYYY-MM-DD for date columns, or null if empty
+      let dbValue: string | null = null;
+      if (value) {
+        const parts = value.split('/');
+        if (parts.length === 3) {
+          dbValue = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        } else {
+          dbValue = value;
+        }
+      }
       const res = await fetch('/api/property-save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: property.id, updates: { [field]: value || null } }),
+        body: JSON.stringify({ id: property.id, updates: { [dbField]: dbValue } }),
       });
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error ?? 'Save failed');

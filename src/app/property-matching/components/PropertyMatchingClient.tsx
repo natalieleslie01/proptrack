@@ -275,7 +275,7 @@ export default function PropertyMatchingClient() {
     setLoadingProps(true);
     const { data, error } = await supabase
       .from('properties')
-      .select('id, property_ref, village, phase, block, floor, unit, address, bedrooms, bathrooms, saleable_area, asking_price, asking_rent, status, occupancy, photo_url, year_built, view, direction, additional_features, eng_remark, advertising_remarks')
+      .select('id, property_ref, village, phase, block, floor, unit, address, bedrooms, bathrooms, saleable_area, asking_price, asking_rent, status, occupancy, advertising_remarks, short_code')
       .order('property_ref', { ascending: true });
     if (error) {
       console.error('[PropertyMatching] fetchProperties error:', error);
@@ -454,12 +454,12 @@ export default function PropertyMatchingClient() {
         askingPrice: p.asking_price,
         askingRent: p.asking_rent,
         status: p.status,
-        photoUrl: p.photo_url ?? null,
-        yearBuilt: p.year_built ?? null,
-        view: p.view ?? null,
-        direction: p.direction ?? null,
-        additionalFeatures: p.additional_features ?? [],
-        engRemark: p.eng_remark ?? p.advertising_remarks ?? null,
+        photoUrl: null,
+        yearBuilt: null,
+        view: null,
+        direction: null,
+        additionalFeatures: [],
+        engRemark: p.advertising_remarks ?? null,
       })),
       printedAt: new Date().toISOString(),
     };

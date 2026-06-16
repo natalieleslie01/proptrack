@@ -273,10 +273,14 @@ export default function PropertyMatchingClient() {
 
   const fetchProperties = useCallback(async () => {
     setLoadingProps(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('properties')
       .select('id, property_ref, village, phase, block, floor, unit, address, bedrooms, bathrooms, saleable_area, asking_price, asking_rent, status, occupancy, photo_url, year_built, view, direction, additional_features, eng_remark, advertising_remarks')
       .order('property_ref', { ascending: true });
+    if (error) {
+      console.error('[PropertyMatching] fetchProperties error:', error);
+    }
+    console.log('[PropertyMatching] properties loaded:', data?.length ?? 0);
     setProperties(data ?? []);
     setLoadingProps(false);
   }, [supabase]);
@@ -315,12 +319,10 @@ export default function PropertyMatchingClient() {
     setSelectedClientId(client.id);
     setClientSearch(client.full_name);
     setShowClientDropdown(false);
-    // Pre-fill budget from client prefs (numeric — reliable match)
-    setBudgetMin(client.budget_min ? String(client.budget_min) : '');
-    setBudgetMax(client.budget_max ? String(client.budget_max) : '');
-    // Do NOT auto-apply district/bedroom filters — stored preference values
-    // may not exactly match property village names, causing 0 results.
-    // The preferences are shown in the Client Preferences panel for reference.
+    // Do NOT auto-apply ANY filters — let the user see all properties first.
+    // Client preferences are shown in the panel for reference only.
+    setBudgetMin('');
+    setBudgetMax('');
     setDistrictFilter([]);
     setBedroomFilter([]);
     setTypeFilter('all');
@@ -741,36 +743,65 @@ export default function PropertyMatchingClient() {
 
           {/* Property grid */}
           <div className="flex-1 overflow-y-auto p-5">
-            {!selectedClientId && (
-              <div className="flex flex-col items-center justify-center h-full text-center py-16">
-                <div className="w-14 h-14 rounded-2xl bg-[#1B4F8A]/8 flex items-center justify-center mb-4">
-                  <Icon name="UsersIcon" size={26} className="text-[#1B4F8A]/50" />
-                </div>
-                <p className="text-base font-semibold text-[hsl(215,25%,18%)]">Select a client to get started</p>
-                <p className="text-sm text-[hsl(215,15%,52%)] mt-1 max-w-xs">Choose a client from the left panel. Filters will be pre-filled from their preferences and you can assign matching properties.</p>
-              </div>
-            )}
-
-            {selectedClientId && loadingProps && (
+            {/* Loading state */}
+            {loadingProps && (
               <div className="flex items-center justify-center py-16">
                 <svg className="animate-spin w-6 h-6 text-[#1B4F8A]" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
+                <span className="ml-3 text-sm text-[hsl(215,15%,52%)]">Loading properties…</span>
               </div>
             )}
 
-            {selectedClientId && !loadingProps && filteredProperties.length === 0 && (
+            {/* No client selected — show all properties with a banner */}
+            {!loadingProps && !selectedClientId && properties.length > 0 && (
+              <>
+                <div className="mb-4 flex items-center gap-2 bg-[#1B4F8A]/5 border border-[#1B4F8A]/20 rounded-xl px-4 py-2.5">
+                  <Icon name="InfoIcon" size={15} className="text-[#1B4F8A] flex-shrink-0" />
+                  <p className="text-xs text-[#1B4F8A]">Select a client from the left panel to enable match scoring and property assignment.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {filteredProperties.map((property) => (
+                    <PropertyCard
+                      key={property.id}
+                      property={property}
+                      isAssigned={false}
+                      matchScore={0}
+                      onAssign={handleAssign}
+                      onUnassign={handleUnassign}
+                      assigning={assigning}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* No client selected and no properties */}
+            {!loadingProps && !selectedClientId && properties.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center py-16">
+                <div className="w-14 h-14 rounded-2xl bg-[#1B4F8A]/8 flex items-center justify-center mb-4">
+                  <Icon name="HomeIcon" size={26} className="text-[#1B4F8A]/50" />
+                </div>
+                <p className="text-base font-semibold text-[hsl(215,25%,18%)]">No properties found</p>
+                <p className="text-sm text-[hsl(215,15%,52%)] mt-1 max-w-xs">No properties are available in the database.</p>
+              </div>
+            )}
+
+            {/* Client selected — no matches after filtering */}
+            {!loadingProps && selectedClientId && filteredProperties.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
                   <Icon name="SearchXIcon" size={22} className="text-gray-400" />
                 </div>
                 <p className="text-sm font-semibold text-[hsl(215,25%,18%)]">No properties match these filters</p>
-                <button onClick={clearFilters} className="mt-2 text-xs text-[#1B4F8A] hover:underline">Clear filters</button>
+                <p className="text-xs text-[hsl(215,15%,52%)] mt-1">{properties.length} total properties in database</p>
+                <button onClick={clearFilters} className="mt-2 text-xs text-[#1B4F8A] hover:underline">Clear all filters</button>
               </div>
             )}
 
-            {selectedClientId && !loadingProps && filteredProperties.length > 0 && (
+            {/* Client selected — show matching properties */}
+            {!loadingProps && selectedClientId && filteredProperties.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {filteredProperties.map((property) => (
                   <PropertyCard

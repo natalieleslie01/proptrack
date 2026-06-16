@@ -133,20 +133,23 @@ function RowForm({ form, onChange, onSave, onCancel, saving, isNew }: RowFormPro
         <div className="flex gap-1.5 items-center">
           <input
             className="input-base text-sm py-1.5 w-24"
-            placeholder="Min HK$"
+            placeholder="Min (e.g. 1.4)"
             type="number"
+            step="0.1"
             value={form.budget_min}
             onChange={(e) => onChange({ ...form, budget_min: e.target.value })}
           />
           <span className="text-[hsl(215,15%,52%)] text-xs">–</span>
           <input
             className="input-base text-sm py-1.5 w-24"
-            placeholder="Max HK$"
+            placeholder="Max (e.g. 2.5)"
             type="number"
+            step="0.1"
             value={form.budget_max}
             onChange={(e) => onChange({ ...form, budget_max: e.target.value })}
           />
         </div>
+        <p className="text-[10px] text-[hsl(215,15%,62%)] mt-1">× 1,000,000</p>
       </td>
       {/* Districts */}
       <td className="px-4 py-3 align-top" colSpan={1}>
@@ -323,8 +326,8 @@ export default function ClientsClient() {
       full_name: newForm.full_name.trim(),
       mobile: newForm.mobile.trim() || null,
       email: newForm.email.trim() || null,
-      budget_min: newForm.budget_min ? parseInt(newForm.budget_min) : null,
-      budget_max: newForm.budget_max ? parseInt(newForm.budget_max) : null,
+      budget_min: newForm.budget_min ? Math.round(parseFloat(newForm.budget_min) * 1_000_000) : null,
+      budget_max: newForm.budget_max ? Math.round(parseFloat(newForm.budget_max) * 1_000_000) : null,
       preferred_areas: newForm.preferred_areas.length ? newForm.preferred_areas : null,
       notes: newForm.notes.trim() || null,
       created_by: user?.id ?? null,
@@ -349,8 +352,8 @@ export default function ClientsClient() {
       full_name: c.full_name,
       mobile: c.mobile ?? '',
       email: c.email ?? '',
-      budget_min: c.budget_min?.toString() ?? '',
-      budget_max: c.budget_max?.toString() ?? '',
+      budget_min: c.budget_min != null ? (c.budget_min / 1_000_000).toString() : '',
+      budget_max: c.budget_max != null ? (c.budget_max / 1_000_000).toString() : '',
       preferred_areas: c.preferred_areas ?? [],
       notes: c.notes ?? '',
     });
@@ -364,8 +367,8 @@ export default function ClientsClient() {
       full_name: editForm.full_name.trim(),
       mobile: editForm.mobile.trim() || null,
       email: editForm.email.trim() || null,
-      budget_min: editForm.budget_min ? parseInt(editForm.budget_min) : null,
-      budget_max: editForm.budget_max ? parseInt(editForm.budget_max) : null,
+      budget_min: editForm.budget_min ? Math.round(parseFloat(editForm.budget_min) * 1_000_000) : null,
+      budget_max: editForm.budget_max ? Math.round(parseFloat(editForm.budget_max) * 1_000_000) : null,
       preferred_areas: editForm.preferred_areas.length ? editForm.preferred_areas : null,
       notes: editForm.notes.trim() || null,
       updated_at: new Date().toISOString(),

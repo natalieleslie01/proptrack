@@ -1182,6 +1182,18 @@ export default function PropertyManagementClient() {
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
 
+  // ── Owner map: keyed by property_ref and short_code → first owner name + all contacts ──
+  interface OwnerContactRow {
+    id: string;
+    property_ref: string | null;
+    short_code: string | null;
+    contact_person: string;
+    contact_role: string;
+    contact_number: string;
+    contact_email: string;
+  }
+  const [ownerMap, setOwnerMap] = useState<Record<string, OwnerContactRow[]>>({});
+
   const supabaseRef = useRef(createClient());
   const supabase = supabaseRef.current;
 
@@ -1263,6 +1275,42 @@ export default function PropertyManagementClient() {
   useEffect(() => {
     fetchProperties();
   }, [fetchProperties]);
+
+  // Fetch contacts separately whenever dbProperties changes (new approach)
+  useEffect(() => {
+    if (dbProperties.length === 0) return;
+    let cancelled = false;
+    async function fetchContacts() {
+      try {
+        const sb = createClient();
+        const { data, error } = await sb
+          .from('property_contacts')
+          .select('id, property_ref, short_code, contact_person, contact_role, contact_number, contact_email')
+          .order('created_at', { ascending: true });
+        if (error || !data || cancelled) return;
+        // Build map keyed by both property_ref and short_code
+        const map: Record<string, OwnerContactRow[]> = {};
+        for (const row of data as OwnerContactRow[]) {
+          if (row.property_ref) {
+            const key = row.property_ref.trim().toLowerCase();
+            if (!map[key]) map[key] = [];
+            map[key].push(row);
+          }
+          if (row.short_code) {
+            const key = row.short_code.trim().toLowerCase();
+            if (!map[key]) map[key] = [];
+            // avoid duplicates if same row matched both
+            if (!map[key].find((r) => r.id === row.id)) map[key].push(row);
+          }
+        }
+        if (!cancelled) setOwnerMap(map);
+      } catch {
+        // silently ignore
+      }
+    }
+    fetchContacts();
+    return () => { cancelled = true; };
+  }, [dbProperties]);
 
   const { can, isAdmin, isAdminOrManager } = useRole();
 
@@ -2277,14 +2325,25 @@ export default function PropertyManagementClient() {
                           <KeyLocationPopover prop={prop} />
                         </Popover>
                       </td>
-                      {/* Owner — first owner from property_contacts, clickable to show all contact details */}
+                      {/* Owner — looked up directly from ownerMap by property_ref / short_code */}
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         {(() => {
-                          const contacts = prop.contacts ?? [];
-                          // Find first contact with role "Owner", fallback to first contact, fallback to landlord
-                          const ownerContact = contacts.find((c) => (c.relationship ?? '').toLowerCase() === 'owner') ?? contacts[0] ?? null;
-                          const ownerName = ownerContact?.name || prop.owner || prop.landlord.name;
+                          const refKey = (prop.ref ?? '').trim().toLowerCase();
+                          const scKey = (prop.shortCode ?? '').trim().toLowerCase();
+                          const contactRows = (refKey && ownerMap[refKey]) || (scKey && ownerMap[scKey]) || [];
+                          const ownerRow = contactRows.find((c) => (c.contact_role ?? '').toLowerCase() === 'owner') ?? contactRows[0] ?? null;
+                          const ownerName = ownerRow?.contact_person?.trim() || prop.owner || prop.landlord.name;
                           if (!ownerName) return <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>;
+                          const popoverContacts = contactRows.map((c) => ({
+                            id: c.id,
+                            name: c.contact_person,
+                            relationship: c.contact_role,
+                            mobile: c.contact_number,
+                            email: c.contact_email,
+                            telephone: '',
+                            customerCode: undefined,
+                          }));
+                          const propWithContacts = { ...prop, contacts: popoverContacts.length > 0 ? popoverContacts : prop.contacts };
                           return (
                             <Popover
                               trigger={
@@ -2296,7 +2355,7 @@ export default function PropertyManagementClient() {
                                 </button>
                               }
                             >
-                              <ContactsPopover prop={prop} />
+                              <ContactsPopover prop={propWithContacts} />
                             </Popover>
                           );
                         })()}

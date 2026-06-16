@@ -2437,7 +2437,7 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                       </div>
                       <div>
                         <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Net ft²</label>
-                        <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} placeholder="e.g. 1200" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                        <input type="number" value={netSqft} onChange={(e) => setNetSqft(e.target.value)} onBlur={(e) => autoSaveSpecsField({ saleable_area: e.target.value ? Number(e.target.value) : null })} placeholder="e.g. 1200" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
                       </div>
                       <div className="relative sm:col-span-2">
                         <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Listing Date</label>

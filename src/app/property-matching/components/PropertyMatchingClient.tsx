@@ -181,7 +181,7 @@ function PropertyCard({ property, isAssigned, matchScore, onAssign, onUnassign, 
               </span>
             </div>
             <p className="text-xs text-[hsl(215,15%,52%)] mt-0.5 truncate">
-              {[property.block && `Block ${property.block}`, property.floor && `Fl.${property.floor}`, property.bedrooms != null && `${property.bedrooms} Beds`].filter(Boolean).join(' · ') || property.property_ref}
+              {[property.block && `Block ${property.block}`, property.floor && `${property.floor}`, property.bedrooms != null && `${property.bedrooms} Beds`].filter(Boolean).join(' · ') || property.property_ref}
             </p>
           </div>
           {/* Match score badge */}

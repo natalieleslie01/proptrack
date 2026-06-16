@@ -2401,13 +2401,13 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 mb-1.5">
                       <div className="sm:col-span-2">
                         <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Sale Price (HKD)</label>
-                        <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_price', e.target.value)} placeholder="e.g. 8500000" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
-                        {salePrice && <p className="text-[8px] text-[hsl(215,15%,52%)] mt-0.5">≈ HK${(Number(salePrice) / 1000000).toFixed(2)}M</p>}
+                        <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} onBlur={(e) => { const raw = e.target.value; if (raw) { const full = String(Number(raw) * 1000000); setSalePrice(full); autoSavePricingField('asking_price', full); } else { autoSavePricingField('asking_price', ''); } }} placeholder="e.g. 8.5 → 8,500,000" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                        {salePrice && <p className="text-[8px] text-[hsl(215,15%,52%)] mt-0.5">≈ HK${(Number(salePrice) / 1000000).toFixed(2)}M (enter millions: 8.5 = 8,500,000)</p>}
                       </div>
                       <div className="sm:col-span-2">
                         <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Rental / Month</label>
-                        <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} onBlur={(e) => autoSavePricingField('asking_rent', e.target.value)} placeholder="e.g. 28500" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
-                        {rentalPrice && <p className="text-[8px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo</p>}
+                        <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} onBlur={(e) => { const raw = e.target.value; if (raw) { const full = String(Number(raw) * 1000); setRentalPrice(full); autoSavePricingField('asking_rent', full); } else { autoSavePricingField('asking_rent', ''); } }} placeholder="e.g. 28 → 28,000" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                        {rentalPrice && <p className="text-[8px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo (enter thousands: 28 = 28,000)</p>}
                       </div>
                       <div>
                         <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Gross ft²</label>

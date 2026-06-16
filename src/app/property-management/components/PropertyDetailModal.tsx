@@ -179,6 +179,10 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
   const [photoUploading, setPhotoUploading] = useState(false);
   const photoUploadRef = useRef<HTMLInputElement>(null);
   const thumbnailScrollRef = useRef<HTMLDivElement>(null);
+  const listingCalBtnRef = useRef<HTMLButtonElement>(null);
+  const vacantCalBtnRef = useRef<HTMLButtonElement>(null);
+  const [listingCalPos, setListingCalPos] = useState<{top: number; left: number} | null>(null);
+  const [vacantCalPos, setVacantCalPos] = useState<{top: number; left: number} | null>(null);
 
   // Fetch photos from Supabase on mount (property_photos table + storage fallback)
   useEffect(() => {
@@ -2338,8 +2342,8 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
               {/* 1. Pricing & Listing + Key Log — side by side */}
               <div className="flex flex-col sm:flex-row gap-1.5">
                 {/* Pricing & Listing Dates */}
-                <div className="flex-1 border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
-                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
+                <div className="flex-1 border border-[hsl(214,20%,88%)] rounded-lg overflow-visible">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)] rounded-t-lg overflow-hidden">
                   <SectionHeader
                     sectionKey="pricing"
                     icon="TagIcon"
@@ -2418,8 +2422,17 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                         <div className="flex items-center gap-1">
                           <input type="text" value={listingDate} onChange={(e) => setListingDate(e.target.value)} onBlur={(e) => autoSavePricingDate('listing_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
                           <button
+                            ref={listingCalBtnRef}
                             type="button"
-                            onClick={() => { setShowListingCalendar(!showListingCalendar); setShowVacantCalendar(false); }}
+                            onClick={() => {
+                              const next = !showListingCalendar;
+                              setShowVacantCalendar(false);
+                              if (next && listingCalBtnRef.current) {
+                                const rect = listingCalBtnRef.current.getBoundingClientRect();
+                                setListingCalPos({ top: rect.bottom + 4, left: rect.left });
+                              }
+                              setShowListingCalendar(next);
+                            }}
                             className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"
                             title="Open calendar"
                           >
@@ -2427,7 +2440,7 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                           </button>
                         </div>
                         {showListingCalendar && (
-                          <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3" style={{width: '280px'}}>
+                          <div className="fixed z-[9999] bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3" style={{width: '280px', top: listingCalPos?.top, left: listingCalPos?.left}}>
                             <div className="flex items-center justify-between mb-2">
                               <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronLeftIcon" size={14} /></button>
                               <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{listingCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
@@ -2457,8 +2470,17 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                         <div className="flex items-center gap-1">
                           <input type="text" value={vacantDate} onChange={(e) => setVacantDate(e.target.value)} onBlur={(e) => autoSavePricingDate('vacant_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
                           <button
+                            ref={vacantCalBtnRef}
                             type="button"
-                            onClick={() => { setShowVacantCalendar(!showVacantCalendar); setShowListingCalendar(false); }}
+                            onClick={() => {
+                              const next = !showVacantCalendar;
+                              setShowListingCalendar(false);
+                              if (next && vacantCalBtnRef.current) {
+                                const rect = vacantCalBtnRef.current.getBoundingClientRect();
+                                setVacantCalPos({ top: rect.bottom + 4, left: rect.left });
+                              }
+                              setShowVacantCalendar(next);
+                            }}
                             className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"
                             title="Open calendar"
                           >
@@ -2466,7 +2488,7 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                           </button>
                         </div>
                         {showVacantCalendar && (
-                          <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3" style={{width: '280px'}}>
+                          <div className="fixed z-[9999] bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3" style={{width: '280px', top: vacantCalPos?.top, left: vacantCalPos?.left}}>
                             <div className="flex items-center justify-between mb-2">
                               <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronLeftIcon" size={14} /></button>
                               <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{vacantCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>

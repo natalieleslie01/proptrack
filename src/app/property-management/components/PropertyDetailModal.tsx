@@ -3408,13 +3408,40 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                               </div>
                             </div>
                           </div>
+                        ) : importedContacts.filter((c) => c.contact_role?.toLowerCase() === 'decision maker').length > 0 ? (
+                          <div className="space-y-1.5">
+                            {importedContacts.filter((c) => c.contact_role?.toLowerCase() === 'decision maker').map((c) => (
+                              <div key={c.id} className="flex items-start gap-2">
+                                <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                  <Icon name="StarIcon" size={12} className="text-amber-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{c.contact_person}</p>
+                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                    {c.contact_number && (
+                                      <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                                        <Icon name="PhoneIcon" size={9} className="text-amber-400 flex-shrink-0" />
+                                        {c.contact_number}
+                                      </p>
+                                    )}
+                                    {c.contact_email && (
+                                      <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
+                                        <Icon name="MailIcon" size={9} className="text-amber-400 flex-shrink-0" />
+                                        {c.contact_email}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         ) : (
                           <p className="text-[9px] text-[hsl(215,15%,62%)] italic">No decision maker assigned yet</p>
                         )}
                       </div>
                     </div>
 
-                    {contacts.length === 0 && importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner').length === 0 && !showAddContact && (
+                    {contacts.length === 0 && importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner' && c.contact_role?.toLowerCase() !== 'decision maker').length === 0 && !showAddContact && (
                       <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg p-3 text-center">
                         <Icon name="UsersIcon" size={20} className="text-[hsl(215,15%,62%)] mx-auto mb-1" />
                         <p className="text-xs font-medium text-[hsl(215,25%,18%)]">No contacts added yet</p>
@@ -3570,9 +3597,9 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                         Loading…
                       </div>
                     )}
-                    {!importedContactsLoading && importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner').length > 0 && (
+                    {!importedContactsLoading && importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner' && c.contact_role?.toLowerCase() !== 'decision maker').length > 0 && (
                       <div className="space-y-1.5 mt-1.5">
-                        {importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner').map((c) => (
+                        {importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner' && c.contact_role?.toLowerCase() !== 'decision maker').map((c) => (
                           <div key={c.id} className="card p-2 border border-purple-100">
                             {editingImportedContactId === c.id ? (
                               <div className="space-y-1.5">

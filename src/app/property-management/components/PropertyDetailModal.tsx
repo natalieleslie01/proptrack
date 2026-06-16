@@ -848,6 +848,17 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
     }
   }
 
+  async function deleteImportedContact(id: string) {
+    try {
+      const supabase = createClient();
+      await supabase.from('property_contacts').delete().eq('id', id);
+      setImportedContacts((prev) => prev.filter((c) => c.id !== id));
+      toast.success('Owner removed');
+    } catch {
+      toast.error('Failed to remove owner');
+    }
+  }
+
   async function saveNewOwner() {
     setSavingNewOwner(true);
     try {
@@ -3234,22 +3245,32 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                             <>
                               <div className="flex items-center justify-between mb-1.5">
                                 <p className="text-[9px] font-semibold text-violet-600 uppercase tracking-wider">Owner Details</p>
-                                <button
-                                  onClick={() => {
-                                    setImportedContactDraft({
-                                      contact_person: c.contact_person,
-                                      contact_number: c.contact_number,
-                                      contact_email: c.contact_email,
-                                      contact_role: c.contact_role,
-                                    });
-                                    setEditingImportedContactId(c.id);
-                                  }}
-                                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium text-[hsl(215,15%,52%)] hover:bg-violet-100 hover:text-violet-700 transition-colors"
-                                  title="Edit owner contact"
-                                >
-                                  <Icon name="PencilSquareIcon" size={11} />
-                                  Edit
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setImportedContactDraft({
+                                        contact_person: c.contact_person,
+                                        contact_number: c.contact_number,
+                                        contact_email: c.contact_email,
+                                        contact_role: c.contact_role,
+                                      });
+                                      setEditingImportedContactId(c.id);
+                                    }}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium text-[hsl(215,15%,52%)] hover:bg-violet-100 hover:text-violet-700 transition-colors"
+                                    title="Edit owner contact"
+                                  >
+                                    <Icon name="PencilSquareIcon" size={11} />
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => deleteImportedContact(c.id)}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                                    title="Delete owner"
+                                  >
+                                    <Icon name="Trash2Icon" size={11} />
+                                    Delete
+                                  </button>
+                                </div>
                               </div>
                               <div className="grid grid-cols-2 gap-1">
                                 {[

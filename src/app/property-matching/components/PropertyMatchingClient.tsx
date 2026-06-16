@@ -423,6 +423,37 @@ export default function PropertyMatchingClient() {
 
   const assignedPropertyIds = useMemo(() => new Set(matches.map((m) => m.property_id)), [matches]);
 
+  // ── Print Viewing Schedule ─────────────────────────────────────────────────
+
+  const handlePrintViewingSchedule = () => {
+    if (!selectedClient || assignedPropertyIds.size === 0) return;
+    const assignedProps = properties.filter((p) => assignedPropertyIds.has(p.id));
+    const printData = {
+      clientName: selectedClient.full_name,
+      clientMobile: selectedClient.mobile ?? '',
+      clientBudget: formatBudget(selectedClient.budget_min, selectedClient.budget_max),
+      properties: assignedProps.map((p) => ({
+        id: p.id,
+        ref: p.property_ref,
+        village: p.village,
+        phase: p.phase,
+        block: p.block,
+        floor: p.floor,
+        unit: p.unit,
+        address: p.address,
+        bedrooms: p.bedrooms,
+        bathrooms: p.bathrooms,
+        saleableArea: p.saleable_area,
+        askingPrice: p.asking_price,
+        askingRent: p.asking_rent,
+        status: p.status,
+      })),
+      printedAt: new Date().toISOString(),
+    };
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(printData))));
+    window.open(`/print-matching-schedule?data=${encoded}`, '_blank');
+  };
+
   // ── Client dropdown filter ─────────────────────────────────────────────────
 
   const filteredClients = useMemo(() => {
@@ -674,6 +705,16 @@ export default function PropertyMatchingClient() {
               )}
             </p>
             <div className="flex items-center gap-2">
+              {selectedClient && assignedPropertyIds.size > 0 && (
+                <button
+                  onClick={handlePrintViewingSchedule}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1B4F8A] text-white text-xs font-semibold hover:bg-[#163f6e] transition-colors"
+                  title="Print viewing schedule for assigned properties"
+                >
+                  <Icon name="PrinterIcon" size={13} />
+                  Print Viewing Schedule
+                </button>
+              )}
               <label className="text-xs text-[hsl(215,15%,52%)]">Sort:</label>
               <select
                 className="input-base text-xs py-1 pr-7"

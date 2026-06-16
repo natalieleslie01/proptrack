@@ -21,6 +21,25 @@ interface Client {
   created_at: string;
 }
 
+interface MatchedProperty {
+  id: string;
+  property_id: string;
+  created_at: string;
+  properties: {
+    property_ref: string;
+    village: string;
+    phase: string | null;
+    block: string | null;
+    floor: string | null;
+    unit: string | null;
+    bedrooms: number | null;
+    saleable_area: number | null;
+    asking_rent: number | null;
+    asking_price: number | null;
+    status: string;
+  } | null;
+}
+
 interface ClientForm {
   full_name: string;
   mobile: string;
@@ -232,6 +251,11 @@ export default function ClientsClient() {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const { isAdminOrManager, isAdmin } = useRole();
 
+  // Expanded client for matched properties
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
+  const [matchedProperties, setMatchedProperties] = useState<MatchedProperty[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
   const fetchClients = useCallback(async () => {
@@ -397,6 +421,62 @@ export default function ClientsClient() {
     }
   };
 
+  // ── Matched Properties ─────────────────────────────────────────────────────
+
+  const handleToggleMatches = async (clientId: string) => {
+    if (expandedClientId === clientId) {
+      setExpandedClientId(null);
+      setMatchedProperties([]);
+      return;
+    }
+    setExpandedClientId(clientId);
+    setLoadingMatches(true);
+    const { data, error: err } = await supabase
+      .from('client_property_matches')
+      .select(`
+        id,
+        property_id,
+        created_at,
+        properties (
+          property_ref,
+          village,
+          phase,
+          block,
+          floor,
+          unit,
+          bedrooms,
+          saleable_area,
+          asking_rent,
+          asking_price,
+          status
+        )
+      `)
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false });
+    if (!err) {
+      setMatchedProperties((data as unknown as MatchedProperty[]) ?? []);
+    }
+    setLoadingMatches(false);
+  };
+
+  function formatMatchPrice(rent: number | null, price: number | null): string {
+    const val = rent ?? price;
+    if (!val) return '—';
+    if (val >= 1_000_000) return `HK$${(val / 1_000_000).toFixed(1)}M${rent ? '/mo' : ''}`;
+    if (val >= 1_000) return `HK$${(val / 1_000).toFixed(0)}K${rent ? '/mo' : ''}`;
+    return `HK$${val}`;
+  }
+
+  function matchStatusLabel(status: string): string {
+    switch (status) {
+      case 'for-rent': return 'For Rent';
+      case 'for-sale': return 'For Sale';
+      case 'for-sale-and-rent': return 'For Sale & Rent';
+      case 'leased': return 'Leased';
+      default: return status;
+    }
+  }
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -491,6 +571,7 @@ export default function ClientsClient() {
                   <span className="inline-flex items-center">Village Preference <SortIcon col="preferred_areas" /></span>
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-[hsl(215,25%,18%)] whitespace-nowrap">Notes</th>
+                <th className="px-4 py-3 text-center font-semibold text-[hsl(215,25%,18%)] whitespace-nowrap">Matches</th>
                 <th className="px-4 py-3 text-right font-semibold text-[hsl(215,25%,18%)] whitespace-nowrap">Actions</th>
               </tr>
             </thead>
@@ -510,7 +591,7 @@ export default function ClientsClient() {
               {/* Loading */}
               {loading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-[hsl(215,15%,52%)]">
+                  <td colSpan={7} className="px-4 py-12 text-center text-[hsl(215,15%,52%)]">
                     <div className="flex items-center justify-center gap-2">
                       <svg className="animate-spin w-4 h-4 text-[#1B4F8A]" viewBox="0 0 24 24" fill="none">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -525,7 +606,7 @@ export default function ClientsClient() {
               {/* Error */}
               {error && !loading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-red-500 text-sm">
+                  <td colSpan={7} className="px-4 py-10 text-center text-red-500 text-sm">
                     <Icon name="AlertCircleIcon" size={16} className="inline mr-1.5" />
                     {error}
                   </td>
@@ -535,7 +616,7 @@ export default function ClientsClient() {
               {/* Empty state */}
               {!loading && !error && filtered.length === 0 && !addingNew && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-14 text-center">
+                  <td colSpan={7} className="px-4 py-14 text-center">
                     <div className="flex flex-col items-center gap-2 text-[hsl(215,15%,52%)]">
                       <Icon name="UsersIcon" size={32} className="opacity-30" />
                       <p className="font-medium text-sm">
@@ -571,8 +652,8 @@ export default function ClientsClient() {
                 }
 
                 return (
+                  <React.Fragment key={client.id}>
                   <tr
-                    key={client.id}
                     className="border-b border-[hsl(214,20%,88%)] last:border-0 hover:bg-[hsl(210,20%,97%)] transition-colors group"
                   >
                     {/* Name */}
@@ -640,6 +721,22 @@ export default function ClientsClient() {
                       )}
                     </td>
 
+                    {/* Matches */}
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => handleToggleMatches(client.id)}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                          expandedClientId === client.id
+                            ? 'bg-[#1B4F8A] text-white border-[#1B4F8A]'
+                            : 'bg-[#1B4F8A]/8 text-[#1B4F8A] border-[#1B4F8A]/20 hover:bg-[#1B4F8A]/15'
+                        }`}
+                        title="View matched properties"
+                      >
+                        <Icon name="HomeIcon" size={12} />
+                        View
+                      </button>
+                    </td>
+
                     {/* Actions */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
@@ -661,6 +758,75 @@ export default function ClientsClient() {
                       </div>
                     </td>
                   </tr>
+
+                  {/* Expanded matched properties row */}
+                  {expandedClientId === client.id && (
+                    <tr key={`${client.id}-matches`} className="bg-[#f0f4f9]">
+                      <td colSpan={7} className="px-6 py-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-[#1B4F8A] uppercase tracking-wide flex items-center gap-1.5">
+                            <Icon name="HomeIcon" size={13} />
+                            Matched Properties for {client.full_name}
+                          </p>
+                          <button
+                            onClick={() => { setExpandedClientId(null); setMatchedProperties([]); }}
+                            className="text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
+                          >
+                            <Icon name="XIcon" size={14} />
+                          </button>
+                        </div>
+
+                        {loadingMatches ? (
+                          <div className="flex items-center gap-2 py-3 text-xs text-[hsl(215,15%,52%)]">
+                            <svg className="animate-spin w-3.5 h-3.5 text-[#1B4F8A]" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                            </svg>
+                            Loading matched properties…
+                          </div>
+                        ) : matchedProperties.length === 0 ? (
+                          <p className="text-xs text-[hsl(215,15%,52%)] py-2">No properties matched yet. Use the <span className="font-medium text-[#1B4F8A]">Property Matching</span> page to assign properties to this client.</p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                            {matchedProperties.map((match) => {
+                              const prop = match.properties;
+                              if (!prop) return null;
+                              const location = [
+                                prop.village,
+                                prop.phase,
+                                prop.block ? `Blk ${prop.block}` : null,
+                                prop.floor ? `Fl.${prop.floor}` : null,
+                                prop.unit ? `Unit ${prop.unit}` : null,
+                              ].filter(Boolean).join(' · ');
+                              return (
+                                <div key={match.id} className="bg-white rounded-lg border border-[hsl(214,20%,88%)] p-3 text-xs">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <span className="font-bold text-[hsl(215,25%,18%)] font-mono">{prop.property_ref}</span>
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                      prop.status === 'for-rent' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                      prop.status === 'for-sale' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                      prop.status === 'leased'? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-gray-100 text-gray-600 border-gray-200'
+                                    }`}>
+                                      {matchStatusLabel(prop.status)}
+                                    </span>
+                                  </div>
+                                  <p className="text-[hsl(215,15%,52%)] truncate mb-1.5">{location || '—'}</p>
+                                  <div className="flex items-center gap-2 text-[hsl(215,25%,18%)]">
+                                    {prop.bedrooms != null && <span>{prop.bedrooms} bed</span>}
+                                    {prop.saleable_area != null && <span>· {prop.saleable_area}ft²</span>}
+                                    <span className="ml-auto font-semibold text-[#1B4F8A]">
+                                      {formatMatchPrice(prop.asking_rent, prop.asking_price)}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
                 );
               })}
             </tbody>

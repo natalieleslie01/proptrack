@@ -162,6 +162,10 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
     setRentalPrice(property.monthlyRent ? String(property.monthlyRent) : '');
   }, [property.monthlyRent]);
 
+  useEffect(() => {
+    setPublishToWebsite((property as any).publishDt ?? '');
+  }, [(property as any).publishDt]);
+
   // Matterport state
   const [matterportLink, setMatterportLink] = useState<string>(property.matterportLink ?? '');
   const [editingMatterport, setEditingMatterport] = useState(false);

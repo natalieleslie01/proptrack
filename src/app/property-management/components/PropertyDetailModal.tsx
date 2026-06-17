@@ -2424,14 +2424,34 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
                         <label className="text-[8px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Listing Type</label>
                         <select
                           value={listingType}
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const val = e.target.value;
                             setListingType(val);
-                            fetch('/api/property-save', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ id: property.id, updates: { list_type: val || null } }),
-                            }).then(() => toast.success('Listing type updated'));
+                            // Map UI label → status ENUM value
+                            const statusMap: Record<string, string> = {
+                              'Sale': 'for-sale',
+                              'Rent': 'for-rent',
+                              'Rent & Sale': 'for-sale-and-rent',
+                            };
+                            const updates: Record<string, string | null> = {
+                              list_type: val || null,
+                            };
+                            if (val && statusMap[val]) {
+                              updates.status = statusMap[val];
+                            }
+                            try {
+                              const res = await fetch('/api/property-save', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: property.id, updates }),
+                              });
+                              const json = await res.json();
+                              if (!res.ok || json.error) throw new Error(json.error ?? 'Save failed');
+                              toast.success('Listing type updated');
+                              onSaved?.();
+                            } catch (err: any) {
+                              toast.error('Failed to save listing type: ' + (err?.message ?? 'Unknown error'));
+                            }
                           }}
                           className="input-base text-xs w-full min-h-[28px] py-0.5"
                         >

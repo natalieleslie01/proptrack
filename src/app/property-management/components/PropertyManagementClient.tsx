@@ -1402,6 +1402,7 @@ export default function PropertyManagementClient() {
           p.district.toLowerCase().includes(q) ||
           p.landlord.name.toLowerCase().includes(q) ||
           (p.shortCode ?? '').toLowerCase().includes(q) ||
+          (p.ref ?? '').toLowerCase().includes(q) ||
           (p.keyLocation?.keyNumber ?? '').toLowerCase().includes(q) ||
           (p.contacts ?? []).some((c) => (c.customerCode ?? '').toLowerCase().includes(q))
       );

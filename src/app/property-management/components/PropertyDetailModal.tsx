@@ -1619,6 +1619,7 @@ export default function PropertyDetailModal({ property, onClose, onSaved }: Prop
 
       setPublishToWebsite(dateValue);
       toast.success(`Published to website from ${dateValue} — 3-month review reminder set for ${reminderDueDate}`);
+      onSaved?.();
     } catch (err: any) {
       toast.error('Failed to save publish date: ' + (err?.message ?? 'Unknown error'));
     } finally {

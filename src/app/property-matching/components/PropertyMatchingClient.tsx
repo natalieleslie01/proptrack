@@ -175,13 +175,13 @@ function PropertyCard({ property, isAssigned, matchScore, onAssign, onUnassign, 
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-[hsl(215,25%,18%)] text-sm">{property.property_ref}</span>
+              <span className="font-bold text-[hsl(215,25%,18%)] text-sm">{[property.village, property.unit].filter(Boolean).join(' · ') || property.property_ref}</span>
               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusColor(property.status)}`}>
                 {statusLabel(property.status)}
               </span>
             </div>
             <p className="text-xs text-[hsl(215,15%,52%)] mt-0.5 truncate">
-              {[property.village, property.phase, property.block && `Block ${property.block}`, property.floor && `Fl.${property.floor}`, property.unit && `Unit ${property.unit}`].filter(Boolean).join(' · ')}
+              {[property.block && `Block ${property.block}`, property.floor && `${property.floor}`, property.bedrooms != null && `${property.bedrooms} Beds`].filter(Boolean).join(' · ') || property.property_ref}
             </p>
           </div>
           {/* Match score badge */}
@@ -191,18 +191,14 @@ function PropertyCard({ property, isAssigned, matchScore, onAssign, onUnassign, 
         </div>
 
         {/* Details grid */}
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <div className="text-center bg-[hsl(210,15%,97%)] rounded-lg py-1.5 px-2">
-            <p className="text-[10px] text-[hsl(215,15%,52%)] mb-0.5">Beds</p>
-            <p className="text-sm font-semibold text-[hsl(215,25%,18%)]">{property.bedrooms ?? '—'}</p>
-          </div>
+        <div className="grid grid-cols-2 gap-2 mb-3 overflow-hidden">
           <div className="text-center bg-[hsl(210,15%,97%)] rounded-lg py-1.5 px-2">
             <p className="text-[10px] text-[hsl(215,15%,52%)] mb-0.5">Area</p>
-            <p className="text-sm font-semibold text-[hsl(215,25%,18%)]">{property.saleable_area ? `${property.saleable_area}ft²` : '—'}</p>
+            <p className="text-sm font-semibold text-[hsl(215,25%,18%)] truncate">{property.saleable_area ? `${property.saleable_area}ft²` : '—'}</p>
           </div>
-          <div className="text-center bg-[hsl(210,15%,97%)] rounded-lg py-1.5 px-2">
+          <div className="text-center bg-[hsl(210,15%,97%)] rounded-lg py-1.5 px-2 min-w-0">
             <p className="text-[10px] text-[hsl(215,15%,52%)] mb-0.5">Price</p>
-            <p className="text-sm font-semibold text-[hsl(215,25%,18%)]">{formatPrice(price)}</p>
+            <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] truncate leading-tight">{formatPrice(price)}</p>
           </div>
         </div>
 
@@ -273,10 +269,14 @@ export default function PropertyMatchingClient() {
 
   const fetchProperties = useCallback(async () => {
     setLoadingProps(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('properties')
-      .select('id, property_ref, village, phase, block, floor, unit, address, bedrooms, bathrooms, saleable_area, asking_price, asking_rent, status, occupancy')
+      .select('id, property_ref, village, phase, block, floor, unit, address, bedrooms, bathrooms, saleable_area, asking_price, asking_rent, status, occupancy, p_english, short_code')
       .order('property_ref', { ascending: true });
+    if (error) {
+      console.error('[PropertyMatching] fetchProperties error:', error);
+    }
+    console.log('[PropertyMatching] properties loaded:', data?.length ?? 0);
     setProperties(data ?? []);
     setLoadingProps(false);
   }, [supabase]);
@@ -315,11 +315,12 @@ export default function PropertyMatchingClient() {
     setSelectedClientId(client.id);
     setClientSearch(client.full_name);
     setShowClientDropdown(false);
-    // Pre-fill filters from client prefs
-    setBudgetMin(client.budget_min ? String(client.budget_min) : '');
-    setBudgetMax(client.budget_max ? String(client.budget_max) : '');
-    setDistrictFilter(client.preferred_areas ?? []);
-    setBedroomFilter(client.preferred_bedrooms ?? []);
+    // Do NOT auto-apply ANY filters — let the user see all properties first.
+    // Client preferences are shown in the panel for reference only.
+    setBudgetMin('');
+    setBudgetMax('');
+    setDistrictFilter([]);
+    setBedroomFilter([]);
     setTypeFilter('all');
     setSortBy('match');
   };
@@ -376,14 +377,16 @@ export default function PropertyMatchingClient() {
     if (budgetMin) {
       const min = Number(budgetMin);
       data = data.filter((p) => {
-        const price = p.asking_rent ?? p.asking_price ?? 0;
+        const price = p.asking_rent ?? p.asking_price ?? null;
+        if (price === null || price === 0) return true; // no price data — keep it
         return price >= min;
       });
     }
     if (budgetMax) {
       const max = Number(budgetMax);
       data = data.filter((p) => {
-        const price = p.asking_rent ?? p.asking_price ?? 0;
+        const price = p.asking_rent ?? p.asking_price ?? null;
+        if (price === null || price === 0) return true; // no price data — keep it
         return price <= max;
       });
     }
@@ -422,6 +425,62 @@ export default function PropertyMatchingClient() {
   }, [properties, budgetMin, budgetMax, districtFilter, typeFilter, bedroomFilter, sortBy, selectedClient]);
 
   const assignedPropertyIds = useMemo(() => new Set(matches.map((m) => m.property_id)), [matches]);
+
+  // ── Print Viewing Schedule ─────────────────────────────────────────────────
+
+  const handlePrintViewingSchedule = async () => {
+    if (!selectedClient || assignedPropertyIds.size === 0) return;
+    const assignedProps = properties.filter((p) => assignedPropertyIds.has(p.id));
+
+    // Fetch cover photos for all assigned properties
+    const refs = assignedProps.map((p) => p.property_ref).filter(Boolean);
+    let photoMap: Record<string, string> = {};
+    if (refs.length > 0) {
+      const { data: photos } = await supabase
+        .from('property_photos')
+        .select('property_ref, public_url, display_order')
+        .in('property_ref', refs)
+        .order('display_order', { ascending: true });
+      if (photos) {
+        for (const photo of photos) {
+          if (photo.property_ref && !photoMap[photo.property_ref]) {
+            photoMap[photo.property_ref] = photo.public_url;
+          }
+        }
+      }
+    }
+
+    const printData = {
+      clientName: selectedClient.full_name,
+      clientMobile: selectedClient.mobile ?? '',
+      clientBudget: formatBudget(selectedClient.budget_min, selectedClient.budget_max),
+      properties: assignedProps.map((p) => ({
+        id: p.id,
+        ref: p.property_ref,
+        village: p.village,
+        phase: p.phase,
+        block: p.block,
+        floor: p.floor,
+        unit: p.unit,
+        address: p.address,
+        bedrooms: p.bedrooms,
+        bathrooms: p.bathrooms,
+        saleableArea: p.saleable_area,
+        askingPrice: p.asking_price,
+        askingRent: p.asking_rent,
+        status: p.status,
+        photoUrl: photoMap[p.property_ref] ?? null,
+        yearBuilt: null,
+        view: null,
+        direction: null,
+        additionalFeatures: [],
+        engRemark: p.p_english ?? null,
+      })),
+      printedAt: new Date().toISOString(),
+    };
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(printData))));
+    window.open(`/print-matching-schedule?data=${encoded}`, '_blank');
+  };
 
   // ── Client dropdown filter ─────────────────────────────────────────────────
 
@@ -674,6 +733,16 @@ export default function PropertyMatchingClient() {
               )}
             </p>
             <div className="flex items-center gap-2">
+              {selectedClient && assignedPropertyIds.size > 0 && (
+                <button
+                  onClick={handlePrintViewingSchedule}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1B4F8A] text-white text-xs font-semibold hover:bg-[#163f6e] transition-colors"
+                  title="Print viewing schedule for assigned properties"
+                >
+                  <Icon name="PrinterIcon" size={13} />
+                  Print Viewing Schedule
+                </button>
+              )}
               <label className="text-xs text-[hsl(215,15%,52%)]">Sort:</label>
               <select
                 className="input-base text-xs py-1 pr-7"
@@ -689,37 +758,66 @@ export default function PropertyMatchingClient() {
 
           {/* Property grid */}
           <div className="flex-1 overflow-y-auto p-5">
-            {!selectedClientId && (
-              <div className="flex flex-col items-center justify-center h-full text-center py-16">
-                <div className="w-14 h-14 rounded-2xl bg-[#1B4F8A]/8 flex items-center justify-center mb-4">
-                  <Icon name="UsersIcon" size={26} className="text-[#1B4F8A]/50" />
-                </div>
-                <p className="text-base font-semibold text-[hsl(215,25%,18%)]">Select a client to get started</p>
-                <p className="text-sm text-[hsl(215,15%,52%)] mt-1 max-w-xs">Choose a client from the left panel. Filters will be pre-filled from their preferences and you can assign matching properties.</p>
-              </div>
-            )}
-
-            {selectedClientId && loadingProps && (
+            {/* Loading state */}
+            {loadingProps && (
               <div className="flex items-center justify-center py-16">
                 <svg className="animate-spin w-6 h-6 text-[#1B4F8A]" viewBox="0 0 24 24" fill="none">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
+                <span className="ml-3 text-sm text-[hsl(215,15%,52%)]">Loading properties…</span>
               </div>
             )}
 
-            {selectedClientId && !loadingProps && filteredProperties.length === 0 && (
+            {/* No client selected — show all properties with a banner */}
+            {!loadingProps && !selectedClientId && properties.length > 0 && (
+              <>
+                <div className="mb-4 flex items-center gap-2 bg-[#1B4F8A]/5 border border-[#1B4F8A]/20 rounded-xl px-4 py-2.5">
+                  <Icon name="InfoIcon" size={15} className="text-[#1B4F8A] flex-shrink-0" />
+                  <p className="text-xs text-[#1B4F8A]">Select a client from the left panel to enable match scoring and property assignment.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredProperties.map((property) => (
+                    <PropertyCard
+                      key={property.id}
+                      property={property}
+                      isAssigned={false}
+                      matchScore={0}
+                      onAssign={handleAssign}
+                      onUnassign={handleUnassign}
+                      assigning={assigning}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* No client selected and no properties */}
+            {!loadingProps && !selectedClientId && properties.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center py-16">
+                <div className="w-14 h-14 rounded-2xl bg-[#1B4F8A]/8 flex items-center justify-center mb-4">
+                  <Icon name="HomeIcon" size={26} className="text-[#1B4F8A]/50" />
+                </div>
+                <p className="text-base font-semibold text-[hsl(215,25%,18%)]">No properties found</p>
+                <p className="text-sm text-[hsl(215,15%,52%)] mt-1 max-w-xs">No properties are available in the database.</p>
+              </div>
+            )}
+
+            {/* Client selected — no matches after filtering */}
+            {!loadingProps && selectedClientId && filteredProperties.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
                   <Icon name="SearchXIcon" size={22} className="text-gray-400" />
                 </div>
                 <p className="text-sm font-semibold text-[hsl(215,25%,18%)]">No properties match these filters</p>
-                <button onClick={clearFilters} className="mt-2 text-xs text-[#1B4F8A] hover:underline">Clear filters</button>
+                <p className="text-xs text-[hsl(215,15%,52%)] mt-1">{properties.length} total properties in database</p>
+                <button onClick={clearFilters} className="mt-2 text-xs text-[#1B4F8A] hover:underline">Clear all filters</button>
               </div>
             )}
 
-            {selectedClientId && !loadingProps && filteredProperties.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {/* Client selected — show matching properties */}
+            {!loadingProps && selectedClientId && filteredProperties.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filteredProperties.map((property) => (
                   <PropertyCard
                     key={property.id}

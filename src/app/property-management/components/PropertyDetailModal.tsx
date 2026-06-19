@@ -20,6 +20,25 @@ import PhotoGalleryV2 from './PhotoGalleryV2';
 interface PropertyDetailModalProps {
   property: Property;
   onClose: () => void;
+  onSaved?: () => void;
+}
+
+/**
+ * Formats a floor value for display.
+ * If the value is a 3-digit number (e.g. "309"), it is interpreted as
+ * Block <first digit>, Floor <remaining digits stripped of leading zeros>.
+ * e.g. "309" → "Block 3, Floor 9" *"308"→ "Block 3, Floor 8" *"212"→ "Block 2, Floor 12" * Other values (e.g."9", "G", "LG") are returned as-is.
+ */
+function formatFloorDisplay(floor?: string | null): string {
+  if (!floor) return '—';
+  const trimmed = floor.trim();
+  // Match exactly 3 digits where first digit is non-zero (block number)
+  if (/^[1-9]\d{2}$/.test(trimmed)) {
+    const block = trimmed[0];
+    const floorNum = String(parseInt(trimmed.slice(1), 10));
+    return `Block ${block}, Floor ${floorNum}`;
+  }
+  return trimmed;
 }
 
 type Tab = 'overview' | 'tenancy' | 'documents' | 'transactions' | 'hk-forms' | 'history';
@@ -69,7 +88,7 @@ interface TenancyAgreementDoc {
   notes?: string;
 }
 
-export default function PropertyDetailModal({ property, onClose }: PropertyDetailModalProps) {
+export default function PropertyDetailModal({ property, onClose, onSaved }: PropertyDetailModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [generatingForm, setGeneratingForm] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -79,9 +98,28 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   const [showAddContact, setShowAddContact] = useState(false);
   const [newContact, setNewContact] = useState<PropertyContact>(emptyContact());
 
+  // Decision Maker state
+  const [decisionMaker, setDecisionMaker] = useState<{ name: string; phone: string; email: string }>(() => {
+    const dm = (property.contacts ?? []).find((c) => c.isDecisionMaker);
+    return { name: dm?.name ?? '', phone: dm?.mobile ?? '', email: dm?.email ?? '' };
+  });
+  const [editingDecisionMaker, setEditingDecisionMaker] = useState(false);
+  const [decisionMakerDraft, setDecisionMakerDraft] = useState<{ name: string; phone: string; email: string }>({ name: '', phone: '', email: '' });
+
   // Imported contacts from property_contacts table (CSV-uploaded)
   const [importedContacts, setImportedContacts] = useState<Array<{ id: string; contact_role: string; contact_person: string; contact_number: string; contact_email: string; short_code: string | null; property_ref: string | null }>>([]);
   const [importedContactsLoading, setImportedContactsLoading] = useState(false);
+  const [editingImportedContactId, setEditingImportedContactId] = useState<string | null>(null);
+  const [importedContactDraft, setImportedContactDraft] = useState<{ contact_person: string; contact_number: string; contact_email: string; contact_role: string }>({ contact_person: '', contact_number: '', contact_email: '', contact_role: '' });
+  const [savingImportedContact, setSavingImportedContact] = useState(false);
+
+  // Add Owner / Add Landlord inline form state
+  const [showAddOwnerForm, setShowAddOwnerForm] = useState(false);
+  const [showAddLandlordForm, setShowAddLandlordForm] = useState(false);
+  const [newOwnerDraft, setNewOwnerDraft] = useState({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' });
+  const [newLandlordDraft, setNewLandlordDraft] = useState({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' });
+  const [savingNewOwner, setSavingNewOwner] = useState(false);
+  const [savingNewLandlord, setSavingNewLandlord] = useState(false);
 
   // Gross sqft state
   const [grossSqft, setGrossSqft] = useState<string>(property.grossSqft ? String(property.grossSqft) : '');
@@ -115,6 +153,19 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   const [editingPricing, setEditingPricing] = useState(false);
   const [publishingSaving, setPublishingSaving] = useState(false);
 
+  // Sync price fields when the parent re-passes a freshly-fetched property prop
+  useEffect(() => {
+    setSalePrice(property.salePrice ? String(property.salePrice) : '');
+  }, [property.salePrice]);
+
+  useEffect(() => {
+    setRentalPrice(property.monthlyRent ? String(property.monthlyRent) : '');
+  }, [property.monthlyRent]);
+
+  useEffect(() => {
+    setPublishToWebsite((property as any).publishDt ?? '');
+  }, [(property as any).publishDt]);
+
   // Matterport state
   const [matterportLink, setMatterportLink] = useState<string>(property.matterportLink ?? '');
   const [editingMatterport, setEditingMatterport] = useState(false);
@@ -132,6 +183,10 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   const [photoUploading, setPhotoUploading] = useState(false);
   const photoUploadRef = useRef<HTMLInputElement>(null);
   const thumbnailScrollRef = useRef<HTMLDivElement>(null);
+  const listingCalBtnRef = useRef<HTMLButtonElement>(null);
+  const vacantCalBtnRef = useRef<HTMLButtonElement>(null);
+  const [listingCalPos, setListingCalPos] = useState<{top: number; left: number} | null>(null);
+  const [vacantCalPos, setVacantCalPos] = useState<{top: number; left: number} | null>(null);
 
   // Fetch photos from Supabase on mount (property_photos table + storage fallback)
   useEffect(() => {
@@ -310,7 +365,13 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   );
   const [buildingType, setBuildingType] = useState<BuildingType | ''>(property.buildingType ?? '');
   const [floorType, setFloorType] = useState<FloorType | ''>(property.floorType ?? '');
-  const [floorNumber, setFloorNumber] = useState<FloorNumber | ''>(property.floorNumber ?? '');
+  const [floorNumber, setFloorNumber] = useState<FloorNumber | ''>(() => {
+    const raw = (property.floorNumber ?? '') as string;
+    if (raw && /^[1-9]\d{2}$/.test(raw.trim())) {
+      return String(parseInt(raw.trim().slice(1), 10)) as FloorNumber;
+    }
+    return raw as FloorNumber | '';
+  });
   const [listingType, setListingType] = useState<string>((property as any).listingType ?? '');
   const [propertyStatusCode, setPropertyStatusCode] = useState<string>(
     (property as any).contactStatusCode != null ? String((property as any).contactStatusCode) : ''
@@ -318,6 +379,122 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   const [editingPropertyDetails, setEditingPropertyDetails] = useState(false);
   const [editingWebsite, setEditingWebsite] = useState(false);
   const [websiteDraft, setWebsiteDraft] = useState<string>(property.websiteLink ?? '');
+
+  // Key Location state
+  const [keyLocation, setKeyLocation] = useState<import('./mockData').KeyLocation | undefined>(property.keyLocation);
+  const [editingKeyLocation, setEditingKeyLocation] = useState(false);
+  const [keyLocationDraft, setKeyLocationDraft] = useState<{
+    type: import('./mockData').KeyLocationType;
+    keyNumber: string;
+    agentName: string;
+    agentPhone: string;
+  }>({
+    type: property.keyLocation?.type ?? 'office',
+    keyNumber: property.keyLocation?.keyNumber ?? '',
+    agentName: property.keyLocation?.agentName ?? '',
+    agentPhone: property.keyLocation?.agentPhone ?? '',
+  });
+  const [savingKeyLocation, setSavingKeyLocation] = useState(false);
+
+  // Key Log state
+  interface KeyLogEntry {
+    id: string;
+    key_status: string;
+    key_number: string;
+    sole_agent: string;
+    sole_agent_name: string;
+    sole_agent_valid_from: string;
+    sole_agent_valid_to: string;
+    property_ref: string;
+  }
+  const [keyLog, setKeyLog] = useState<KeyLogEntry | null>(null);
+  const [keyLogLoading, setKeyLogLoading] = useState(false);
+  const [keyLogSaving, setKeyLogSaving] = useState(false);
+  const [showKeyLogValidFromCal, setShowKeyLogValidFromCal] = useState(false);
+  const [showKeyLogValidToCal, setShowKeyLogValidToCal] = useState(false);
+  const [keyLogValidFromMonth, setKeyLogValidFromMonth] = useState<Date>(() => new Date());
+  const [keyLogValidToMonth, setKeyLogValidToMonth] = useState<Date>(() => new Date());
+
+  // Load key log on mount
+  useEffect(() => {
+    const propRef = property.ref || property.unit;
+    if (!propRef) return;
+    setKeyLogLoading(true);
+    const supabase = createClient();
+    supabase
+      .from('key_log')
+      .select('id, key_status, key_number, sole_agent, sole_agent_name, sole_agent_valid_from, sole_agent_valid_to, property_ref')
+      .eq('property_ref', propRef)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          const row = data[0];
+          setKeyLog({
+            id: row.id,
+            key_status: row.key_status ?? '',
+            key_number: row.key_number ?? '',
+            sole_agent: row.sole_agent ?? '',
+            sole_agent_name: row.sole_agent_name ?? '',
+            sole_agent_valid_from: row.sole_agent_valid_from ?? '',
+            sole_agent_valid_to: row.sole_agent_valid_to ?? '',
+            property_ref: row.property_ref ?? propRef,
+          });
+        } else {
+          setKeyLog({
+            id: '',
+            key_status: '',
+            key_number: '',
+            sole_agent: '',
+            sole_agent_name: '',
+            sole_agent_valid_from: '',
+            sole_agent_valid_to: '',
+            property_ref: propRef,
+          });
+        }
+        setKeyLogLoading(false);
+      });
+  }, [property.ref, property.unit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function autoSaveKeyLog(updates: Partial<KeyLogEntry>) {
+    if (!keyLog) return;
+    const propRef = property.ref || property.unit;
+    if (!propRef) return;
+    setKeyLogSaving(true);
+    const merged = { ...keyLog, ...updates };
+    setKeyLog(merged);
+    try {
+      const supabase = createClient();
+      if (merged.id) {
+        await supabase.from('key_log').update({
+          key_status: merged.key_status || null,
+          key_number: merged.key_number || null,
+          sole_agent: merged.sole_agent || null,
+          sole_agent_name: merged.sole_agent_name || null,
+          sole_agent_valid_from: merged.sole_agent_valid_from || null,
+          sole_agent_valid_to: merged.sole_agent_valid_to || null,
+        } as any).eq('id', merged.id);
+      } else {
+        const { data } = await supabase.from('key_log').insert({
+          property_ref: propRef,
+          property_label: `${property.unit}, ${property.building}`,
+          key_status: merged.key_status || null,
+          key_number: merged.key_number || null,
+          sole_agent: merged.sole_agent || null,
+          sole_agent_name: merged.sole_agent_name || null,
+          sole_agent_valid_from: merged.sole_agent_valid_from || null,
+          sole_agent_valid_to: merged.sole_agent_valid_to || null,
+          key_type: 'Main Door',
+          status: 'held',
+        } as any).select('id').single();
+        if (data) setKeyLog((prev) => prev ? { ...prev, id: data.id } : prev);
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setKeyLogSaving(false);
+    }
+  }
 
   // Viewing schedule state
   const [showViewingSchedule, setShowViewingSchedule] = useState(false);
@@ -529,6 +706,24 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   const [complianceError, setComplianceError] = useState<string | null>(null);
   const complianceInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Tenancy Forms docs (Documents tab) ───────────────────────────────────
+  const [tenancyFormDocs, setTenancyFormDocs] = useState<TenancyAgreementDoc[]>([]);
+  const [tenancyFormLoading, setTenancyFormLoading] = useState(false);
+  const [tenancyFormUploading, setTenancyFormUploading] = useState(false);
+  const [tenancyFormError, setTenancyFormError] = useState<string | null>(null);
+  const tenancyFormInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Utility Bills docs (Documents tab) ───────────────────────────────────
+  const [utilityBillDocs, setUtilityBillDocs] = useState<TenancyAgreementDoc[]>([]);
+  const [utilityBillLoading, setUtilityBillLoading] = useState(false);
+  const [utilityBillUploading, setUtilityBillUploading] = useState(false);
+  const [utilityBillError, setUtilityBillError] = useState<string | null>(null);
+  const utilityBillInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Image preview state ───────────────────────────────────────────────────
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewFileName, setPreviewFileName] = useState<string>('');
+
   // ── Real-time: viewings for this property ─────────────────────────────────
   const [viewingsSyncBadge, setViewingsSyncBadge] = useState<string | null>(null);
 
@@ -559,6 +754,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
         loadLeaseAgreementDocs();
         loadInspectionDocs();
         loadComplianceDocs();
+        loadTenancyFormDocs();
+        loadUtilityBillDocs();
       }
     } else if (event === 'DELETE') {
       toast.warning('A document was removed', { id: `modal-doc-delete-${row.id}` });
@@ -567,6 +764,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
         loadLeaseAgreementDocs();
         loadInspectionDocs();
         loadComplianceDocs();
+        loadTenancyFormDocs();
+        loadUtilityBillDocs();
       }
     }
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -623,6 +822,127 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
     loadImportedContacts();
   }, [loadImportedContacts]);
 
+  async function saveImportedContactEdit() {
+    if (!editingImportedContactId) return;
+    setSavingImportedContact(true);
+    try {
+      const supabase = createClient();
+      await supabase
+        .from('property_contacts')
+        .update({
+          contact_person: importedContactDraft.contact_person,
+          contact_number: importedContactDraft.contact_number,
+          contact_email: importedContactDraft.contact_email,
+          contact_role: importedContactDraft.contact_role,
+        })
+        .eq('id', editingImportedContactId);
+      setImportedContacts((prev) =>
+        prev.map((c) =>
+          c.id === editingImportedContactId
+            ? { ...c, ...importedContactDraft }
+            : c
+        )
+      );
+      setEditingImportedContactId(null);
+      toast.success('Contact updated');
+    } catch {
+      toast.error('Failed to save contact');
+    } finally {
+      setSavingImportedContact(false);
+    }
+  }
+
+  async function deleteImportedContact(id: string) {
+    try {
+      const supabase = createClient();
+      await supabase.from('property_contacts').delete().eq('id', id);
+      setImportedContacts((prev) => prev.filter((c) => c.id !== id));
+      toast.success('Owner removed');
+    } catch {
+      toast.error('Failed to remove owner');
+    }
+  }
+
+  async function saveNewOwner() {
+    setSavingNewOwner(true);
+    try {
+      const supabase = createClient();
+      const propertyRef = property.ref || property.unit;
+      const shortCode = (property as Record<string, unknown>).shortCode as string | undefined;
+      const { data, error } = await supabase
+        .from('property_contacts')
+        .insert({
+          contact_role: 'Owner',
+          contact_person: newOwnerDraft.contact_person,
+          contact_number: newOwnerDraft.contact_number,
+          contact_email: newOwnerDraft.contact_email,
+          property_ref: propertyRef || null,
+          short_code: shortCode || null,
+        })
+        .select('id, contact_role, contact_person, contact_number, contact_email, short_code, property_ref')
+        .single();
+      if (error) throw error;
+      if (data) {
+        setImportedContacts((prev) => [...prev, {
+          id: data.id,
+          contact_role: data.contact_role || 'Owner',
+          contact_person: data.contact_person || '',
+          contact_number: data.contact_number || '',
+          contact_email: data.contact_email || '',
+          short_code: data.short_code,
+          property_ref: data.property_ref,
+        }]);
+      }
+      setNewOwnerDraft({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' });
+      setShowAddOwnerForm(false);
+      toast.success('Owner added');
+    } catch {
+      toast.error('Failed to add owner');
+    } finally {
+      setSavingNewOwner(false);
+    }
+  }
+
+  async function saveNewLandlord() {
+    setSavingNewLandlord(true);
+    try {
+      const supabase = createClient();
+      const propertyRef = property.ref || property.unit;
+      const shortCode = (property as Record<string, unknown>).shortCode as string | undefined;
+      const { data, error } = await supabase
+        .from('property_contacts')
+        .insert({
+          contact_role: 'Landlord',
+          contact_person: newLandlordDraft.contact_person,
+          contact_number: newLandlordDraft.contact_number,
+          contact_email: newLandlordDraft.contact_email,
+          property_ref: propertyRef || null,
+          short_code: shortCode || null,
+        })
+        .select('id, contact_role, contact_person, contact_number, contact_email, short_code, property_ref')
+        .single();
+      if (error) throw error;
+      if (data) {
+        setImportedContacts((prev) => [...prev, {
+          id: data.id,
+          contact_role: data.contact_role || 'Landlord',
+          contact_person: data.contact_person || '',
+          contact_number: data.contact_number || '',
+          contact_email: data.contact_email || '',
+          short_code: data.short_code,
+          property_ref: data.property_ref,
+        }]);
+      }
+      setNewLandlordDraft({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' });
+      setShowAddLandlordForm(false);
+      toast.success('Landlord added');
+    } catch {
+      toast.error('Failed to add landlord');
+    } finally {
+      setSavingNewLandlord(false);
+    }
+  }
+
   const loadGovValDocs = useCallback(async () => {
     setGovValLoading(true);
     setGovValError(null);
@@ -669,14 +989,46 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
   );
   const handleComplianceDelete = makeDocDeleter(setComplianceDocs);
 
+  // ── Tenancy Forms (Documents tab) ─────────────────────────────────────────
+  const loadTenancyFormDocs = useCallback(
+    makeDocLoader('tenancy-form', setTenancyFormDocs, setTenancyFormLoading, setTenancyFormError),
+    [property.ref, property.unit], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const handleTenancyFormDelete = makeDocDeleter(setTenancyFormDocs);
+
+  // ── Utility Bills (Documents tab) ─────────────────────────────────────────
+  const loadUtilityBillDocs = useCallback(
+    makeDocLoader('utility-bill', setUtilityBillDocs, setUtilityBillLoading, setUtilityBillError),
+    [property.ref, property.unit], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const handleUtilityBillDelete = makeDocDeleter(setUtilityBillDocs);
+
+  // ── Image/PDF preview helper ───────────────────────────────────────────────
+  async function handleDocPreview(doc: TenancyAgreementDoc) {
+    try {
+      const supabase = createClient();
+      // Try documents bucket first (PDFs/Word), then property-photos bucket (images)
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.file_name);
+      const bucket = isImage ? 'property-photos' : 'documents';
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(doc.file_path, 120);
+      if (error) throw error;
+      setPreviewUrl(data.signedUrl);
+      setPreviewFileName(doc.file_name);
+    } catch {
+      toast.error('Could not generate preview link');
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'documents') {
       loadGovValDocs();
       loadLeaseAgreementDocs();
       loadInspectionDocs();
       loadComplianceDocs();
+      loadTenancyFormDocs();
+      loadUtilityBillDocs();
     }
-  }, [activeTab, loadGovValDocs, loadLeaseAgreementDocs, loadInspectionDocs, loadComplianceDocs]);
+  }, [activeTab, loadGovValDocs, loadLeaseAgreementDocs, loadInspectionDocs, loadComplianceDocs, loadTenancyFormDocs, loadUtilityBillDocs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleGovValUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -946,10 +1298,88 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
     };
   }
 
+  // ── Image+PDF capable uploader (for utility bills, tenancy forms) ─────────
+  function makeMediaUploader(
+    docType: string,
+    storagePath: string,
+    setDocs: React.Dispatch<React.SetStateAction<TenancyAgreementDoc[]>>,
+    setUploading: React.Dispatch<React.SetStateAction<boolean>>,
+    setError: React.Dispatch<React.SetStateAction<string | null>>,
+    inputRef: React.RefObject<HTMLInputElement>,
+    loadDocs: () => Promise<void>,
+  ) {
+    return async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const propRef = property.ref || property.unit;
+      if (!propRef) { toast.error('Cannot upload: property reference is missing'); return; }
+      const allowedPdf = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      const allowedImages = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+      const isImage = allowedImages.includes(file.type);
+      const isPdf = allowedPdf.includes(file.type);
+      if (!isImage && !isPdf) {
+        toast.error('Only PDF, Word documents, or images (JPG, PNG, WebP) are accepted');
+        return;
+      }
+      if (file.size > 52428800) { toast.error('File size must be under 50 MB'); return; }
+      setUploading(true);
+      setError(null);
+      try {
+        const supabase = createClient();
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const bucket = isImage ? 'property-photos' : 'documents';
+        const filePath = `${storagePath}/${propRef}/${Date.now()}_${safeName}`;
+        const { error: uploadError } = await supabase.storage
+          .from(bucket)
+          .upload(filePath, file, { contentType: file.type, upsert: false });
+        if (uploadError) throw uploadError;
+        const { error: dbError } = await supabase.from('property_documents').insert({
+          property_ref: propRef,
+          document_type: docType,
+          file_name: file.name,
+          file_path: filePath,
+          file_size_bytes: file.size,
+        });
+        if (dbError) throw dbError;
+        toast.success('File uploaded successfully');
+        await loadDocs();
+      } catch (err: any) {
+        toast.error(err?.message ?? 'Upload failed');
+        setError(err?.message ?? 'Upload failed');
+      } finally {
+        setUploading(false);
+        if (inputRef.current) inputRef.current.value = '';
+      }
+    };
+  }
+
+  // ── Media-aware delete (checks both buckets) ──────────────────────────────
+  function makeMediaDeleter(
+    setDocs: React.Dispatch<React.SetStateAction<TenancyAgreementDoc[]>>,
+  ) {
+    return async (doc: TenancyAgreementDoc) => {
+      if (!confirm(`Delete "${doc.file_name}"? This cannot be undone.`)) return;
+      try {
+        const supabase = createClient();
+        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.file_name);
+        const bucket = isImage ? 'property-photos' : 'documents';
+        const { error: storageError } = await supabase.storage.from(bucket).remove([doc.file_path]);
+        if (storageError) throw storageError;
+        await supabase.from('property_documents').delete().eq('id', doc.id);
+        toast.success('File deleted');
+        setDocs((prev) => prev.filter((d) => d.id !== doc.id));
+      } catch (err: any) {
+        toast.error(err?.message ?? 'Delete failed');
+      }
+    };
+  }
+
   async function handleGenericDocDownload(doc: TenancyAgreementDoc) {
     try {
       const supabase = createClient();
-      const { data, error } = await supabase.storage.from('documents').createSignedUrl(doc.file_path, 60);
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.file_name);
+      const bucket = isImage ? 'property-photos' : 'documents';
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(doc.file_path, 60);
       if (error) throw error;
       window.open(data.signedUrl, '_blank');
     } catch {
@@ -1085,6 +1515,48 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
       });
   }
 
+  async function autoSavePricingField(field: 'asking_price' | 'asking_rent', value: string) {
+    try {
+      const res = await fetch('/api/property-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: property.id, updates: { [field]: value ? Number(value) : null } }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error ?? 'Save failed');
+      toast.success('Saved');
+      onSaved?.();
+    } catch (err: any) {
+      toast.error('Failed to save: ' + (err?.message ?? 'Unknown error'));
+    }
+  }
+
+  async function autoSavePricingDate(field: 'listing_date' | 'vacant_date', value: string) {
+    try {
+      const dbField = field === 'listing_date' ? 'publish_dt' : 'vacant_date';
+      // Convert DD/MM/YYYY to YYYY-MM-DD for date columns, or null if empty
+      let dbValue: string | null = null;
+      if (value) {
+        const parts = value.split('/');
+        if (parts.length === 3) {
+          dbValue = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        } else {
+          dbValue = value;
+        }
+      }
+      const res = await fetch('/api/property-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: property.id, updates: { [dbField]: dbValue } }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error ?? 'Save failed');
+      toast.success('Date saved');
+    } catch (err: any) {
+      toast.error('Failed to save date: ' + (err?.message ?? 'Unknown error'));
+    }
+  }
+
   async function handleSavePublishToWebsite(dateValue: string) {
     if (!dateValue) return;
     setPublishingSaving(true);
@@ -1094,13 +1566,14 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
       // Determine workflow type from property status
       const workflowType = (property.status === 4 || (property as any).listType === 'sale') ? 'sales' : 'tenancy';
 
-      // Save publish date to properties
-      const { error: propError } = await supabase
-        .from('properties')
-        .update({ publish_dt: dateValue } as any)
-        .eq('id', property.id);
-
-      if (propError) throw propError;
+      // Save publish date to properties via server API (bypasses RLS)
+      const saveRes = await fetch('/api/property-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: property.id, updates: { publish_dt: dateValue } }),
+      });
+      const saveJson = await saveRes.json();
+      if (!saveRes.ok || saveJson.error) throw new Error(saveJson.error ?? 'Failed to save publish date');
 
       // Build property address
       const propertyAddress = [property.building, property.village, property.district].filter(Boolean).join(', ');
@@ -1146,6 +1619,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
 
       setPublishToWebsite(dateValue);
       toast.success(`Published to website from ${dateValue} — 3-month review reminder set for ${reminderDueDate}`);
+      onSaved?.();
     } catch (err: any) {
       toast.error('Failed to save publish date: ' + (err?.message ?? 'Unknown error'));
     } finally {
@@ -1165,6 +1639,37 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
     };
     setHistoryLog((prev) => [entry, ...prev]);
     toast.success('Highlight saved');
+  }
+
+  async function handleSaveKeyLocation() {
+    setSavingKeyLocation(true);
+    const newKeyLocation: import('./mockData').KeyLocation = {
+      type: keyLocationDraft.type,
+      keyNumber: keyLocationDraft.keyNumber.trim() || undefined,
+      agentName: keyLocationDraft.agentName.trim() || undefined,
+      agentPhone: keyLocationDraft.agentPhone.trim() || undefined,
+    };
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('properties')
+      .update({ key_location: newKeyLocation })
+      .eq('id', property.id);
+    setSavingKeyLocation(false);
+    if (error) {
+      toast.error('Failed to save key location: ' + error.message);
+      return;
+    }
+    setKeyLocation(newKeyLocation);
+    setEditingKeyLocation(false);
+    const today = new Date().toLocaleDateString('en-GB').replace(/\//g, '/');
+    const entry: HistoryEntry = {
+      id: `hl-keyloc-${Date.now()}`,
+      date: today,
+      agent: agentNames[0],
+      action: `Key location updated — ${newKeyLocation.type}${newKeyLocation.keyNumber ? ` #${newKeyLocation.keyNumber}` : ''}${newKeyLocation.agentName ? ` (${newKeyLocation.agentName})` : ''}`,
+    };
+    setHistoryLog((prev) => [entry, ...prev]);
+    toast.success('Key location saved');
   }
 
   function handleSavePropertyDetails() {
@@ -1236,6 +1741,21 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
       });
   }
 
+  async function autoSaveSpecsField(updates: Record<string, unknown>) {
+    try {
+      const res = await fetch('/api/property-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: property.id, updates }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error ?? 'Save failed');
+      toast.success('Saved');
+    } catch (err: any) {
+      toast.error('Failed to save: ' + (err?.message ?? 'Unknown error'));
+    }
+  }
+
   function toggleAdditionalFeature(feat: AdditionalFeature) {
     setAdditionalFeatures((prev) => {
       const next = prev.includes(feat) ? prev.filter((f) => f !== feat) : [...prev, feat];
@@ -1248,6 +1768,25 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
       setHasPool(next.includes('Pool'));
       setHasRoof(next.includes('Roof Top'));
       setHasTerrace(next.includes('Terrace'));
+      // Auto-save features via server API
+      const featureUpdates = {
+        balcony: next.includes('Balcony'),
+        combined: next.includes('Combined Unit'),
+        duplex: next.includes('Duplex'),
+        garden: next.includes('Garden'),
+        openkitch: next.includes('Open Kitchen'),
+        pool: next.includes('Pool'),
+        roof: next.includes('Roof Top'),
+        terrace: next.includes('Terrace'),
+      };
+      fetch('/api/property-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: property.id, updates: featureUpdates }),
+      }).then((res) => res.json()).then((json) => {
+        if (json.error) toast.error('Failed to save feature: ' + json.error);
+        else toast.success('Feature saved');
+      }).catch((err) => toast.error('Failed to save feature: ' + err.message));
       return next;
     });
   }
@@ -1420,7 +1959,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
       const labels: Record<number, string> = { 0: 'Active', 1: 'Leased', 2: 'Self Occupy', 3: 'No Contact', 4: 'Sold', 9: 'Unknown', 99: 'Blank' };
       return labels[property.status as number] ?? '—';
     })());
-    row('Floor', property.floor ?? '—');
+    row('Floor', formatFloorDisplay(property.floor));
     row('Bedrooms', bedroomsState || (property.bedrooms === 0 ? 'Studio' : property.bedrooms != null ? String(property.bedrooms) : '—'));
     row('Bathrooms', bathroomsState || (property.bathrooms != null ? String(property.bathrooms) : '—'));
     row('Saleable Area', `${property.sqft?.toLocaleString() ?? '—'} sq ft`);
@@ -1592,7 +2131,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                 )}
               </div>
               <p className="text-xs text-[hsl(215,15%,52%)] mt-0.5 line-clamp-2 sm:line-clamp-1">
-                {property.floor} · {property.street}, {property.district} ·{' '}
+                {formatFloorDisplay(property.floor)} · {property.street}, {property.district} ·{' '}
                 <span className="font-mono">{(property.sqft ?? 0).toLocaleString()} sq ft</span> ·
                 Built {property.yearBuilt ?? '—'}
               </p>
@@ -1724,13 +2263,13 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin p-3 sm:p-6">
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-2 sm:p-4">
           {/* OVERVIEW TAB */}
           {activeTab === 'overview' && (
-            <div className="space-y-2.5">
+            <div className="space-y-1.5">
               {/* 0. Property Identity — building name, phase, building type, floor/flat */}
-              <div className="border border-[#1B4F8A]/25 rounded-xl overflow-hidden bg-[#1B4F8A]/4">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[#1B4F8A]/8">
+              <div className="border border-[#1B4F8A]/25 rounded-lg overflow-hidden bg-[#1B4F8A]/4">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[#1B4F8A]/8">
                   <SectionHeader
                     sectionKey="identity"
                     icon="BuildingIcon"
@@ -1739,144 +2278,137 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['identity'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {/* Building Name */}
-                      <div className="col-span-1 sm:col-span-2 bg-white border border-[#1B4F8A]/20 rounded-xl px-3 py-2">
-                        <p className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                          <Icon name="BuildingIcon" size={10} className="text-[#1B4F8A]" />
+                  <div className="px-3 pb-2 pt-1">
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-1">
+                      {/* Building Name — spans 2 cols */}
+                      <div className="col-span-2 bg-white border border-[#1B4F8A]/20 rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                          <Icon name="BuildingIcon" size={8} className="text-[#1B4F8A]" />
                           Building Name
                         </p>
-                        <p className="text-sm font-bold text-[hsl(215,25%,18%)] truncate">
+                        <p className="text-[11px] font-bold text-[hsl(215,25%,18%)] truncate">
                           {(property as any).buildingName || property.building || '—'}
                         </p>
                       </div>
-                      {/* PID — numeric property identifier */}
+                      {/* PID */}
                       {property.ref && (
-                        <div className="col-span-1 bg-white border border-[#1B4F8A]/20 rounded-xl px-3 py-2">
-                          <p className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                            <Icon name="IdentificationIcon" size={10} className="text-[#1B4F8A]" />
+                        <div className="bg-white border border-[#1B4F8A]/20 rounded-md px-2 py-1">
+                          <p className="text-[8px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                            <Icon name="IdentificationIcon" size={8} className="text-[#1B4F8A]" />
                             PID
                           </p>
-                          <p className="text-sm font-semibold font-mono text-[hsl(215,25%,18%)] truncate">
+                          <p className="text-[11px] font-semibold font-mono text-[hsl(215,25%,18%)] truncate">
                             {property.ref}
                           </p>
                         </div>
                       )}
-                      {/* Property Type */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Property Type</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {property.type || '—'}
-                        </p>
-                      </div>
-                      {/* Phase */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Phase</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {(property as any).phase || '—'}
-                        </p>
-                      </div>
-                      {/* Village */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Village</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {(property as any).village || '—'}
-                        </p>
-                      </div>
-                      {/* Build Year */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Build Year</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {property.yearBuilt || '—'}
-                        </p>
-                      </div>
-                      {/* Building Type */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Building Type</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {buildingType || (property as any).buildingType || '—'}
-                        </p>
-                      </div>
-                      {/* Floor Number */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Floor No.</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {floorNumber || property.floor || '—'}
-                        </p>
-                      </div>
-                      {/* Flat / Unit Number */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Flat / Unit</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {property.unit || '—'}
-                        </p>
-                      </div>
-                      {/* Outdoor Area */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Outdoor Sqft</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                          {outdoorArea || '—'}
-                        </p>
-                      </div>
-                      {/* Net Sqft */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Net Sqft</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{netSqft ? `${Number(netSqft).toLocaleString()} ft²` : '—'}</p>
-                      </div>
-                      {/* Gross Sqft */}
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Gross Sqft</p>
-                        <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{grossSqft ? `${Number(grossSqft).toLocaleString()} ft²` : '—'}</p>
-                      </div>
                       {/* Short Code */}
                       {(property as any).shortCode && (
-                        <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl px-3 py-2.5">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Short Code</p>
-                          <p className="text-xs font-semibold font-mono text-[#1B4F8A]">
+                        <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                          <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Short Code</p>
+                          <p className="text-[11px] font-semibold font-mono text-[#1B4F8A] truncate">
                             {(property as any).shortCode}
                           </p>
                         </div>
                       )}
+                      {/* Property Type */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Type</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] truncate">{property.type || '—'}</p>
+                      </div>
+                      {/* Phase */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Phase</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] truncate">{(property as any).phase || '—'}</p>
+                      </div>
+                      {/* Village */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Village</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] truncate">{(property as any).village || '—'}</p>
+                      </div>
+                      {/* Build Year */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Built</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{property.yearBuilt || '—'}</p>
+                      </div>
+                      {/* Building Type */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Bldg Type</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] truncate">{buildingType || (property as any).buildingType || '—'}</p>
+                      </div>
+                      {/* Floor Number */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Floor</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{floorNumber || (() => { const f = property.floor?.trim(); if (!f) return '—'; if (/^[1-9]\d{2}$/.test(f)) return String(parseInt(f.slice(1), 10)); return f; })()}</p>
+                      </div>
+                      {/* Flat / Unit Number */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Flat/Unit</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{property.unit || '—'}</p>
+                      </div>
+                      {/* Outdoor Area */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Outdoor ft²</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{outdoorArea || '—'}</p>
+                      </div>
+                      {/* Net Sqft */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Net ft²</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">{netSqft ? `${Number(netSqft).toLocaleString()}` : '—'}</p>
+                      </div>
+                      {/* Gross Sqft */}
+                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-md px-2 py-1">
+                        <p className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Gross ft²</p>
+                        <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">{grossSqft ? `${Number(grossSqft).toLocaleString()}` : '—'}</p>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* 1. Pricing & Listing Dates — compact */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              {/* 1. Pricing & Listing + Key Log — side by side */}
+              <div className="flex flex-col sm:flex-row gap-1.5">
+                {/* Pricing & Listing Dates */}
+                <div className="flex-1 border border-[hsl(214,20%,88%)] rounded-lg overflow-visible">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)] rounded-t-lg overflow-hidden">
                   <SectionHeader
                     sectionKey="pricing"
                     icon="TagIcon"
                     title="Pricing & Listing Dates"
-                    rightContent={
-                      !collapsedSections['pricing'] && !editingPricing ? (
-                        <button onClick={() => setEditingPricing(true)} className="btn-ghost py-1 px-2.5 text-xs min-h-[32px]">
-                          <Icon name="PencilIcon" size={11} />
-                          Edit
-                        </button>
-                      ) : undefined
-                    }
                   />
                 </div>
                 {!collapsedSections['pricing'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
-                    {/* Status & Listing Type dropdowns */}
-                    <div className="flex flex-wrap gap-4 mb-3">
+                  <div className="px-3 pb-2 pt-1">
+                    {/* Status & Listing Type — compact row */}
+                    <div className="grid grid-cols-2 gap-1 mb-1.5">
                       <div>
-                        <label className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-1 block">Status:</label>
+                        <label className="text-[8px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Status</label>
                         <select
                           value={propertyStatusCode}
                           onChange={(e) => {
                             const val = e.target.value;
                             setPropertyStatusCode(val);
-                            const supabase = createClient();
-                            supabase.from('properties').update({ contact_status_code: val !== '' ? parseInt(val, 10) : null } as any).eq('id', property.id).then(() => {
-                              toast.success('Status updated');
-                            });
+                            fetch('/api/property-save', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: property.id, updates: { contact_status_code: val !== '' ? parseInt(val, 10) : null } }),
+                            }).then(() => toast.success('Status updated'));
+                            const statusLabels: Record<string, string> = {
+                              '0': 'Active', '1': 'Leased', '2': 'Self Occupy',
+                              '3': 'No Contact', '4': 'Sold', '9': 'Unknown',
+                            };
+                            const prevLabel = statusLabels[propertyStatusCode] ?? (propertyStatusCode ? propertyStatusCode : 'None');
+                            const newLabel = statusLabels[val] ?? (val ? val : 'None');
+                            const today = new Date().toLocaleDateString('en-GB').replace(/\//g, '/');
+                            const statusEntry: HistoryEntry = {
+                              id: `hl-status-${Date.now()}`,
+                              date: today,
+                              agent: agentNames[0] ?? 'System',
+                              action: `Status changed from ${prevLabel} → ${newLabel}`,
+                            };
+                            setHistoryLog((prev) => [statusEntry, ...prev]);
                           }}
-                          className="input-base text-xs w-48"
+                          className="input-base text-xs w-full min-h-[28px] py-0.5"
                         >
                           <option value="">---</option>
                           <option value="0">Active</option>
@@ -1889,18 +2421,39 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-1 block">Listing Type:</label>
+                        <label className="text-[8px] font-semibold text-[#1B4F8A] uppercase tracking-wider mb-0.5 block">Listing Type</label>
                         <select
                           value={listingType}
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const val = e.target.value;
                             setListingType(val);
-                            const supabase = createClient();
-                            supabase.from('properties').update({ list_type: val || null } as any).eq('id', property.id).then(() => {
+                            // Map UI label → status ENUM value
+                            const statusMap: Record<string, string> = {
+                              'Sale': 'for-sale',
+                              'Rent': 'for-rent',
+                              'Rent & Sale': 'for-sale-and-rent',
+                            };
+                            const updates: Record<string, string | null> = {
+                              list_type: val || null,
+                            };
+                            if (val && statusMap[val]) {
+                              updates.status = statusMap[val];
+                            }
+                            try {
+                              const res = await fetch('/api/property-save', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: property.id, updates }),
+                              });
+                              const json = await res.json();
+                              if (!res.ok || json.error) throw new Error(json.error ?? 'Save failed');
                               toast.success('Listing type updated');
-                            });
+                              onSaved?.();
+                            } catch (err: any) {
+                              toast.error('Failed to save listing type: ' + (err?.message ?? 'Unknown error'));
+                            }
                           }}
-                          className="input-base text-xs w-48"
+                          className="input-base text-xs w-full min-h-[28px] py-0.5"
                         >
                           <option value="">----</option>
                           <option value="Sale">Sale</option>
@@ -1909,199 +2462,137 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </select>
                       </div>
                     </div>
-                    {editingPricing ? (
-                      <div className="card p-3 space-y-3 border border-[#1B4F8A]/20">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Sale Price (HKD)</label>
-                            <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} placeholder="e.g. 8500000" className="input-base w-full font-mono text-xs" />
-                            {salePrice && <p className="text-[10px] text-[hsl(215,15%,52%)] mt-0.5">≈ HK${(Number(salePrice) / 1000000).toFixed(2)}M</p>}
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Rental Price / Month</label>
-                            <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} placeholder="e.g. 28500" className="input-base w-full font-mono text-xs" />
-                            {rentalPrice && <p className="text-[10px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo</p>}
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Gross Sqft</label>
-                            <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} placeholder="e.g. 1200" className="input-base w-full font-mono text-xs" />
-                          </div>
-                          <div className="relative">
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Listing Date</label>
-                            <div className="flex items-center gap-1">
-                              <input type="text" value={listingDate} onChange={(e) => setListingDate(e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
-                              <button
-                                type="button"
-                                onClick={() => { setShowListingCalendar(!showListingCalendar); setShowVacantCalendar(false); }}
-                                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
-                                title="Open calendar"
-                              >
-                                <Icon name="CalendarIcon" size={14} />
-                              </button>
-                            </div>
-                            {showListingCalendar && (
-                              <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
-                                {/* Month navigation */}
-                                <div className="flex items-center justify-between mb-2">
-                                  <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                    <Icon name="ChevronLeftIcon" size={14} />
-                                  </button>
-                                  <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                                    {listingCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                                  </span>
-                                  <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                    <Icon name="ChevronRightIcon" size={14} />
-                                  </button>
-                                </div>
-                                {/* Day headers */}
-                                <div className="grid grid-cols-7 mb-1">
-                                  {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                                    <div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>
-                                  ))}
-                                </div>
-                                {/* Days grid */}
-                                <div className="grid grid-cols-7 gap-y-0.5">
-                                  {(() => {
-                                    const year = listingCalMonth.getFullYear();
-                                    const month = listingCalMonth.getMonth();
-                                    const firstDay = new Date(year, month, 1).getDay();
-                                    const daysInMonth = new Date(year, month + 1, 0).getDate();
-                                    const cells: React.ReactNode[] = [];
-                                    for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
-                                    for (let day = 1; day <= daysInMonth; day++) {
-                                      const dd = String(day).padStart(2, '0');
-                                      const mm = String(month + 1).padStart(2, '0');
-                                      const dateStr = `${dd}/${mm}/${year}`;
-                                      const isSelected = listingDate === dateStr;
-                                      cells.push(
-                                        <button key={day} type="button"
-                                          onClick={() => { setListingDate(dateStr); setShowListingCalendar(false); }}
-                                          className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}
-                                        >{day}</button>
-                                      );
-                                    }
-                                    return cells;
-                                  })()}
-                                </div>
-                                {/* Clear button */}
-                                {listingDate && (
-                                  <button type="button" onClick={() => { setListingDate(''); setShowListingCalendar(false); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
-                                    Clear date
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <div className="relative">
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Vacant Date</label>
-                            <div className="flex items-center gap-1">
-                              <input type="text" value={vacantDate} onChange={(e) => setVacantDate(e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs" />
-                              <button
-                                type="button"
-                                onClick={() => { setShowVacantCalendar(!showVacantCalendar); setShowListingCalendar(false); }}
-                                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] hover:text-[hsl(215,25%,18%)] transition-colors"
-                                title="Open calendar"
-                              >
-                                <Icon name="CalendarIcon" size={14} />
-                              </button>
-                            </div>
-                            {showVacantCalendar && (
-                              <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3 w-64">
-                                {/* Month navigation */}
-                                <div className="flex items-center justify-between mb-2">
-                                  <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                    <Icon name="ChevronLeftIcon" size={14} />
-                                  </button>
-                                  <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                                    {vacantCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                                  </span>
-                                  <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]">
-                                    <Icon name="ChevronRightIcon" size={14} />
-                                  </button>
-                                </div>
-                                {/* Day headers */}
-                                <div className="grid grid-cols-7 mb-1">
-                                  {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                                    <div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>
-                                  ))}
-                                </div>
-                                {/* Days grid */}
-                                <div className="grid grid-cols-7 gap-y-0.5">
-                                  {(() => {
-                                    const year = vacantCalMonth.getFullYear();
-                                    const month = vacantCalMonth.getMonth();
-                                    const firstDay = new Date(year, month, 1).getDay();
-                                    const daysInMonth = new Date(year, month + 1, 0).getDate();
-                                    const cells: React.ReactNode[] = [];
-                                    for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} />);
-                                    for (let day = 1; day <= daysInMonth; day++) {
-                                      const dd = String(day).padStart(2, '0');
-                                      const mm = String(month + 1).padStart(2, '0');
-                                      const dateStr = `${dd}/${mm}/${year}`;
-                                      const isSelected = vacantDate === dateStr;
-                                      cells.push(
-                                        <button key={day} type="button"
-                                          onClick={() => { setVacantDate(dateStr); setShowVacantCalendar(false); }}
-                                          className={`text-[11px] w-full aspect-square rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}
-                                        >{day}</button>
-                                      );
-                                    }
-                                    return cells;
-                                  })()}
-                                </div>
-                                {/* Clear button */}
-                                {vacantDate && (
-                                  <button type="button" onClick={() => { setVacantDate(''); setShowVacantCalendar(false); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">
-                                    Clear date
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button onClick={handleSavePricing} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="CheckIcon" size={12} />Save</button>
-                          <button onClick={() => setEditingPricing(false)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
-                        </div>
+                    {/* Pricing fields — 5 per row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 mb-1.5">
+                      <div className="sm:col-span-2">
+                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Sale Price (HKD)</label>
+                        <input type="number" value={salePrice} onChange={(e) => setSalePrice(e.target.value)} onBlur={(e) => { const raw = e.target.value; if (raw) { const full = String(Number(raw) * 1000000); setSalePrice(full); autoSavePricingField('asking_price', full); } else { autoSavePricingField('asking_price', ''); } }} placeholder="e.g. 8.5 → 8,500,000" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                        {salePrice && <p className="text-[8px] text-[hsl(215,15%,52%)] mt-0.5">≈ HK${(Number(salePrice) / 1000000).toFixed(2)}M (enter millions: 8.5 = 8,500,000)</p>}
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-                        <div className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Sale Price</p>
-                          <p className="text-xs font-semibold text-violet-700 font-mono">{salePrice ? `HK$${(Number(salePrice) / 1000000).toFixed(2)}M` : '—'}</p>
-                        </div>
-                        <div className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Rental Price</p>
-                          <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{rentalPrice ? `HK$${Number(rentalPrice).toLocaleString()}/mo` : '—'}</p>
-                        </div>
-                        <div className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Listing Date</p>
-                          <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{listingDate || '—'}</p>
-                        </div>
-                        <div className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2 col-span-2 sm:col-span-1">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Vacant Date</p>
-                          <p className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{vacantDate || '—'}</p>
-                        </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Rental / Month</label>
+                        <input type="number" value={rentalPrice} onChange={(e) => setRentalPrice(e.target.value)} onBlur={(e) => { const raw = e.target.value; if (raw) { const full = String(Number(raw) * 1000); setRentalPrice(full); autoSavePricingField('asking_rent', full); } else { autoSavePricingField('asking_rent', ''); } }} placeholder="e.g. 28 → 28,000" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                        {rentalPrice && <p className="text-[8px] text-[hsl(215,15%,52%)] mt-0.5">HK${Number(rentalPrice).toLocaleString()}/mo (enter thousands: 28 = 28,000)</p>}
                       </div>
-                    )}
+                      <div>
+                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Net ft²</label>
+                        <input type="number" value={netSqft} onChange={(e) => setNetSqft(e.target.value)} onBlur={(e) => autoSaveSpecsField({ saleable_area: e.target.value ? Number(e.target.value) : null })} placeholder="e.g. 1200" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                      </div>
+                      <div className="relative sm:col-span-2">
+                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Listing Date</label>
+                        <div className="flex items-center gap-1">
+                          <input type="text" value={listingDate} onChange={(e) => setListingDate(e.target.value)} onBlur={(e) => autoSavePricingDate('listing_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                          <button
+                            ref={listingCalBtnRef}
+                            type="button"
+                            onClick={() => {
+                              const next = !showListingCalendar;
+                              setShowVacantCalendar(false);
+                              if (next && listingCalBtnRef.current) {
+                                const rect = listingCalBtnRef.current.getBoundingClientRect();
+                                setListingCalPos({ top: rect.bottom + 4, left: rect.left });
+                              }
+                              setShowListingCalendar(next);
+                            }}
+                            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"
+                            title="Open calendar"
+                          >
+                            <Icon name="CalendarIcon" size={11} />
+                          </button>
+                        </div>
+                        {showListingCalendar && (
+                          <div className="fixed z-[9999] bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3" style={{width: '280px', top: listingCalPos?.top, left: listingCalPos?.left}}>
+                            <div className="flex items-center justify-between mb-2">
+                              <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronLeftIcon" size={14} /></button>
+                              <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{listingCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+                              <button type="button" onClick={() => setListingCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronRightIcon" size={14} /></button>
+                            </div>
+                            <div className="grid grid-cols-7 mb-1">{['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (<div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>))}</div>
+                            <div className="grid grid-cols-7 gap-0.5">
+                              {(() => {
+                                const year = listingCalMonth.getFullYear(); const month = listingCalMonth.getMonth();
+                                const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+                                const cells: React.ReactNode[] = [];
+                                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} style={{height:'32px'}} />);
+                                for (let day = 1; day <= daysInMonth; day++) {
+                                  const dd = String(day).padStart(2, '0'); const mm = String(month + 1).padStart(2, '0');
+                                  const dateStr = `${dd}/${mm}/${year}`; const isSelected = listingDate === dateStr;
+                                  cells.push(<button key={day} type="button" onClick={() => { setListingDate(dateStr); setShowListingCalendar(false); autoSavePricingDate('listing_date', dateStr); }} style={{height:'32px'}} className={`text-[11px] w-full rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}>{day}</button>);
+                                }
+                                return cells;
+                              })()}
+                            </div>
+                            {listingDate && (<button type="button" onClick={() => { setListingDate(''); setShowListingCalendar(false); autoSavePricingDate('listing_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">Clear date</button>)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="relative sm:col-span-2">
+                        <label className="text-[8px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Vacant Date</label>
+                        <div className="flex items-center gap-1">
+                          <input type="text" value={vacantDate} onChange={(e) => setVacantDate(e.target.value)} onBlur={(e) => autoSavePricingDate('vacant_date', e.target.value)} placeholder="DD/MM/YYYY" className="input-base w-full font-mono text-xs min-h-[28px] py-0.5" />
+                          <button
+                            ref={vacantCalBtnRef}
+                            type="button"
+                            onClick={() => {
+                              const next = !showVacantCalendar;
+                              setShowListingCalendar(false);
+                              if (next && vacantCalBtnRef.current) {
+                                const rect = vacantCalBtnRef.current.getBoundingClientRect();
+                                setVacantCalPos({ top: rect.bottom + 4, left: rect.left });
+                              }
+                              setShowVacantCalendar(next);
+                            }}
+                            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded border border-[hsl(214,20%,88%)] bg-white hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"
+                            title="Open calendar"
+                          >
+                            <Icon name="CalendarIcon" size={11} />
+                          </button>
+                        </div>
+                        {showVacantCalendar && (
+                          <div className="fixed z-[9999] bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-lg p-3" style={{width: '280px', top: vacantCalPos?.top, left: vacantCalPos?.left}}>
+                            <div className="flex items-center justify-between mb-2">
+                              <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronLeftIcon" size={14} /></button>
+                              <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{vacantCalMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+                              <button type="button" onClick={() => setVacantCalMonth(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 rounded hover:bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)]"><Icon name="ChevronRightIcon" size={14} /></button>
+                            </div>
+                            <div className="grid grid-cols-7 mb-1">{['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (<div key={d} className="text-center text-[9px] font-semibold text-[hsl(215,15%,52%)] py-0.5">{d}</div>))}</div>
+                            <div className="grid grid-cols-7 gap-0.5">
+                              {(() => {
+                                const year = vacantCalMonth.getFullYear(); const month = vacantCalMonth.getMonth();
+                                const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate();
+                                const cells: React.ReactNode[] = [];
+                                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} style={{height:'32px'}} />);
+                                for (let day = 1; day <= daysInMonth; day++) {
+                                  const dd = String(day).padStart(2, '0'); const mm = String(month + 1).padStart(2, '0');
+                                  const dateStr = `${dd}/${mm}/${year}`; const isSelected = vacantDate === dateStr;
+                                  cells.push(<button key={day} type="button" onClick={() => { setVacantDate(dateStr); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', dateStr); }} style={{height:'32px'}} className={`text-[11px] w-full rounded-md flex items-center justify-center transition-colors ${isSelected ? 'bg-[hsl(215,70%,45%)] text-white font-semibold' : 'hover:bg-[hsl(210,20%,94%)] text-[hsl(215,25%,18%)]'}`}>{day}</button>);
+                                }
+                                return cells;
+                              })()}
+                            </div>
+                            {vacantDate && (<button type="button" onClick={() => { setVacantDate(''); setShowVacantCalendar(false); autoSavePricingDate('vacant_date', ''); }} className="mt-2 w-full text-[10px] text-[hsl(215,15%,52%)] hover:text-red-500 text-center transition-colors">Clear date</button>)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
                     {/* Publish to Website — always visible */}
-                    <div className={`mt-3 rounded-xl border-2 overflow-hidden ${publishToWebsite ? 'border-emerald-300 bg-emerald-50' : 'border-dashed border-[hsl(214,20%,80%)] bg-[hsl(210,20%,98%)]'}`}>
-                      <div className="px-3 py-2.5">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${publishToWebsite ? 'bg-emerald-500' : 'bg-[hsl(214,20%,85%)]'}`}>
-                            <Icon name="GlobeIcon" size={13} className={publishToWebsite ? 'text-white' : 'text-[hsl(215,15%,52%)]'} />
+                    <div className={`rounded-lg border-2 overflow-hidden ${publishToWebsite ? 'border-emerald-300 bg-emerald-50' : 'border-dashed border-[hsl(214,20%,80%)] bg-[hsl(210,20%,98%)]'}`}>
+                      <div className="px-3 py-2">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${publishToWebsite ? 'bg-emerald-500' : 'bg-[hsl(214,20%,85%)]'}`}>
+                            <Icon name="GlobeIcon" size={11} className={publishToWebsite ? 'text-white' : 'text-[hsl(215,15%,52%)]'} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className={`text-[11px] font-bold uppercase tracking-wider ${publishToWebsite ? 'text-emerald-700' : 'text-[hsl(215,15%,52%)]'}`}>
+                            <p className={`text-[10px] font-bold uppercase tracking-wider ${publishToWebsite ? 'text-emerald-700' : 'text-[hsl(215,15%,52%)]'}`}>
                               Publish to Website
                             </p>
                             {publishToWebsite ? (
-                              <p className="text-[10px] text-emerald-600">
+                              <p className="text-[9px] text-emerald-600">
                                 Live from <span className="font-semibold font-mono">{publishToWebsite}</span> · 3-month review reminder set
                               </p>
                             ) : (
-                              <p className="text-[10px] text-[hsl(215,15%,52%)]">
+                              <p className="text-[9px] text-[hsl(215,15%,52%)]">
                                 Set a date to publish this property to the Homes R Us website
                               </p>
                             )}
@@ -2111,13 +2602,14 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                               onClick={() => {
                                 if (confirm('Remove the publish date? This will unpublish the property from the website.')) {
                                   setPublishToWebsite('');
-                                  const supabase = createClient();
-                                  supabase.from('properties').update({ publish_dt: null } as any).eq('id', property.id).then(() => {
-                                    toast.success('Property unpublished from website');
-                                  });
+                                  fetch('/api/property-save', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ id: property.id, updates: { publish_dt: null } }),
+                                  }).then(() => toast.success('Property unpublished from website'));
                                 }
                               }}
-                              className="flex-shrink-0 text-[10px] text-emerald-600 hover:text-red-600 transition-colors px-1.5 py-0.5 rounded hover:bg-red-50"
+                              className="flex-shrink-0 text-[9px] text-emerald-600 hover:text-red-600 transition-colors px-1.5 py-0.5 rounded hover:bg-red-50"
                             >
                               Remove
                             </button>
@@ -2128,24 +2620,24 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             type="date"
                             value={publishToWebsite}
                             onChange={(e) => setPublishToWebsite(e.target.value)}
-                            className="input-base flex-1 font-mono text-xs min-h-[36px]"
+                            className="input-base flex-1 font-mono text-xs min-h-[28px]"
                             min={new Date().toISOString().split('T')[0]}
                           />
                           <button
                             onClick={() => handleSavePublishToWebsite(publishToWebsite)}
                             disabled={!publishToWebsite || publishingSaving}
-                            className="btn-primary py-1.5 px-3 text-xs min-h-[36px] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                            className="btn-primary py-1 px-3 text-xs min-h-[28px] disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                           >
                             {publishingSaving ? (
-                              <><Icon name="LoaderIcon" size={12} className="animate-spin" />Saving…</>
+                              <><Icon name="LoaderIcon" size={11} className="animate-spin" />Saving…</>
                             ) : (
-                              <><Icon name="GlobeIcon" size={12} />Publish</>
+                              <><Icon name="GlobeIcon" size={11} />Publish</>
                             )}
                           </button>
                         </div>
                         {publishToWebsite && (
-                          <p className="text-[10px] text-emerald-600 mt-1.5 flex items-center gap-1">
-                            <Icon name="BellIcon" size={10} />
+                          <p className="text-[9px] text-emerald-600 mt-1 flex items-center gap-1">
+                            <Icon name="BellIcon" size={9} />
                             A 3-month review reminder will be sent to the listing agent on {(() => {
                               try {
                                 const d = new Date(publishToWebsite);
@@ -2159,18 +2651,18 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                     </div>
                     {/* Key Location inline within Pricing & Listing Dates */}
                     {property.keyLocation && (
-                      <div className={`mt-2 flex items-center gap-2.5 rounded-xl px-3 py-2 border ${
+                      <div className={`mt-1.5 flex items-center gap-2 rounded-lg px-2.5 py-1.5 border ${
                         property.keyLocation.type === 'office' ? 'bg-[#1B4F8A]/8 border-[#1B4F8A]/25'
                           : property.keyLocation.type === 'agent' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
                       }`}>
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${
                           property.keyLocation.type === 'office' ? 'bg-[#1B4F8A]/15'
                             : property.keyLocation.type === 'agent' ? 'bg-amber-100' : 'bg-emerald-100'
                         }`}>
-                          <Icon name="KeyIcon" size={13} className={property.keyLocation.type === 'office' ? 'text-[#1B4F8A]' : property.keyLocation.type === 'agent' ? 'text-amber-600' : 'text-emerald-600'} />
+                          <Icon name="KeyIcon" size={11} className={property.keyLocation.type === 'office' ? 'text-[#1B4F8A]' : property.keyLocation.type === 'agent' ? 'text-amber-600' : 'text-emerald-600'} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Key Location</p>
+                          <p className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">Key Location</p>
                           {property.keyLocation.type === 'office' && (
                             <p className="text-xs font-medium text-[hsl(215,25%,18%)]">
                               Key in office
@@ -2198,31 +2690,129 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                 )}
               </div>
 
+                {/* Key Log section — next to Pricing & Listing */}
+                <div className="sm:w-72 border border-amber-200 rounded-lg overflow-hidden bg-amber-50/30">
+                  <div className="px-3 pt-1.5 pb-1.5 bg-amber-50 border-b border-amber-200">
+                    <div className="flex items-center gap-2">
+                      <Icon name="KeyIcon" size={13} className="text-amber-600 flex-shrink-0" />
+                      <span className="text-xs font-semibold text-amber-800">Key Log</span>
+                      {keyLogSaving && (
+                        <span className="ml-auto flex items-center gap-1 text-[9px] text-amber-600">
+                          <Icon name="LoaderIcon" size={9} className="animate-spin" />
+                          Saving…
+                        </span>
+                      )}
+                      {!keyLogSaving && keyLog?.id && (
+                        <span className="ml-auto flex items-center gap-1 text-[9px] text-emerald-600">
+                          <Icon name="CheckIcon" size={9} />
+                          Saved
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {keyLogLoading ? (
+                    <div className="px-3 py-4 flex items-center justify-center">
+                      <Icon name="LoaderIcon" size={16} className="animate-spin text-amber-500" />
+                    </div>
+                  ) : keyLog !== null ? (
+                    <div className="px-3 py-2 space-y-2">
+                      {/* Key */}
+                      <div>
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Key</label>
+                        <select
+                          value={keyLog.key_status}
+                          onChange={(e) => autoSaveKeyLog({ key_status: e.target.value })}
+                          className="input-base w-full text-xs min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                        >
+                          <option value="">— Select —</option>
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      {/* Key Number */}
+                      <div>
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Key Number</label>
+                        <input
+                          type="text"
+                          value={keyLog.key_number}
+                          onChange={(e) => setKeyLog((prev) => prev ? { ...prev, key_number: e.target.value } : prev)}
+                          onBlur={(e) => autoSaveKeyLog({ key_number: e.target.value })}
+                          placeholder="e.g. K-001"
+                          className="input-base w-full text-xs font-mono min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                        />
+                      </div>
+                      {/* Sole Agent */}
+                      <div>
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Sole Agent</label>
+                        <select
+                          value={keyLog.sole_agent}
+                          onChange={(e) => autoSaveKeyLog({ sole_agent: e.target.value })}
+                          className="input-base w-full text-xs min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                        >
+                          <option value="">— Select —</option>
+                          <option value="Homes R Us">Homes R Us</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      {/* Sole Agent Name */}
+                      <div>
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Sole Agent Name</label>
+                        <input
+                          type="text"
+                          value={keyLog.sole_agent_name}
+                          onChange={(e) => setKeyLog((prev) => prev ? { ...prev, sole_agent_name: e.target.value } : prev)}
+                          onBlur={(e) => autoSaveKeyLog({ sole_agent_name: e.target.value })}
+                          placeholder="Agent name"
+                          className="input-base w-full text-xs min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                        />
+                      </div>
+                      {/* Sole Agent Valid From */}
+                      <div className="relative">
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Valid From</label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="date"
+                            value={keyLog.sole_agent_valid_from}
+                            onChange={(e) => autoSaveKeyLog({ sole_agent_valid_from: e.target.value })}
+                            className="input-base w-full text-xs font-mono min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                          />
+                        </div>
+                      </div>
+                      {/* Sole Agent Valid To */}
+                      <div className="relative">
+                        <label className="text-[8px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 block">Valid To</label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="date"
+                            value={keyLog.sole_agent_valid_to}
+                            onChange={(e) => autoSaveKeyLog({ sole_agent_valid_to: e.target.value })}
+                            className="input-base w-full text-xs font-mono min-h-[28px] py-0.5 border-amber-200 focus:ring-amber-400"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
               {/* 2. Property Specifications — compact */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="specs"
                     icon="HomeIcon"
                     title="Property Specifications"
-                    rightContent={
-                      !collapsedSections['specs'] && !editingPropertyDetails ? (
-                        <button onClick={() => setEditingPropertyDetails(true)} className="btn-ghost py-1 px-2.5 text-xs min-h-[32px]">
-                          <Icon name="PencilIcon" size={11} />
-                          Edit
-                        </button>
-                      ) : undefined
-                    }
                   />
                 </div>
                 {!collapsedSections['specs'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
-                    {editingPropertyDetails ? (
-                      <div className="card p-3 space-y-3 border border-[#1B4F8A]/20">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="px-3 pb-2 pt-1">
+                    {/* Property specs — always editable */}
+                    <div className="space-y-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Bedrooms</label>
-                            <select value={bedrooms} onChange={(e) => setBedrooms(e.target.value)} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Bedrooms</label>
+                            <select value={bedrooms} onChange={(e) => { const val = e.target.value; setBedrooms(val); autoSaveSpecsField({ bedrooms: val === 'Studio' ? 0 : val ? Number(val) : null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="Studio">Studio</option>
                               <option value="1">1</option>
@@ -2234,8 +2824,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Bathrooms</label>
-                            <select value={bathrooms} onChange={(e) => setBathrooms(e.target.value)} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Bathrooms</label>
+                            <select value={bathrooms} onChange={(e) => { const val = e.target.value; setBathrooms(val); autoSaveSpecsField({ bathrooms: val ? Number(val) : null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="1">1</option>
                               <option value="2">2</option>
@@ -2244,8 +2834,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Direction</label>
-                            <select value={direction} onChange={(e) => setDirection(e.target.value as DirectionType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Direction</label>
+                            <select value={direction} onChange={(e) => { const val = e.target.value as DirectionType | ''; setDirection(val); autoSaveSpecsField({ direction_id: val || null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_DIRECTIONS.map((d) => (
                                 <option key={d} value={d}>{d}</option>
@@ -2253,8 +2843,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">View</label>
-                            <select value={view} onChange={(e) => setView(e.target.value as ViewType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">View</label>
+                            <select value={view} onChange={(e) => { const val = e.target.value as ViewType | ''; setView(val); autoSaveSpecsField({ view_id: val || null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_VIEWS.map((v) => (
                                 <option key={v} value={v}>{v}</option>
@@ -2262,8 +2852,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Decoration</label>
-                            <select value={decoration} onChange={(e) => setDecoration(e.target.value as DecorationType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Decoration</label>
+                            <select value={decoration} onChange={(e) => { const val = e.target.value as DecorationType | ''; setDecoration(val); autoSaveSpecsField({ decor_id: val || null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_DECORATIONS.map((d) => (
                                 <option key={d} value={d}>{d}</option>
@@ -2271,8 +2861,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Original Furnishing</label>
-                            <select value={originalFurnishing} onChange={(e) => setOriginalFurnishing(e.target.value as FurnishingType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Original Furnishing</label>
+                            <select value={originalFurnishing} onChange={(e) => setOriginalFurnishing(e.target.value as FurnishingType | '')} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_FURNISHINGS.map((f) => (
                                 <option key={f} value={f}>{f}</option>
@@ -2280,8 +2870,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Building Type</label>
-                            <select value={buildingType} onChange={(e) => setBuildingType(e.target.value as BuildingType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Building Type</label>
+                            <select value={buildingType} onChange={(e) => { const val = e.target.value as BuildingType | ''; setBuildingType(val); autoSaveSpecsField({ prop_types: val || null, prop_type: val || null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="House">House</option>
                               <option value="Low Rise">Low Rise</option>
@@ -2289,8 +2879,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Floor Type</label>
-                            <select value={floorType} onChange={(e) => setFloorType(e.target.value as FloorType | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Floor Type</label>
+                            <select value={floorType} onChange={(e) => { const val = e.target.value as FloorType | ''; setFloorType(val); const floorTypeToDb: Record<string, string> = { 'Ground': 'ground floor', 'Low': 'low floor', 'Medium': 'middle floor', 'High': 'high floor' }; autoSaveSpecsField({ floor_type: val ? (floorTypeToDb[val] ?? val) : null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               {ALL_FLOOR_TYPES.map((ft) => (
                                 <option key={ft} value={ft}>{ft}</option>
@@ -2298,8 +2888,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Floor Number</label>
-                            <select value={floorNumber} onChange={(e) => setFloorNumber(e.target.value as FloorNumber | '')} className="input-base w-full min-h-[40px] text-xs">
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Floor Number</label>
+                            <select value={floorNumber} onChange={(e) => { const val = e.target.value as FloorNumber | ''; setFloorNumber(val); autoSaveSpecsField({ floor: val || null }); }} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select —</option>
                               <option value="LG">LG (Lower Ground)</option>
                               <option value="G">G (Ground)</option>
@@ -2310,23 +2900,23 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Net Sqft</label>
-                            <input type="number" value={netSqft} onChange={(e) => setNetSqft(e.target.value)} placeholder="e.g. 950" className="input-base w-full font-mono text-xs" />
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Net Sqft</label>
+                            <input type="number" value={netSqft} onChange={(e) => setNetSqft(e.target.value)} onBlur={(e) => autoSaveSpecsField({ saleable_area: e.target.value ? Number(e.target.value) : null })} placeholder="e.g. 950" className="input-base w-full font-mono text-xs" />
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Gross Sqft</label>
-                            <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} placeholder="e.g. 1100" className="input-base w-full font-mono text-xs" />
+                            <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5 block">Gross Sqft</label>
+                            <input type="number" value={grossSqft} onChange={(e) => setGrossSqft(e.target.value)} onBlur={(e) => autoSaveSpecsField({ gross_area: e.target.value ? Number(e.target.value) : null })} placeholder="e.g. 1100" className="input-base w-full font-mono text-xs" />
                           </div>
                         </div>
                         <div>
-                          <label className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Additional Features</label>
-                          <div className="flex flex-wrap gap-1.5">
+                          <label className="text-[9px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1 block">Additional Features</label>
+                          <div className="flex flex-wrap gap-1">
                             {ALL_ADDITIONAL_FEATURES.map((feat) => (
                               <button
                                 key={feat}
                                 type="button"
                                 onClick={() => toggleAdditionalFeature(feat)}
-                                className={`px-2.5 py-1.5 rounded-full text-xs font-medium border-2 transition-all min-h-[32px] ${
+                                className={`px-2 py-1 rounded-full text-xs font-medium border-2 transition-all min-h-[28px] ${
                                   additionalFeatures.includes(feat)
                                     ? 'border-[#1B4F8A] bg-[#1B4F8A]/10 text-[#1B4F8A]'
                                     : 'border-[hsl(214,20%,88%)] text-[hsl(215,15%,52%)] hover:border-[#1B4F8A]/40'
@@ -2338,74 +2928,36 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             ))}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button onClick={handleSavePropertyDetails} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="CheckIcon" size={12} />Save</button>
-                          <button onClick={() => setEditingPropertyDetails(false)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
-                        </div>
                       </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
-                          {[
-                            { label: 'Bedrooms', value: bedrooms || '—' },
-                            { label: 'Bathrooms', value: bathrooms ? (Number(bathrooms) >= 4 ? '4+' : bathrooms) : '—' },
-                            { label: 'Direction', value: direction || '—' },
-                            { label: 'View', value: view || '—' },
-                            { label: 'Decoration', value: decoration || '—' },
-                            { label: 'Original Furnishing', value: originalFurnishing || '—' },
-                            { label: 'Building Type', value: buildingType || '—' },
-                            { label: 'Floor Type', value: floorType || '—' },
-                            { label: 'Floor Number', value: floorNumber || '—' },
-                          ].map((item) => (
-                            <div key={`spec-${item.label}`} className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2">
-                              <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-0.5">{item.label}</p>
-                              <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{item.value}</p>
-                            </div>
-                          ))}
-                        </div>
-                        {additionalFeatures.length > 0 && (
-                          <div className="bg-[hsl(210,20%,97%)] rounded-lg px-2.5 py-2">
-                            <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1">Additional Features</p>
-                            <div className="flex flex-wrap gap-1">
-                              {additionalFeatures.map((feat) => (
-                                <span key={feat} className="text-[10px] px-2 py-0.5 rounded-full bg-[#1B4F8A]/10 text-[#1B4F8A] font-medium border border-[#1B4F8A]/20">
-                                  {feat}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
               </div>
 
               {/* 3. Agent Comments */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader sectionKey="agentnotes" icon="FileTextIcon" iconColor="text-amber-600" title="Agent Comments" />
                 </div>
                 {!collapsedSections['agentnotes'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5 flex gap-3">
+                  <div className="px-3 pb-2 pt-1 flex gap-2">
                     {/* Left half: input box + Add Comment button */}
-                    <div className="w-1/2 flex flex-col gap-2">
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                    <div className="w-1/2 flex flex-col gap-1.5">
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
                         <p className="text-xs text-amber-800">{property.agentNotes}</p>
-                        <p className="text-[10px] text-amber-600 mt-1">Last updated {property.lastUpdated} by {property.updatedBy}</p>
+                        <p className="text-[9px] text-amber-600 mt-0.5">Last updated {property.lastUpdated} by {property.updatedBy}</p>
                       </div>
                       <textarea
                         value={newCommentText}
                         onChange={(e) => setNewCommentText(e.target.value)}
                         placeholder="Write a comment..."
-                        rows={3}
-                        className="w-full text-xs border border-[hsl(214,20%,88%)] rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white"
+                        rows={2}
+                        className="w-full text-xs border border-[hsl(214,20%,88%)] rounded-lg px-2.5 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white"
                       />
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <select
                           value={newCommentAgent}
                           onChange={(e) => setNewCommentAgent(e.target.value)}
-                          className="text-xs border border-[hsl(214,20%,88%)] rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400 flex-1"
+                          className="text-xs border border-[hsl(214,20%,88%)] rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400 flex-1"
                         >
                           {agentNames.map((a) => (
                             <option key={a} value={a}>{a}</option>
@@ -2413,26 +2965,26 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         </select>
                         <button
                           onClick={handleAddComment}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-lg transition-colors"
+                          className="flex items-center gap-1 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-lg transition-colors"
                         >
-                          <Icon name="PlusIcon" size={12} />
-                          Add Comment
+                          <Icon name="PlusIcon" size={11} />
+                          Add
                         </button>
                       </div>
                     </div>
                     {/* Right half: recent updates (all history entries) */}
                     <div className="w-1/2 border border-[hsl(214,20%,88%)] rounded-lg bg-white overflow-hidden flex flex-col">
-                      <div className="px-3 py-2 bg-[hsl(210,20%,98%)] border-b border-[hsl(214,20%,88%)] flex items-center justify-between">
-                        <p className="text-[10px] font-semibold text-[hsl(215,25%,35%)] uppercase tracking-wide">Recent Updates</p>
+                      <div className="px-2.5 py-1.5 bg-[hsl(210,20%,98%)] border-b border-[hsl(214,20%,88%)] flex items-center justify-between">
+                        <p className="text-[9px] font-semibold text-[hsl(215,25%,35%)] uppercase tracking-wide">Recent Updates</p>
                         {historyLog.length > 0 && (
                           <span className="text-[9px] bg-[#1B4F8A]/10 text-[#1B4F8A] rounded-full px-1.5 py-0.5 font-bold">{historyLog.length}</span>
                         )}
                       </div>
-                      <div className="flex-1 overflow-y-auto max-h-40 divide-y divide-[hsl(214,20%,93%)]">
+                      <div className="flex-1 overflow-y-auto max-h-32 divide-y divide-[hsl(214,20%,93%)]">
                         {historyLog.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-6 text-center">
-                            <Icon name="ClockIcon" size={18} className="text-[hsl(215,15%,72%)] mb-1" />
-                            <p className="text-[10px] text-[hsl(215,15%,55%)]">No updates yet</p>
+                          <div className="flex flex-col items-center justify-center py-4 text-center">
+                            <Icon name="ClockIcon" size={16} className="text-[hsl(215,15%,72%)] mb-1" />
+                            <p className="text-[9px] text-[hsl(215,15%,55%)]">No updates yet</p>
                           </div>
                         ) : (
                           historyLog.map((entry) => {
@@ -2443,11 +2995,11 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                               : isPricing
                               ? 'bg-emerald-500' :'bg-[#1B4F8A]';
                             return (
-                              <div key={entry.id} className="px-3 py-2 flex items-start gap-2">
-                                <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+                              <div key={entry.id} className="px-2.5 py-1.5 flex items-start gap-1.5">
+                                <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center justify-between mb-0.5 gap-1">
-                                    <span className="text-[10px] font-medium text-[hsl(215,25%,35%)] truncate">{entry.agent}</span>
+                                    <span className="text-[9px] font-medium text-[hsl(215,25%,35%)] truncate">{entry.agent}</span>
                                     <span className="text-[9px] text-[hsl(215,15%,55%)] flex-shrink-0">{entry.date}</span>
                                   </div>
                                   <p className="text-[11px] text-[hsl(215,25%,25%)] leading-relaxed break-words">{entry.action}</p>
@@ -2463,8 +3015,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 4. Highlight */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="highlight"
                     icon="StarIcon"
@@ -2474,7 +3026,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                       !collapsedSections['highlight'] && !editingHighlight ? (
                         <button
                           onClick={() => { setHighlightDraft(highlight); setEditingHighlight(true); }}
-                          className="btn-ghost py-1 px-2.5 text-xs min-h-[32px]"
+                          className="btn-ghost py-0.5 px-2 text-xs min-h-[28px]"
                         >
                           <Icon name="PencilIcon" size={11} />
                           <span className="hidden sm:inline">{highlight ? 'Edit' : 'Add Highlight'}</span>
@@ -2485,9 +3037,9 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['highlight'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {editingHighlight ? (
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <textarea
                           value={highlightDraft}
                           onChange={(e) => setHighlightDraft(e.target.value)}
@@ -2496,18 +3048,18 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                           className="input-base w-full resize-none text-xs"
                         />
                         <div className="flex items-center gap-2">
-                          <button onClick={handleSaveHighlight} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="CheckIcon" size={12} />Save</button>
-                          <button onClick={() => setEditingHighlight(false)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
+                          <button onClick={handleSaveHighlight} className="btn-primary py-1 px-3 text-xs min-h-[30px]"><Icon name="CheckIcon" size={11} />Save</button>
+                          <button onClick={() => setEditingHighlight(false)} className="btn-ghost py-1 px-3 text-xs min-h-[30px]">Cancel</button>
                         </div>
                       </div>
                     ) : highlight ? (
-                      <div className="flex items-start gap-2.5 bg-yellow-50 border border-yellow-200 rounded-xl px-3 py-2.5">
-                        <Icon name="StarIcon" size={14} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+                      <div className="flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-2.5 py-2">
+                        <Icon name="StarIcon" size={13} className="text-yellow-500 flex-shrink-0 mt-0.5" />
                         <p className="text-xs text-yellow-800 leading-relaxed">{highlight}</p>
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed border-yellow-200 rounded-xl p-3 text-center bg-yellow-50/40">
-                        <Icon name="StarIcon" size={18} className="text-yellow-300 mx-auto mb-1" />
+                      <div className="border-2 border-dashed border-yellow-200 rounded-lg p-2.5 text-center bg-yellow-50/40">
+                        <Icon name="StarIcon" size={16} className="text-yellow-300 mx-auto mb-0.5" />
                         <p className="text-xs text-[hsl(215,15%,52%)]">No highlight set — click "Add Highlight" to add an important note</p>
                       </div>
                     )}
@@ -2516,78 +3068,250 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 5. Owner & Landlord Details — combined */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
-                  <SectionHeader sectionKey="owner-landlord" icon="UserIcon" iconColor="text-violet-600" title="Owner & Landlord Details" />
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
+                  <SectionHeader sectionKey="owner-landlord" icon="UserIcon" iconColor="text-violet-600" title="Owner Details" />
                 </div>
                 {!collapsedSections['owner-landlord'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5 space-y-2.5">
-                    {/* Owner bubble */}
-                    <div className="relative">
+                  <div className="px-3 pb-2 pt-1 space-y-1.5">
+                    {/* Add Owner button */}
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setShowOwnerBubble((v) => !v)}
-                        className="flex items-center gap-2.5 w-full text-left bg-violet-50 border border-violet-200 rounded-xl px-3 py-2.5 hover:bg-violet-100 transition-colors group"
+                        onClick={() => { setShowAddOwnerForm((v) => !v); setShowAddLandlordForm(false); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium rounded-lg transition-colors"
                       >
-                        <div className="w-8 h-8 rounded-full bg-violet-200 flex items-center justify-center flex-shrink-0">
-                          <Icon name="UserIcon" size={15} className="text-violet-700" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-violet-800">{property.owner ?? property.landlord.name}</p>
-                          <p className="text-[10px] text-violet-600">Property Owner — tap to view details</p>
-                        </div>
-                        <Icon
-                          name={showOwnerBubble ? 'ChevronUpIcon' : 'ChevronDownIcon'}
-                          size={14}
-                          className="text-violet-500 flex-shrink-0 transition-transform"
-                        />
+                        <Icon name="PlusIcon" size={13} className="text-white" />
+                        Add Owner
                       </button>
-                      {showOwnerBubble && (
-                        <div className="mt-1.5 bg-white border border-violet-200 rounded-xl shadow-lg p-3 space-y-1.5 animate-fade-in">
-                          <p className="text-[10px] font-semibold text-violet-600 uppercase tracking-wider mb-1">Owner Details</p>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            {[
-                              { label: 'Name', value: property.owner ?? property.landlord.name },
-                              { label: 'Phone', value: property.landlord.phone },
-                              { label: 'Email', value: property.landlord.email },
-                              { label: 'ID / CR No.', value: property.landlord.idNumber },
-                            ].map((item) => (
-                              <div key={`owner-detail-${item.label}`} className="bg-violet-50 rounded-lg px-2.5 py-1.5">
-                                <p className="text-[10px] text-violet-500 mb-0.5">{item.label}</p>
-                                <p className="text-xs font-medium text-violet-900 break-all">{item.value}</p>
-                              </div>
-                            ))}
+                    </div>
+
+                    {/* Inline Add Owner Form */}
+                    {showAddOwnerForm && (
+                      <div className="card p-2 border border-violet-200 bg-violet-50/40 space-y-1.5">
+                        <p className="text-[9px] font-semibold text-violet-600 uppercase tracking-wider">New Owner</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newOwnerDraft.contact_person}
+                              onChange={(e) => setNewOwnerDraft((prev) => ({ ...prev, contact_person: e.target.value }))}
+                              placeholder="Full name"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Phone</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newOwnerDraft.contact_number}
+                              onChange={(e) => setNewOwnerDraft((prev) => ({ ...prev, contact_number: e.target.value }))}
+                              placeholder="Phone number"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newOwnerDraft.contact_email}
+                              onChange={(e) => setNewOwnerDraft((prev) => ({ ...prev, contact_email: e.target.value }))}
+                              placeholder="Email address"
+                            />
                           </div>
                         </div>
-                      )}
-                    </div>
-                    {/* Landlord details */}
-                    <div className="card p-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      <div className="col-span-2 sm:col-span-4">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                          <Icon name="BuildingIcon" size={11} className="text-[#1B4F8A]" />
-                          Landlord Details
-                        </p>
+                        <div className="flex gap-1.5 justify-end pt-0.5">
+                          <button
+                            onClick={() => { setShowAddOwnerForm(false); setNewOwnerDraft({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' }); }}
+                            className="btn-ghost py-0.5 px-2 text-xs min-h-[26px]"
+                            disabled={savingNewOwner}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={saveNewOwner}
+                            className="btn-primary py-0.5 px-2 text-xs min-h-[26px]"
+                            disabled={savingNewOwner}
+                          >
+                            {savingNewOwner ? <Icon name="LoaderIcon" size={11} className="animate-spin" /> : 'Save'}
+                          </button>
+                        </div>
                       </div>
-                      {[
-                        { label: 'Name', value: property.landlord.name },
-                        { label: 'Phone', value: property.landlord.phone },
-                        { label: 'Email', value: property.landlord.email },
-                        { label: 'ID / CR No.', value: property.landlord.idNumber },
-                      ].map((item) => (
-                        <div key={`ll-${item.label}`}>
-                          <p className="text-[10px] text-[hsl(215,15%,52%)] mb-0.5">{item.label}</p>
-                          <p className="text-xs font-medium text-[hsl(215,25%,18%)] break-all">{item.value}</p>
+                    )}
+
+                    {/* Inline Add Landlord Form */}
+                    {showAddLandlordForm && (
+                      <div className="card p-2 border border-violet-200 bg-violet-50/40 space-y-1.5">
+                        <p className="text-[9px] font-semibold text-violet-600 uppercase tracking-wider">New Landlord</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newLandlordDraft.contact_person}
+                              onChange={(e) => setNewLandlordDraft((prev) => ({ ...prev, contact_person: e.target.value }))}
+                              placeholder="Full name"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Phone</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newLandlordDraft.contact_number}
+                              onChange={(e) => setNewLandlordDraft((prev) => ({ ...prev, contact_number: e.target.value }))}
+                              placeholder="Phone number"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                            <input
+                              className="input-field text-xs py-1 px-2 w-full"
+                              value={newLandlordDraft.contact_email}
+                              onChange={(e) => setNewLandlordDraft((prev) => ({ ...prev, contact_email: e.target.value }))}
+                              placeholder="Email address"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-1.5 justify-end pt-0.5">
+                          <button
+                            onClick={() => { setShowAddLandlordForm(false); setNewLandlordDraft({ contact_person: '', contact_number: '', contact_email: '', id_cr_no: '' }); }}
+                            className="btn-ghost py-0.5 px-2 text-xs min-h-[26px]"
+                            disabled={savingNewLandlord}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={saveNewLandlord}
+                            className="btn-primary py-0.5 px-2 text-xs min-h-[26px]"
+                            disabled={savingNewLandlord}
+                          >
+                            {savingNewLandlord ? <Icon name="LoaderIcon" size={11} className="animate-spin" /> : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Owner contacts from CSV — shown inline within Owner & Landlord Details */}
+                    {importedContacts
+                      .filter((c) => c.contact_role?.toLowerCase() === 'owner')
+                      .map((c) => (
+                        <div key={`owner-csv-${c.id}`} className="card p-2 border border-violet-200 bg-violet-50/40">
+                          {editingImportedContactId === c.id ? (
+                            <div className="space-y-1.5">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                <div>
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name</label>
+                                  <input
+                                    className="input-field text-xs py-1 px-2 w-full"
+                                    value={importedContactDraft.contact_person}
+                                    onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_person: e.target.value }))}
+                                    placeholder="Full name"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Phone</label>
+                                  <input
+                                    className="input-field text-xs py-1 px-2 w-full"
+                                    value={importedContactDraft.contact_number}
+                                    onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_number: e.target.value }))}
+                                    placeholder="Phone number"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                                  <input
+                                    className="input-field text-xs py-1 px-2 w-full"
+                                    value={importedContactDraft.contact_email}
+                                    onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_email: e.target.value }))}
+                                    placeholder="Email address"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Role</label>
+                                  <select
+                                    className="input-field text-xs py-1 px-2 w-full"
+                                    value={importedContactDraft.contact_role}
+                                    onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_role: e.target.value }))}
+                                  >
+                                    <option value="">Select role...</option>
+                                    <option value="Owner">Owner</option>
+                                    <option value="Tenant">Tenant</option>
+                                    <option value="Decision Maker">Decision Maker</option>
+                                    <option value="Landlord">Landlord</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="flex gap-1.5 justify-end pt-0.5">
+                                <button
+                                  onClick={() => setEditingImportedContactId(null)}
+                                  className="btn-ghost py-0.5 px-2 text-xs min-h-[26px]"
+                                  disabled={savingImportedContact}
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={saveImportedContactEdit}
+                                  className="btn-primary py-0.5 px-2 text-xs min-h-[26px]"
+                                  disabled={savingImportedContact}
+                                >
+                                  {savingImportedContact ? <Icon name="LoaderIcon" size={11} className="animate-spin" /> : 'Save'}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <p className="text-[9px] font-semibold text-violet-600 uppercase tracking-wider">Owner Details</p>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setImportedContactDraft({
+                                        contact_person: c.contact_person,
+                                        contact_number: c.contact_number,
+                                        contact_email: c.contact_email,
+                                        contact_role: c.contact_role,
+                                      });
+                                      setEditingImportedContactId(c.id);
+                                    }}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium text-[hsl(215,15%,52%)] hover:bg-violet-100 hover:text-violet-700 transition-colors"
+                                    title="Edit owner contact"
+                                  >
+                                    <Icon name="PencilSquareIcon" size={11} />
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => deleteImportedContact(c.id)}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                                    title="Delete owner"
+                                  >
+                                    <Icon name="Trash2Icon" size={11} />
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1">
+                                {[
+                                  { label: 'Name', value: c.contact_person || '—' },
+                                  { label: 'Phone', value: c.contact_number || '—' },
+                                  { label: 'Email', value: c.contact_email || '—' },
+                                  { label: 'ID / CR No.', value: '—' },
+                                ].map((item) => (
+                                  <div key={`owner-csv-field-${item.label}`} className="bg-violet-50 rounded-lg px-2 py-1">
+                                    <p className="text-[9px] text-violet-500 mb-0.5">{item.label}</p>
+                                    <p className="text-xs font-medium text-violet-900 break-all">{item.value}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))}
-                    </div>
                   </div>
                 )}
               </div>
 
               {/* 6. Contacts */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="contacts"
                     icon="UsersIcon"
@@ -2596,9 +3320,9 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                       !collapsedSections['contacts'] ? (
                         <button
                           onClick={() => { setShowAddContact(true); setNewContact(emptyContact()); }}
-                          className="btn-primary py-1 px-2.5 text-xs min-h-[32px]"
+                          className="btn-primary py-0.5 px-2 text-xs min-h-[28px]"
                         >
-                          <Icon name="PlusIcon" size={12} />
+                          <Icon name="PlusIcon" size={11} />
                           <span className="hidden sm:inline">Add Contact</span>
                           <span className="sm:hidden">Add</span>
                         </button>
@@ -2607,109 +3331,338 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['contacts'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
-                    {contacts.length === 0 && !showAddContact && (
-                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-xl p-5 text-center">
-                        <Icon name="UsersIcon" size={24} className="text-[hsl(215,15%,62%)] mx-auto mb-1.5" />
+                  <div className="px-3 pb-2 pt-1">
+                    {/* Decision Maker Sub-section */}
+                    <div className="mb-3 border border-amber-200 rounded-lg overflow-hidden">
+                      <div className="flex items-center justify-between px-2.5 py-1.5 bg-amber-50">
+                        <div className="flex items-center gap-1.5">
+                          <Icon name="StarIcon" size={11} className="text-amber-500" />
+                          <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider">Decision Maker</span>
+                        </div>
+                        {!editingDecisionMaker && (
+                          <button
+                            onClick={() => {
+                              setDecisionMakerDraft({ ...decisionMaker });
+                              setEditingDecisionMaker(true);
+                            }}
+                            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-amber-600 hover:bg-amber-100 transition-colors"
+                          >
+                            <Icon name="PencilSquareIcon" size={10} />
+                            {decisionMaker.name ? 'Edit' : 'Add'}
+                          </button>
+                        )}
+                      </div>
+                      <div className="px-2.5 py-2 bg-white">
+                        {editingDecisionMaker ? (
+                          <div className="space-y-1.5">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                              <div>
+                                <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name *</label>
+                                <input
+                                  type="text"
+                                  value={decisionMakerDraft.name}
+                                  onChange={(e) => setDecisionMakerDraft({ ...decisionMakerDraft, name: e.target.value })}
+                                  className="input-base w-full min-h-[30px] text-xs"
+                                  placeholder="Full name"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Phone</label>
+                                <input
+                                  type="text"
+                                  value={decisionMakerDraft.phone}
+                                  onChange={(e) => setDecisionMakerDraft({ ...decisionMakerDraft, phone: e.target.value })}
+                                  className="input-base w-full min-h-[30px] text-xs"
+                                  placeholder="+852 9xxx xxxx"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                                <input
+                                  type="email"
+                                  value={decisionMakerDraft.email}
+                                  onChange={(e) => setDecisionMakerDraft({ ...decisionMakerDraft, email: e.target.value })}
+                                  className="input-base w-full min-h-[30px] text-xs"
+                                  placeholder="email@example.com"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  if (!decisionMakerDraft.name.trim()) {
+                                    toast.error('Decision maker name is required');
+                                    return;
+                                  }
+                                  setDecisionMaker({ ...decisionMakerDraft });
+                                  setEditingDecisionMaker(false);
+                                  toast.success('Decision maker saved');
+                                }}
+                                className="btn-primary py-0.5 px-2.5 text-xs min-h-[28px]"
+                              >
+                                <Icon name="CheckIcon" size={10} />
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingDecisionMaker(false)}
+                                className="btn-ghost py-0.5 px-2.5 text-xs min-h-[28px]"
+                              >
+                                Cancel
+                              </button>
+                              {decisionMaker.name && (
+                                <button
+                                  onClick={() => {
+                                    setDecisionMaker({ name: '', phone: '', email: '' });
+                                    setDecisionMakerDraft({ name: '', phone: '', email: '' });
+                                    setEditingDecisionMaker(false);
+                                    toast.success('Decision maker removed');
+                                  }}
+                                  className="ml-auto text-[9px] text-red-500 hover:text-red-700 hover:bg-red-50 px-1.5 py-0.5 rounded transition-colors"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : decisionMaker.name ? (
+                          <div className="flex items-start gap-2">
+                            <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <Icon name="StarIcon" size={12} className="text-amber-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{decisionMaker.name}</p>
+                              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                {decisionMaker.phone && (
+                                  <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                                    <Icon name="PhoneIcon" size={9} className="text-amber-400 flex-shrink-0" />
+                                    {decisionMaker.phone}
+                                  </p>
+                                )}
+                                {decisionMaker.email && (
+                                  <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
+                                    <Icon name="MailIcon" size={9} className="text-amber-400 flex-shrink-0" />
+                                    {decisionMaker.email}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ) : importedContacts.filter((c) => c.contact_role?.toLowerCase() === 'decision maker').length > 0 ? (
+                          <div className="space-y-1.5">
+                            {importedContacts.filter((c) => c.contact_role?.toLowerCase() === 'decision maker').map((c) => (
+                              <div key={c.id} className="card p-2 border border-amber-100">
+                                {editingImportedContactId === c.id ? (
+                                  <div className="space-y-1.5">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                      <div>
+                                        <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name</label>
+                                        <input
+                                          className="input-field text-xs py-1 px-2 w-full"
+                                          value={importedContactDraft.contact_person}
+                                          onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_person: e.target.value }))}
+                                          placeholder="Full name"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Role</label>
+                                        <select
+                                          className="input-field text-xs py-1 px-2 w-full"
+                                          value={importedContactDraft.contact_role}
+                                          onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_role: e.target.value }))}
+                                        >
+                                          <option value="">Select role...</option>
+                                          <option value="Owner">Owner</option>
+                                          <option value="Tenant">Tenant</option>
+                                          <option value="Decision Maker">Decision Maker</option>
+                                          <option value="Landlord">Landlord</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Phone</label>
+                                        <input
+                                          className="input-field text-xs py-1 px-2 w-full"
+                                          value={importedContactDraft.contact_number}
+                                          onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_number: e.target.value }))}
+                                          placeholder="Phone number"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                                        <input
+                                          className="input-field text-xs py-1 px-2 w-full"
+                                          value={importedContactDraft.contact_email}
+                                          onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_email: e.target.value }))}
+                                          placeholder="Email address"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-1.5 justify-end pt-0.5">
+                                      <button
+                                        onClick={() => setEditingImportedContactId(null)}
+                                        className="btn-ghost py-0.5 px-2 text-xs min-h-[26px]"
+                                        disabled={savingImportedContact}
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        onClick={saveImportedContactEdit}
+                                        className="btn-primary py-0.5 px-2 text-xs min-h-[26px]"
+                                        disabled={savingImportedContact}
+                                      >
+                                        {savingImportedContact ? <Icon name="LoaderIcon" size={11} className="animate-spin" /> : 'Save'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-start gap-2">
+                                    <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                      <Icon name="StarIcon" size={12} className="text-amber-600" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{c.contact_person}</p>
+                                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                        {c.contact_number && (
+                                          <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                                            <Icon name="PhoneIcon" size={9} className="text-amber-400 flex-shrink-0" />
+                                            {c.contact_number}
+                                          </p>
+                                        )}
+                                        {c.contact_email && (
+                                          <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
+                                            <Icon name="MailIcon" size={9} className="text-amber-400 flex-shrink-0" />
+                                            {c.contact_email}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        setImportedContactDraft({
+                                          contact_person: c.contact_person,
+                                          contact_number: c.contact_number,
+                                          contact_email: c.contact_email,
+                                          contact_role: c.contact_role,
+                                        });
+                                        setEditingImportedContactId(c.id);
+                                      }}
+                                      className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-amber-600 hover:bg-amber-100 transition-colors flex-shrink-0"
+                                    >
+                                      <Icon name="PencilSquareIcon" size={10} />
+                                      Edit
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[9px] text-[hsl(215,15%,62%)] italic">No decision maker assigned yet</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {contacts.length === 0 && importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner' && c.contact_role?.toLowerCase() !== 'decision maker').length === 0 && !showAddContact && (
+                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg p-3 text-center">
+                        <Icon name="UsersIcon" size={20} className="text-[hsl(215,15%,62%)] mx-auto mb-1" />
                         <p className="text-xs font-medium text-[hsl(215,25%,18%)]">No contacts added yet</p>
-                        <p className="text-[10px] text-[hsl(215,15%,52%)] mb-2.5">Add family members, company contacts, or other people associated with this property</p>
+                        <p className="text-[9px] text-[hsl(215,15%,52%)] mb-2">Add family members, company contacts, or other people associated with this property</p>
                         <button
                           onClick={() => { setShowAddContact(true); setNewContact(emptyContact()); }}
-                          className="btn-secondary py-1.5 px-3 text-xs min-h-[36px]"
+                          className="btn-secondary py-1 px-3 text-xs min-h-[30px]"
                         >
-                          <Icon name="PlusIcon" size={12} />
+                          <Icon name="PlusIcon" size={11} />
                           Add First Contact
                         </button>
                       </div>
                     )}
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       {contacts.map((contact) => (
                         <div key={contact.id}>
                           {editingContact?.id === contact.id ? (
-                            <div className="card p-3 border-2 border-[#1B4F8A]/30 space-y-2.5">
-                              <p className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider">Editing Contact</p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div className="card p-2.5 border-2 border-[#1B4F8A]/30 space-y-2">
+                              <p className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider">Editing Contact</p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                                 <div>
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Name *</label>
-                                  <input type="text" value={editingContact.name} onChange={(e) => setEditingContact({ ...editingContact, name: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="Full name" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name *</label>
+                                  <input type="text" value={editingContact.name} onChange={(e) => setEditingContact({ ...editingContact, name: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="Full name" />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Relationship to Owner</label>
-                                  <input type="text" value={editingContact.relationship} onChange={(e) => setEditingContact({ ...editingContact, relationship: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="e.g. Wife, Son, Company Director" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Relationship to Owner</label>
+                                  <input type="text" value={editingContact.relationship} onChange={(e) => setEditingContact({ ...editingContact, relationship: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="e.g. Wife, Son, Company Director" />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Mobile</label>
-                                  <input type="text" value={editingContact.mobile} onChange={(e) => setEditingContact({ ...editingContact, mobile: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="+852 9xxx xxxx" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Mobile</label>
+                                  <input type="text" value={editingContact.mobile} onChange={(e) => setEditingContact({ ...editingContact, mobile: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="+852 9xxx xxxx" />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Telephone</label>
-                                  <input type="text" value={editingContact.telephone} onChange={(e) => setEditingContact({ ...editingContact, telephone: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="+852 2xxx xxxx" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Telephone</label>
+                                  <input type="text" value={editingContact.telephone} onChange={(e) => setEditingContact({ ...editingContact, telephone: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="+852 2xxx xxxx" />
                                 </div>
                                 <div className="sm:col-span-2">
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Email</label>
-                                  <input type="email" value={editingContact.email} onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="email@example.com" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                                  <input type="email" value={editingContact.email} onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="email@example.com" />
                                 </div>
                                 <div className="sm:col-span-2">
-                                  <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block flex items-center gap-1">
-                                    <Icon name="TagIcon" size={10} className="text-amber-600" />
+                                  <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block flex items-center gap-1">
+                                    <Icon name="TagIcon" size={9} className="text-amber-600" />
                                     Customer Code
                                     <span className="text-[9px] text-[hsl(215,15%,62%)] font-normal ml-1">— identifies contacts managing multiple properties</span>
                                   </label>
-                                  <input type="text" value={editingContact.customerCode ?? ''} onChange={(e) => setEditingContact({ ...editingContact, customerCode: e.target.value })} className="input-base w-full min-h-[40px] font-mono text-xs" placeholder="e.g. CUST-001" />
+                                  <input type="text" value={editingContact.customerCode ?? ''} onChange={(e) => setEditingContact({ ...editingContact, customerCode: e.target.value })} className="input-base w-full min-h-[34px] font-mono text-xs" placeholder="e.g. CUST-001" />
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <button onClick={() => handleUpdateContact(editingContact)} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="CheckIcon" size={12} />Save</button>
-                                <button onClick={() => setEditingContact(null)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
+                                <button onClick={() => handleUpdateContact(editingContact)} className="btn-primary py-1 px-3 text-xs min-h-[30px]"><Icon name="CheckIcon" size={11} />Save</button>
+                                <button onClick={() => setEditingContact(null)} className="btn-ghost py-1 px-3 text-xs min-h-[30px]">Cancel</button>
                               </div>
                             </div>
                           ) : (
-                            <div className="card p-2.5 sm:p-3 flex items-start gap-2.5 hover:shadow-card-hover transition-shadow">
-                              <div className="w-8 h-8 rounded-full bg-[#1B4F8A]/10 flex items-center justify-center flex-shrink-0">
-                                <Icon name="UserIcon" size={14} className="text-[#1B4F8A]" />
+                            <div className="card p-2 flex items-start gap-2 hover:shadow-card-hover transition-shadow">
+                              <div className="w-7 h-7 rounded-full bg-[#1B4F8A]/10 flex items-center justify-center flex-shrink-0">
+                                <Icon name="UserIcon" size={13} className="text-[#1B4F8A]" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                                   <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{contact.name}</p>
                                   {contact.relationship && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] border border-[hsl(214,20%,88%)]">
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[hsl(210,20%,97%)] text-[hsl(215,15%,52%)] border border-[hsl(214,20%,88%)]">
                                       {contact.relationship}
                                     </span>
                                   )}
                                   {contact.customerCode && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono font-semibold flex items-center gap-0.5">
-                                      <Icon name="TagIcon" size={9} />
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono font-semibold flex items-center gap-0.5">
+                                      <Icon name="TagIcon" size={8} />
                                       {contact.customerCode}
                                     </span>
                                   )}
                                 </div>
                                 <div className="flex flex-wrap gap-x-3 gap-y-0.5">
                                   {contact.mobile && (
-                                    <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1">
-                                      <Icon name="SmartphoneIcon" size={10} />
+                                    <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                                      <Icon name="SmartphoneIcon" size={9} />
                                       {contact.mobile}
                                     </p>
                                   )}
                                   {contact.telephone && (
-                                    <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1">
-                                      <Icon name="PhoneIcon" size={10} />
+                                    <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                                      <Icon name="PhoneIcon" size={9} />
                                       {contact.telephone}
                                     </p>
                                   )}
                                   {contact.email && (
-                                    <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
-                                      <Icon name="MailIcon" size={10} className="flex-shrink-0" />
+                                    <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
+                                      <Icon name="MailIcon" size={9} className="flex-shrink-0" />
                                       {contact.email}
                                     </p>
                                   )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-0.5 flex-shrink-0">
-                                <button onClick={() => setEditingContact(contact)} className="p-1.5 rounded hover:bg-[hsl(210,15%,94%)] transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center" title="Edit contact">
-                                  <Icon name="PencilIcon" size={12} className="text-[hsl(215,15%,52%)]" />
+                                <button onClick={() => setEditingContact(contact)} className="p-1 rounded hover:bg-[hsl(210,15%,94%)] transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center" title="Edit contact">
+                                  <Icon name="PencilIcon" size={11} className="text-[hsl(215,15%,52%)]" />
                                 </button>
-                                <button onClick={() => handleDeleteContact(contact.id)} className="p-1.5 rounded hover:bg-red-50 transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center" title="Remove contact">
-                                  <Icon name="Trash2Icon" size={12} className="text-red-400" />
+                                <button onClick={() => handleDeleteContact(contact.id)} className="p-1 rounded hover:bg-red-50 transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center" title="Remove contact">
+                                  <Icon name="Trash2Icon" size={11} className="text-red-400" />
                                 </button>
                               </div>
                             </div>
@@ -2718,173 +3671,212 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                       ))}
                     </div>
                     {showAddContact && (
-                      <div className="card p-3 border-2 border-[#1B4F8A]/30 space-y-2.5 mt-2">
-                        <p className="text-[10px] font-semibold text-[#1B4F8A] uppercase tracking-wider">New Contact</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="card p-2.5 border-2 border-[#1B4F8A]/30 space-y-2 mt-1.5">
+                        <p className="text-[9px] font-semibold text-[#1B4F8A] uppercase tracking-wider">New Contact</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                           <div>
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Name *</label>
-                            <input type="text" value={newContact.name} onChange={(e) => setNewContact({ ...newContact, name: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="Full name" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name *</label>
+                            <input type="text" value={newContact.name} onChange={(e) => setNewContact({ ...newContact, name: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="Full name" />
                           </div>
                           <div>
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Relationship to Owner</label>
-                            <input type="text" value={newContact.relationship} onChange={(e) => setNewContact({ ...newContact, relationship: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="e.g. Wife, Son, Company Director" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Relationship to Owner</label>
+                            <input type="text" value={newContact.relationship} onChange={(e) => setNewContact({ ...newContact, relationship: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="e.g. Wife, Son, Company Director" />
                           </div>
                           <div>
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Mobile</label>
-                            <input type="text" value={newContact.mobile} onChange={(e) => setNewContact({ ...newContact, mobile: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="+852 9xxx xxxx" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Mobile</label>
+                            <input type="text" value={newContact.mobile} onChange={(e) => setNewContact({ ...newContact, mobile: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="+852 9xxx xxxx" />
                           </div>
                           <div>
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Telephone</label>
-                            <input type="text" value={newContact.telephone} onChange={(e) => setNewContact({ ...newContact, telephone: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="+852 2xxx xxxx" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Telephone</label>
+                            <input type="text" value={newContact.telephone} onChange={(e) => setNewContact({ ...newContact, telephone: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="+852 2xxx xxxx" />
                           </div>
                           <div className="sm:col-span-2">
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block">Email</label>
-                            <input type="email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} className="input-base w-full min-h-[40px] text-xs" placeholder="email@example.com" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                            <input type="email" value={newContact.email} onChange={(e) => setNewContact({ ...newContact, email: e.target.value })} className="input-base w-full min-h-[34px] text-xs" placeholder="email@example.com" />
                           </div>
                           <div className="sm:col-span-2">
-                            <label className="text-[10px] text-[hsl(215,15%,52%)] mb-1 block flex items-center gap-1">
-                              <Icon name="TagIcon" size={10} className="text-amber-600" />
+                            <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block flex items-center gap-1">
+                              <Icon name="TagIcon" size={9} className="text-amber-600" />
                               Customer Code
                               <span className="text-[9px] text-[hsl(215,15%,62%)] font-normal ml-1">— identifies contacts managing multiple properties</span>
                             </label>
-                            <input type="text" value={newContact.customerCode ?? ''} onChange={(e) => setNewContact({ ...newContact, customerCode: e.target.value })} className="input-base w-full min-h-[40px] font-mono text-xs" placeholder="e.g. CUST-001" />
+                            <input type="text" value={newContact.customerCode ?? ''} onChange={(e) => setNewContact({ ...newContact, customerCode: e.target.value })} className="input-base w-full min-h-[34px] font-mono text-xs" placeholder="e.g. CUST-001" />
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button onClick={handleSaveContact} className="btn-primary py-1.5 px-3 text-xs min-h-[36px]"><Icon name="PlusIcon" size={12} />Add Contact</button>
-                          <button onClick={() => setShowAddContact(false)} className="btn-ghost py-1.5 px-3 text-xs min-h-[36px]">Cancel</button>
+                          <button onClick={handleSaveContact} className="btn-primary py-1 px-3 text-xs min-h-[30px]"><Icon name="PlusIcon" size={11} />Add Contact</button>
+                          <button onClick={() => setShowAddContact(false)} className="btn-ghost py-1 px-3 text-xs min-h-[30px]">Cancel</button>
                         </div>
                       </div>
                     )}
 
-                    {/* Imported contacts from CSV upload */}
-                    {(importedContactsLoading || importedContacts.length > 0) && (
-                      <div className="mt-3">
-                        <p className="text-[10px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                          <Icon name="UploadCloudIcon" size={10} />
-                          CSV-Imported Contacts
-                        </p>
-                        {importedContactsLoading ? (
-                          <div className="flex items-center gap-2 text-xs text-[hsl(215,15%,52%)] py-2">
-                            <Icon name="LoaderIcon" size={13} className="animate-spin" />
-                            Loading…
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {importedContacts.map((c) => (
-                              <div key={c.id} className="card p-3 border border-purple-100">
-                                <div className="flex items-start gap-2.5">
-                                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                    <Icon name="UserIcon" size={13} className="text-purple-600" />
+                    {/* Imported contacts from CSV upload — merged into main contacts list */}
+                    {importedContactsLoading && (
+                      <div className="flex items-center gap-2 text-xs text-[hsl(215,15%,52%)] py-1.5">
+                        <Icon name="LoaderIcon" size={12} className="animate-spin" />
+                        Loading…
+                      </div>
+                    )}
+                    {!importedContactsLoading && importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner' && c.contact_role?.toLowerCase() !== 'decision maker').length > 0 && (
+                      <div className="space-y-1.5 mt-1.5">
+                        {importedContacts.filter((c) => c.contact_role?.toLowerCase() !== 'owner' && c.contact_role?.toLowerCase() !== 'decision maker').map((c) => (
+                          <div key={c.id} className="card p-2 border border-purple-100">
+                            {editingImportedContactId === c.id ? (
+                              <div className="space-y-1.5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                  <div>
+                                    <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Name</label>
+                                    <input
+                                      className="input-field text-xs py-1 px-2 w-full"
+                                      value={importedContactDraft.contact_person}
+                                      onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_person: e.target.value }))}
+                                      placeholder="Full name"
+                                    />
                                   </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                                      <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{c.contact_person || '—'}</p>
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 capitalize">
-                                        {c.contact_role}
-                                      </span>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
-                                      {c.contact_number && (
-                                        <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1">
-                                          <Icon name="PhoneIcon" size={10} className="flex-shrink-0 text-purple-400" />
-                                          <span>{c.contact_number}</span>
-                                        </p>
-                                      )}
-                                      {c.contact_email && (
-                                        <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
-                                          <Icon name="MailIcon" size={10} className="flex-shrink-0 text-purple-400" />
-                                          <span>{c.contact_email}</span>
-                                        </p>
-                                      )}
-                                    </div>
+                                  <div>
+                                    <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Role</label>
+                                    <select
+                                      className="input-field text-xs py-1 px-2 w-full"
+                                      value={importedContactDraft.contact_role}
+                                      onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_role: e.target.value }))}
+                                    >
+                                      <option value="">Select role...</option>
+                                      <option value="Owner">Owner</option>
+                                      <option value="Tenant">Tenant</option>
+                                      <option value="Decision Maker">Decision Maker</option>
+                                      <option value="Landlord">Landlord</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Phone</label>
+                                    <input
+                                      className="input-field text-xs py-1 px-2 w-full"
+                                      value={importedContactDraft.contact_number}
+                                      onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_number: e.target.value }))}
+                                      placeholder="Phone number"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[9px] text-[hsl(215,15%,52%)] mb-0.5 block">Email</label>
+                                    <input
+                                      className="input-field text-xs py-1 px-2 w-full"
+                                      value={importedContactDraft.contact_email}
+                                      onChange={(e) => setImportedContactDraft((prev) => ({ ...prev, contact_email: e.target.value }))}
+                                      placeholder="Email address"
+                                    />
                                   </div>
                                 </div>
+                                <div className="flex gap-1.5 justify-end pt-0.5">
+                                  <button
+                                    onClick={() => setEditingImportedContactId(null)}
+                                    className="btn-ghost py-0.5 px-2 text-xs min-h-[26px]"
+                                    disabled={savingImportedContact}
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={saveImportedContactEdit}
+                                    className="btn-primary py-0.5 px-2 text-xs min-h-[26px]"
+                                    disabled={savingImportedContact}
+                                  >
+                                    {savingImportedContact ? (
+                                      <Icon name="LoaderIcon" size={11} className="animate-spin" />
+                                    ) : (
+                                      'Save'
+                                    )}
+                                  </button>
+                                </div>
                               </div>
-                            ))}
+                            ) : (
+                              <div className="flex items-start gap-2">
+                                <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                  <Icon name="UserIcon" size={12} className="text-purple-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                    <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{c.contact_person || '—'}</p>
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 capitalize">
+                                      {c.contact_role}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
+                                    {c.contact_number && (
+                                      <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                                        <Icon name="PhoneIcon" size={9} className="flex-shrink-0 text-purple-400" />
+                                        <span>{c.contact_number}</span>
+                                      </p>
+                                    )}
+                                    {c.contact_email && (
+                                      <p className="text-[9px] text-[hsl(215,15%,52%)] flex items-center gap-1 break-all">
+                                        <Icon name="MailIcon" size={9} className="flex-shrink-0 text-purple-400" />
+                                        <span>{c.contact_email}</span>
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-0.5 flex-shrink-0">
+                                  <button
+                                    onClick={() => {
+                                      setImportedContactDraft({
+                                        contact_person: c.contact_person,
+                                        contact_number: c.contact_number,
+                                        contact_email: c.contact_email,
+                                        contact_role: c.contact_role,
+                                      });
+                                      setEditingImportedContactId(c.id);
+                                    }}
+                                    className="p-1 rounded hover:bg-purple-50 transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
+                                    title="Edit contact"
+                                  >
+                                    <Icon name="PencilSquareIcon" size={12} className="text-purple-400" />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteImportedContact(c.id)}
+                                    className="p-1 rounded hover:bg-red-50 transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
+                                    title="Delete contact"
+                                  >
+                                    <Icon name="Trash2Icon" size={11} className="text-red-400" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
+                        ))}
                       </div>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* 7. Key Location Banner */}
-              {property.keyLocation && (
-                <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                  <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
-                    <SectionHeader sectionKey="keylocation" icon="KeyIcon" title="Key Location" />
-                  </div>
-                  {!collapsedSections['keylocation'] && (
-                    <div className="px-3 sm:px-4 pb-3 pt-1.5">
-                      <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 border ${
-                        property.keyLocation.type === 'office' ? 'bg-[#1B4F8A]/8 border-[#1B4F8A]/25'
-                          : property.keyLocation.type === 'agent' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
-                      }`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                          property.keyLocation.type === 'office' ? 'bg-[#1B4F8A]/15'
-                            : property.keyLocation.type === 'agent' ? 'bg-amber-100' : 'bg-emerald-100'
-                        }`}>
-                          <Icon name="KeyIcon" size={15} className={property.keyLocation.type === 'office' ? 'text-[#1B4F8A]' : property.keyLocation.type === 'agent' ? 'text-amber-600' : 'text-emerald-600'} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {property.keyLocation.type === 'office' && (
-                            <p className="text-xs font-medium text-[hsl(215,25%,18%)]">
-                              Key in office
-                              {property.keyLocation.keyNumber && (
-                                <span className="ml-2 font-mono font-bold text-[#1B4F8A]">#{property.keyLocation.keyNumber}</span>
-                              )}
-                            </p>
-                          )}
-                          {property.keyLocation.type === 'agent' && (
-                            <p className="text-xs font-medium text-[hsl(215,25%,18%)]">
-                              Key held by agent — <span className="font-semibold">{property.keyLocation.agentName}</span>
-                              {property.keyLocation.agentPhone && <span className="text-amber-700 ml-1">· {property.keyLocation.agentPhone}</span>}
-                            </p>
-                          )}
-                          {property.keyLocation.type === 'landlord' && (
-                            <p className="text-xs font-medium text-[hsl(215,25%,18%)]">
-                              Landlord will open — contact <span className="font-semibold">{property.landlord.name}</span>
-                              <span className="text-emerald-700 ml-1">· {property.landlord.phone}</span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* 8. Agent Commission */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="commission"
                     title="Agent Commission (% per category)"
                     rightContent={
                       !collapsedSections['commission'] ? (
-                        <span className="text-[10px] text-[hsl(215,15%,52%)] bg-[hsl(210,20%,97%)] px-2 py-1 rounded-md hidden sm:inline">Rates vary per category</span>
+                        <span className="text-[9px] text-[hsl(215,15%,52%)] bg-[hsl(210,20%,97%)] px-2 py-0.5 rounded-md hidden sm:inline">Rates vary per category</span>
                       ) : undefined
                     }
                   />
                 </div>
                 {!collapsedSections['commission'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
-                    <div className="card p-2.5 sm:p-3 space-y-2">
+                  <div className="px-3 pb-2 pt-1">
+                    <div className="card p-2 space-y-1.5">
                       {commissionCategories.map((cat) => (
-                        <div key={cat.key} className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-                          <div className="flex items-center gap-2 sm:w-40 flex-shrink-0">
-                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[#1B4F8A]/10 text-[#1B4F8A] text-xs font-bold flex-shrink-0">
+                        <div key={cat.key} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <div className="flex items-center gap-1.5 sm:w-36 flex-shrink-0">
+                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-[#1B4F8A]/10 text-[#1B4F8A] text-xs font-bold flex-shrink-0">
                               {cat.code}
                             </span>
                             <div>
                               <p className="text-xs font-semibold text-[hsl(215,25%,18%)]">{cat.label}</p>
-                              <p className="text-[10px] text-[hsl(215,15%,52%)]">{cat.percentage}</p>
+                              <p className="text-[9px] text-[hsl(215,15%,52%)]">{cat.percentage}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 flex-1">
-                            <select value={commission[cat.key] ?? ''} onChange={(e) => handleCommissionChange(cat.key, e.target.value)} className="input-base w-full min-h-[40px] text-xs">
+                            <select value={commission[cat.key] ?? ''} onChange={(e) => handleCommissionChange(cat.key, e.target.value)} className="input-base w-full min-h-[34px] text-xs">
                               <option value="">— Select Agent —</option>
                               {agentNames.map((name) => (
                                 <option key={name} value={name}>{name}</option>
@@ -2892,8 +3884,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                             </select>
                             {commission[cat.key] && (
                               <div className="flex items-center gap-1 flex-shrink-0">
-                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                <span className="text-[10px] text-emerald-700 font-medium hidden sm:inline">Assigned</span>
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span className="text-[9px] text-emerald-700 font-medium hidden sm:inline">Assigned</span>
                               </div>
                             )}
                           </div>
@@ -2905,8 +3897,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 9. Property Photos */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="photos"
                     icon="ImageIcon"
@@ -2949,7 +3941,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['photos'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {/* Hidden file input */}
                     <input
                       ref={photoUploadRef}
@@ -3020,8 +4012,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 10. Website Link */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="website"
                     icon="GlobeIcon"
@@ -3038,7 +4030,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['website'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {editingWebsite ? (
                       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         <input type="url" value={websiteDraft} onChange={(e) => setWebsiteDraft(e.target.value)} placeholder="https://www.example.com/property/..." className="input-base text-xs font-mono flex-1 min-h-[40px]" autoFocus />
@@ -3053,7 +4045,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         {websiteLink}
                       </a>
                     ) : (
-                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-xl p-3 text-center bg-[hsl(210,20%,98%)]">
+                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg p-3 text-center bg-[hsl(210,20%,98%)]">
                         <Icon name="GlobeIcon" size={18} className="text-[hsl(215,15%,62%)] mx-auto mb-1" />
                         <p className="text-xs text-[hsl(215,15%,52%)]">No website link — click "Add Website" to link this property to a website listing</p>
                       </div>
@@ -3063,8 +4055,8 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 10b. Advertising Remarks */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader
                     sectionKey="remarks"
                     icon="FileTextIcon"
@@ -3084,7 +4076,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                   />
                 </div>
                 {!collapsedSections['remarks'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {editingRemarks ? (
                       <div className="space-y-3">
                         <div>
@@ -3135,7 +4127,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         )}
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-xl p-3 text-center bg-[hsl(210,20%,98%)]">
+                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg p-3 text-center bg-[hsl(210,20%,98%)]">
                         <Icon name="FileTextIcon" size={18} className="text-[hsl(215,15%,62%)] mx-auto mb-1" />
                         <p className="text-xs text-[hsl(215,15%,52%)]">No advertising remarks — click "Add Remarks" to add English and Chinese descriptions</p>
                       </div>
@@ -3145,12 +4137,12 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
               </div>
 
               {/* 11. Floor Plan */}
-              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
-                <div className="px-3 sm:px-4 pt-2.5 pb-2.5 bg-[hsl(210,20%,98%)]">
+              <div className="border border-[hsl(214,20%,88%)] rounded-lg overflow-hidden">
+                <div className="px-3 pt-1.5 pb-1.5 bg-[hsl(210,20%,98%)]">
                   <SectionHeader sectionKey="floorplan" icon="LayoutIcon" title="Floor Plan" />
                 </div>
                 {!collapsedSections['floorplan'] && (
-                  <div className="px-3 sm:px-4 pb-3 pt-1.5">
+                  <div className="px-3 pb-2 pt-1">
                     {property.hasFloorPlan ? (
                       <div className="card p-3 flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-lg bg-[#1B4F8A]/10 flex items-center justify-center">
@@ -3163,7 +4155,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                         <button className="btn-secondary py-1.5 px-2.5 text-xs min-h-[36px]"><Icon name="DownloadIcon" size={12} />Download</button>
                       </div>
                     ) : (
-                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-xl p-5 text-center">
+                      <div className="border-2 border-dashed border-[hsl(214,20%,88%)] rounded-lg p-5 text-center">
                         <Icon name="LayoutIcon" size={24} className="text-[hsl(215,15%,62%)] mx-auto mb-1.5" />
                         <p className="text-xs font-medium text-[hsl(215,25%,18%)]">No floor plan uploaded</p>
                         <p className="text-[10px] text-[hsl(215,15%,52%)] mb-2.5">Upload a PDF or image of the floor plan</p>
@@ -3573,6 +4565,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                                   <p className="text-xs text-[hsl(215,15%,52%)]">{formatFileSize(doc.file_size_bytes)} · {new Date(doc.uploaded_at).toLocaleDateString('en-GB')}</p>
                                 </div>
                                 <div className="flex items-center gap-1">
+                                  <button onClick={() => handleDocPreview(doc)} className="p-2 rounded hover:bg-blue-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Preview"><Icon name="EyeIcon" size={14} className="text-blue-500" /></button>
                                   <button onClick={() => handleGenericDocDownload(doc)} className="p-2 rounded hover:bg-blue-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Download"><Icon name="DownloadIcon" size={14} className="text-blue-600" /></button>
                                   <button onClick={() => handleLeaseAgreementDelete(doc)} className="p-2 rounded hover:bg-red-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Delete"><Icon name="TrashIcon" size={14} className="text-red-400" /></button>
                                 </div>
@@ -3650,6 +4643,7 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                                   <p className="text-xs text-[hsl(215,15%,52%)]">{formatFileSize(doc.file_size_bytes)} · {new Date(doc.uploaded_at).toLocaleDateString('en-GB')}</p>
                                 </div>
                                 <div className="flex items-center gap-1">
+                                  <button onClick={() => handleDocPreview(doc)} className="p-2 rounded hover:bg-emerald-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Preview"><Icon name="EyeIcon" size={14} className="text-emerald-500" /></button>
                                   <button onClick={() => handleGenericDocDownload(doc)} className="p-2 rounded hover:bg-emerald-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Download"><Icon name="DownloadIcon" size={14} className="text-emerald-600" /></button>
                                   <button onClick={() => handleInspectionDelete(doc)} className="p-2 rounded hover:bg-red-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Delete"><Icon name="TrashIcon" size={14} className="text-red-400" /></button>
                                 </div>
@@ -3727,11 +4721,176 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
                                   <p className="text-xs text-[hsl(215,15%,52%)]">{formatFileSize(doc.file_size_bytes)} · {new Date(doc.uploaded_at).toLocaleDateString('en-GB')}</p>
                                 </div>
                                 <div className="flex items-center gap-1">
+                                  <button onClick={() => handleDocPreview(doc)} className="p-2 rounded hover:bg-violet-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Preview"><Icon name="EyeIcon" size={14} className="text-violet-500" /></button>
                                   <button onClick={() => handleGenericDocDownload(doc)} className="p-2 rounded hover:bg-violet-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Download"><Icon name="DownloadIcon" size={14} className="text-violet-600" /></button>
                                   <button onClick={() => handleComplianceDelete(doc)} className="p-2 rounded hover:bg-red-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Delete"><Icon name="TrashIcon" size={14} className="text-red-400" /></button>
                                 </div>
                               </div>
                             ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── Tenancy Forms ─────────────────────────────────────────── */}
+              {(() => {
+                const handleUpload = makeMediaUploader(
+                  'tenancy-form', 'tenancy-forms',
+                  setTenancyFormDocs, setTenancyFormUploading, setTenancyFormError,
+                  tenancyFormInputRef, loadTenancyFormDocs,
+                );
+                const handleDelete = makeMediaDeleter(setTenancyFormDocs);
+                return (
+                  <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
+                    <div className="px-3 sm:px-4 pt-3 pb-3 bg-[hsl(210,20%,98%)]">
+                      <SectionHeader
+                        sectionKey="docs-tenancy-form"
+                        icon="FileSignatureIcon"
+                        iconColor="text-indigo-600"
+                        title="Tenancy Forms"
+                        rightContent={
+                          !collapsedSections['docs-tenancy-form'] ? (
+                            <div className="flex items-center gap-1.5">
+                              <input ref={tenancyFormInputRef} type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" id="tenancy-form-upload" onChange={handleUpload} disabled={tenancyFormUploading} />
+                              <label htmlFor="tenancy-form-upload" className={`btn-primary py-1.5 px-3 text-xs cursor-pointer flex items-center gap-1.5 min-h-[36px] ${tenancyFormUploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                                {tenancyFormUploading ? (
+                                  <><svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg><span className="hidden sm:inline">Uploading…</span></>
+                                ) : (
+                                  <><Icon name="UploadIcon" size={13} /><span className="hidden sm:inline">Upload</span></>
+                                )}
+                              </label>
+                            </div>
+                          ) : undefined
+                        }
+                      />
+                    </div>
+                    {!collapsedSections['docs-tenancy-form'] && (
+                      <div className="px-3 sm:px-4 pb-4 pt-2">
+                        {tenancyFormError && (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 flex items-center gap-2">
+                            <Icon name="AlertCircleIcon" size={14} className="text-red-500 flex-shrink-0" />
+                            <p className="text-xs text-red-600">{tenancyFormError}</p>
+                          </div>
+                        )}
+                        {tenancyFormLoading ? (
+                          <div className="flex items-center justify-center py-8 gap-2 text-[hsl(215,15%,52%)]">
+                            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
+                            <span className="text-sm">Loading…</span>
+                          </div>
+                        ) : tenancyFormDocs.length === 0 ? (
+                          <div className="border-2 border-dashed border-indigo-200 rounded-xl p-6 text-center bg-indigo-50/40">
+                            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mx-auto mb-2">
+                              <Icon name="FileSignatureIcon" size={18} className="text-indigo-500" />
+                            </div>
+                            <p className="text-sm font-medium text-[hsl(215,25%,18%)]">No tenancy forms uploaded</p>
+                            <p className="text-xs text-[hsl(215,15%,52%)] mt-1">Upload tenancy forms (PDF, Word, or images) for {property.ref}</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {tenancyFormDocs.map((doc) => {
+                              const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.file_name);
+                              return (
+                                <div key={doc.id} className="card p-3 sm:p-4 flex items-center gap-3 hover:shadow-card-hover transition-shadow border-l-4 border-l-indigo-400">
+                                  <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                                    <Icon name={isImage ? 'ImageIcon' : 'FileSignatureIcon'} size={16} className="text-indigo-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-[hsl(215,25%,18%)] truncate">{doc.file_name}</p>
+                                    <p className="text-xs text-[hsl(215,15%,52%)]">{isImage ? 'Image' : 'PDF/Doc'} · {formatFileSize(doc.file_size_bytes)} · {new Date(doc.uploaded_at).toLocaleDateString('en-GB')}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button onClick={() => handleDocPreview(doc)} className="p-2 rounded hover:bg-indigo-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Preview"><Icon name="EyeIcon" size={14} className="text-indigo-500" /></button>
+                                    <button onClick={() => handleGenericDocDownload(doc)} className="p-2 rounded hover:bg-indigo-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Download"><Icon name="DownloadIcon" size={14} className="text-indigo-600" /></button>
+                                    <button onClick={() => handleDelete(doc)} className="p-2 rounded hover:bg-red-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Delete"><Icon name="TrashIcon" size={14} className="text-red-400" /></button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── Utility Bills ─────────────────────────────────────────── */}
+              {(() => {
+                const handleUpload = makeMediaUploader(
+                  'utility-bill', 'utility-bills',
+                  setUtilityBillDocs, setUtilityBillUploading, setUtilityBillError,
+                  utilityBillInputRef, loadUtilityBillDocs,
+                );
+                const handleDelete = makeMediaDeleter(setUtilityBillDocs);
+                return (
+                  <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
+                    <div className="px-3 sm:px-4 pt-3 pb-3 bg-[hsl(210,20%,98%)]">
+                      <SectionHeader
+                        sectionKey="docs-utility-bills"
+                        icon="ZapIcon"
+                        iconColor="text-orange-600"
+                        title="Utility Bills"
+                        rightContent={
+                          !collapsedSections['docs-utility-bills'] ? (
+                            <div className="flex items-center gap-1.5">
+                              <input ref={utilityBillInputRef} type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" id="utility-bill-upload" onChange={handleUpload} disabled={utilityBillUploading} />
+                              <label htmlFor="utility-bill-upload" className={`btn-primary py-1.5 px-3 text-xs cursor-pointer flex items-center gap-1.5 min-h-[36px] ${utilityBillUploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                                {utilityBillUploading ? (
+                                  <><svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg><span className="hidden sm:inline">Uploading…</span></>
+                                ) : (
+                                  <><Icon name="UploadIcon" size={13} /><span className="hidden sm:inline">Upload</span></>
+                                )}
+                              </label>
+                            </div>
+                          ) : undefined
+                        }
+                      />
+                    </div>
+                    {!collapsedSections['docs-utility-bills'] && (
+                      <div className="px-3 sm:px-4 pb-4 pt-2">
+                        {utilityBillError && (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 flex items-center gap-2">
+                            <Icon name="AlertCircleIcon" size={14} className="text-red-500 flex-shrink-0" />
+                            <p className="text-xs text-red-600">{utilityBillError}</p>
+                          </div>
+                        )}
+                        {utilityBillLoading ? (
+                          <div className="flex items-center justify-center py-8 gap-2 text-[hsl(215,15%,52%)]">
+                            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
+                            <span className="text-sm">Loading…</span>
+                          </div>
+                        ) : utilityBillDocs.length === 0 ? (
+                          <div className="border-2 border-dashed border-orange-200 rounded-xl p-6 text-center bg-orange-50/40">
+                            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-2">
+                              <Icon name="ZapIcon" size={18} className="text-orange-500" />
+                            </div>
+                            <p className="text-sm font-medium text-[hsl(215,25%,18%)]">No utility bills uploaded</p>
+                            <p className="text-xs text-[hsl(215,15%,52%)] mt-1">Upload electricity, water, gas bills (PDF or images) for {property.ref}</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {utilityBillDocs.map((doc) => {
+                              const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(doc.file_name);
+                              return (
+                                <div key={doc.id} className="card p-3 sm:p-4 flex items-center gap-3 hover:shadow-card-hover transition-shadow border-l-4 border-l-orange-400">
+                                  <div className="w-9 sm:w-10 h-9 sm:h-10 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
+                                    <Icon name={isImage ? 'ImageIcon' : 'ZapIcon'} size={16} className="text-orange-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-[hsl(215,25%,18%)] truncate">{doc.file_name}</p>
+                                    <p className="text-xs text-[hsl(215,15%,52%)]">{isImage ? 'Image' : 'PDF/Doc'} · {formatFileSize(doc.file_size_bytes)} · {new Date(doc.uploaded_at).toLocaleDateString('en-GB')}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button onClick={() => handleDocPreview(doc)} className="p-2 rounded hover:bg-orange-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Preview"><Icon name="EyeIcon" size={14} className="text-orange-500" /></button>
+                                    <button onClick={() => handleGenericDocDownload(doc)} className="p-2 rounded hover:bg-orange-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Download"><Icon name="DownloadIcon" size={14} className="text-orange-600" /></button>
+                                    <button onClick={() => handleDelete(doc)} className="p-2 rounded hover:bg-red-50 transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center" title="Delete"><Icon name="TrashIcon" size={14} className="text-red-400" /></button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -4472,6 +5631,46 @@ export default function PropertyDetailModal({ property, onClose }: PropertyDetai
             salePrice={property.salePrice ? String(property.salePrice) : ''}
             onClose={() => setShowSaleInvoice(false)}
           />
+        )}
+
+        {/* Document Preview Modal */}
+        {previewUrl && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setPreviewUrl(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(214,20%,88%)] bg-[hsl(210,20%,98%)] flex-shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Icon name="EyeIcon" size={15} className="text-[#1B4F8A] flex-shrink-0" />
+                  <p className="text-sm font-semibold text-[hsl(215,25%,18%)] truncate">{previewFileName}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5">
+                    <Icon name="ExternalLinkIcon" size={12} />
+                    Open in new tab
+                  </a>
+                  <button onClick={() => setPreviewUrl(null)} className="p-1.5 rounded-lg hover:bg-[hsl(210,15%,94%)] transition-colors">
+                    <Icon name="XIcon" size={16} className="text-[hsl(215,15%,52%)]" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-hidden bg-[hsl(210,20%,96%)]">
+                {/\.(jpg|jpeg|png|gif|webp)$/i.test(previewFileName) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewUrl}
+                    alt={previewFileName}
+                    className="w-full h-full object-contain max-h-[75vh]"
+                  />
+                ) : (
+                  <iframe
+                    src={previewUrl}
+                    title={previewFileName}
+                    className="w-full h-full min-h-[60vh]"
+                    style={{ border: 'none' }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Modal Footer */}

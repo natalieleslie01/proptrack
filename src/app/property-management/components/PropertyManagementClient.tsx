@@ -7,6 +7,7 @@ import { Property, ContactStatus, PROPERTY_STATUS_OPTIONS } from './mockData';
 import PropertyDetailModal from './PropertyDetailModal';
 import ViewingSchedule from './ViewingSchedule';
 import BulkViewingSchedule from './BulkViewingSchedule';
+import AddPropertyModal from './AddPropertyModal';
 import { toast } from 'sonner';
 import { usePropertiesRealtime, useViewingsRealtime, RealtimeEvent } from '@/hooks/useRealtimeSync';
 import { useRole } from '@/hooks/useRole';
@@ -55,14 +56,14 @@ function PropertyThumbnail({ propertyId, propertyRef }: { propertyId: string; pr
 
   if (!thumbUrl) {
     return (
-      <div className="w-14 h-10 rounded bg-[hsl(210,15%,94%)] border border-[hsl(214,20%,88%)] flex items-center justify-center flex-shrink-0">
-        <Icon name="ImageIcon" size={14} className="text-[hsl(215,15%,72%)]" />
+      <div className="w-24 h-16 rounded bg-[hsl(210,15%,94%)] border border-[hsl(214,20%,88%)] flex items-center justify-center flex-shrink-0">
+        <Icon name="ImageIcon" size={18} className="text-[hsl(215,15%,72%)]" />
       </div>
     );
   }
 
   return (
-    <div className="w-14 h-10 rounded overflow-hidden border border-[hsl(214,20%,88%)] flex-shrink-0 bg-[hsl(210,15%,94%)]">
+    <div className="w-24 h-16 rounded overflow-hidden border border-[hsl(214,20%,88%)] flex-shrink-0 bg-[hsl(210,15%,94%)]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={thumbUrl}
@@ -154,14 +155,42 @@ function isLeaseExpiringSoon(leaseEnd: string): boolean {
 /** Derives flat label (last 3 chars) and floor number from a short_code.
  *  e.g. "H020009A" → { flat: "9A", floor: "9" }
  *  Strips leading zeros from the floor portion.
+ *  For 3-digit block+floor codes like "309" (Block 3, Floor 9),
+ *  the floor is extracted as the last 2 digits stripped of leading zeros.
  */
 function parseFlatFromShortCode(shortCode?: string): { flat: string; floor: string } | null {
   if (!shortCode || shortCode.length < 3) return null;
   const flat = shortCode.slice(-3).replace(/^0+/, '') || shortCode.slice(-3);
   // Floor is the numeric portion of the flat label (leading digits)
   const floorMatch = flat.match(/^(\d+)/);
-  const floor = floorMatch ? String(parseInt(floorMatch[1], 10)) : '';
+  if (!floorMatch) return { flat, floor: '' };
+  const rawFloor = floorMatch[1];
+  // If the numeric portion is exactly 3 digits and first digit is non-zero,
+  // it encodes Block + Floor (e.g. "309" = Block 3, Floor 9)
+  let floor: string;
+  if (/^[1-9]\d{2}$/.test(rawFloor)) {
+    floor = String(parseInt(rawFloor.slice(1), 10));
+  } else {
+    floor = String(parseInt(rawFloor, 10));
+  }
   return { flat, floor };
+}
+
+/**
+ * Formats a floor value for display.
+ * If the value is a 3-digit number (e.g. "309"), it is interpreted as
+ * Block <first digit>, Floor <remaining digits stripped of leading zeros>.
+ * e.g. "309" → "Block 3, Floor 9"  |  "308" → "Block 3, Floor 8" * Other values (e.g."9", "G", "LG") are returned as-is.
+ */
+function formatFloorDisplay(floor?: string | null): string {
+  if (!floor) return '—';
+  const trimmed = floor.trim();
+  if (/^[1-9]\d{2}$/.test(trimmed)) {
+    const block = trimmed[0];
+    const floorNum = String(parseInt(trimmed.slice(1), 10));
+    return `Block ${block}, Floor ${floorNum}`;
+  }
+  return trimmed;
 }
 
 function contactStatusBadge(status?: ContactStatus) {
@@ -258,53 +287,229 @@ function ContactsPopover({ prop }: { prop: Property }) {
 
 // ── Key location popover content ───────────────────────────────────────────────
 function KeyLocationPopover({ prop }: { prop: Property }) {
-  if (!prop.keyLocation) {
-    return <p className="text-xs text-[hsl(215,15%,52%)] italic">No key location recorded</p>;
-  }
-  const { type, keyNumber, agentName, agentPhone } = prop.keyLocation;
+  const [keyLogData, setKeyLogData] = React.useState<{
+    key_status: string;
+    key_number: string;
+    sole_agent: string;
+    sole_agent_name: string;
+    sole_agent_valid_from: string;
+    sole_agent_valid_to: string;
+  } | null>(null);
+  const [keyLogLoaded, setKeyLogLoaded] = React.useState(false);
+
+  React.useEffect(() => {
+    const propRef = (prop as any).ref || prop.unit;
+    if (!propRef) { setKeyLogLoaded(true); return; }
+    const supabase = createClient();
+    supabase
+      .from('key_log')
+      .select('key_status, key_number, sole_agent, sole_agent_name, sole_agent_valid_from, sole_agent_valid_to')
+      .eq('property_ref', propRef)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setKeyLogData({
+            key_status: data[0].key_status ?? '',
+            key_number: data[0].key_number ?? '',
+            sole_agent: data[0].sole_agent ?? '',
+            sole_agent_name: data[0].sole_agent_name ?? '',
+            sole_agent_valid_from: data[0].sole_agent_valid_from ?? '',
+            sole_agent_valid_to: data[0].sole_agent_valid_to ?? '',
+          });
+        }
+        setKeyLogLoaded(true);
+      });
+  }, [(prop as any).ref, prop.unit]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="space-y-1.5">
-      <p className="text-[11px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide mb-1">Key Location</p>
-      {type === 'office' && (
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#1B4F8A]/10 text-[#1B4F8A] text-xs font-semibold">
-            <Icon name="BuildingIcon" size={11} />
-            Office {keyNumber ? `#${keyNumber}` : ''}
-          </span>
+    <div className="space-y-2">
+      {/* Key Location section */}
+      {prop.keyLocation ? (
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wide">Key Location</p>
+          {prop.keyLocation.type === 'office' && (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#1B4F8A]/10 text-[#1B4F8A] text-xs font-semibold">
+                <Icon name="BuildingIcon" size={11} />
+                Office {prop.keyLocation.keyNumber ? `#${prop.keyLocation.keyNumber}` : ''}
+              </span>
+            </div>
+          )}
+          {prop.keyLocation.type === 'agent' && (
+            <div className="space-y-0.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+                <Icon name="UserIcon" size={11} />
+                With Agent
+              </span>
+              {prop.keyLocation.agentName && <p className="text-xs text-[hsl(215,25%,18%)] font-medium mt-1">{prop.keyLocation.agentName}</p>}
+              {prop.keyLocation.agentPhone && (
+                <p className="text-[11px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                  <Icon name="PhoneIcon" size={10} className="text-[hsl(215,15%,62%)]" />
+                  {prop.keyLocation.agentPhone}
+                </p>
+              )}
+            </div>
+          )}
+          {prop.keyLocation.type === 'landlord' && (
+            <div className="space-y-0.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
+                <Icon name="HomeIcon" size={11} />
+                With Landlord
+              </span>
+              <p className="text-xs text-[hsl(215,25%,18%)] font-medium mt-1">{prop.landlord.name}</p>
+              {prop.landlord.phone && (
+                <p className="text-[11px] text-[hsl(215,15%,52%)] flex items-center gap-1">
+                  <Icon name="PhoneIcon" size={10} className="text-[hsl(215,15%,62%)]" />
+                  {prop.landlord.phone}
+                </p>
+              )}
+            </div>
+          )}
         </div>
+      ) : (
+        <p className="text-xs text-[hsl(215,15%,52%)] italic">No key location recorded</p>
       )}
-      {type === 'agent' && (
-        <div className="space-y-0.5">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
-            <Icon name="UserIcon" size={11} />
-            With Agent
-          </span>
-          {agentName && <p className="text-xs text-[hsl(215,25%,18%)] font-medium mt-1">{agentName}</p>}
-          {agentPhone && (
-            <p className="text-[11px] text-[hsl(215,15%,52%)] flex items-center gap-1">
-              <Icon name="PhoneIcon" size={10} className="text-[hsl(215,15%,62%)]" />
-              {agentPhone}
-            </p>
+
+      {/* Key Log section */}
+      {keyLogLoaded && keyLogData && (keyLogData.key_status || keyLogData.key_number || keyLogData.sole_agent || keyLogData.sole_agent_name) && (
+        <div className="border-t border-amber-200 pt-2 mt-1 space-y-1">
+          <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide flex items-center gap-1">
+            <Icon name="KeyIcon" size={10} className="text-amber-600" />
+            Key Log
+          </p>
+          {keyLogData.key_status && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-[hsl(215,15%,52%)]">Key:</span>
+              <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${keyLogData.key_status === 'Yes' ? 'bg-emerald-100 text-emerald-700' : keyLogData.key_status === 'No' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                {keyLogData.key_status}
+              </span>
+            </div>
+          )}
+          {keyLogData.key_number && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-[hsl(215,15%,52%)]">Key No:</span>
+              <span className="text-[11px] font-mono font-semibold text-[hsl(215,25%,18%)]">{keyLogData.key_number}</span>
+            </div>
+          )}
+          {keyLogData.sole_agent && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-[hsl(215,15%,52%)]">Sole Agent:</span>
+              <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{keyLogData.sole_agent}</span>
+            </div>
+          )}
+          {keyLogData.sole_agent_name && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-[hsl(215,15%,52%)]">Agent Name:</span>
+              <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{keyLogData.sole_agent_name}</span>
+            </div>
+          )}
+          {(keyLogData.sole_agent_valid_from || keyLogData.sole_agent_valid_to) && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-[hsl(215,15%,52%)]">Valid:</span>
+              <span className="text-[11px] text-[hsl(215,25%,18%)]">
+                {keyLogData.sole_agent_valid_from ? new Date(keyLogData.sole_agent_valid_from).toLocaleDateString('en-HK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                {' → '}
+                {keyLogData.sole_agent_valid_to ? new Date(keyLogData.sole_agent_valid_to).toLocaleDateString('en-HK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+              </span>
+            </div>
           )}
         </div>
       )}
-      {type === 'landlord' && (
-        <div className="space-y-0.5">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold">
-            <Icon name="HomeIcon" size={11} />
-            With Landlord
-          </span>
-          <p className="text-xs text-[hsl(215,25%,18%)] font-medium mt-1">{prop.landlord.name}</p>
-          {prop.landlord.phone && (
-            <p className="text-[11px] text-[hsl(215,15%,52%)] flex items-center gap-1">
-              <Icon name="PhoneIcon" size={10} className="text-[hsl(215,15%,62%)]" />
-              {prop.landlord.phone}
-            </p>
-          )}
+      {!keyLogLoaded && (
+        <div className="border-t border-amber-200 pt-2 mt-1 flex items-center gap-1 text-[11px] text-amber-600">
+          <Icon name="LoaderIcon" size={10} className="animate-spin" />
+          Loading key log…
         </div>
       )}
     </div>
+  );
+}
+
+// ── OwnerCell: fetches contacts directly from property_contacts per property ──
+interface OwnerContactRow {
+  id: string;
+  property_ref: string | null;
+  short_code: string | null;
+  contact_person: string;
+  contact_role: string;
+  contact_number: string;
+  contact_email: string;
+}
+
+function OwnerCell({ prop }: { prop: Property }) {
+  const [contacts, setContacts] = React.useState<OwnerContactRow[] | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const supabase = createClient();
+      // Try property_ref first, then short_code
+      const ref = prop.ref?.trim();
+      const sc = (prop as any).shortCode?.trim();
+
+      let rows: OwnerContactRow[] = [];
+
+      if (ref) {
+        const { data } = await supabase
+          .from('property_contacts')
+          .select('id, property_ref, short_code, contact_person, contact_role, contact_number, contact_email')
+          .eq('property_ref', ref)
+          .order('created_at', { ascending: true });
+        if (data && data.length > 0) rows = data as OwnerContactRow[];
+      }
+
+      if (rows.length === 0 && sc) {
+        const { data } = await supabase
+          .from('property_contacts')
+          .select('id, property_ref, short_code, contact_person, contact_role, contact_number, contact_email')
+          .eq('short_code', sc)
+          .order('created_at', { ascending: true });
+        if (data && data.length > 0) rows = data as OwnerContactRow[];
+      }
+
+      if (!cancelled) setContacts(rows);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [prop.ref, (prop as any).shortCode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Still loading
+  if (contacts === null) {
+    return <span className="text-[11px] text-[hsl(215,15%,62%)] italic">…</span>;
+  }
+
+  const ownerRow = contacts.find((c) => (c.contact_role ?? '').toLowerCase() === 'owner') ?? contacts[0] ?? null;
+  const ownerName = ownerRow?.contact_person?.trim() || prop.owner || prop.landlord?.name;
+
+  if (!ownerName) {
+    return <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>;
+  }
+
+  const popoverContacts = contacts.map((c) => ({
+    id: c.id,
+    name: c.contact_person,
+    relationship: c.contact_role,
+    mobile: c.contact_number,
+    email: c.contact_email,
+    telephone: '',
+    customerCode: undefined,
+  }));
+  const propWithContacts = { ...prop, contacts: popoverContacts.length > 0 ? popoverContacts : prop.contacts };
+
+  return (
+    <Popover
+      trigger={
+        <button
+          className="text-left hover:underline hover:text-[#1B4F8A] transition-colors"
+          title="View owner contact details"
+        >
+          <p className="text-xs font-semibold text-[#1B4F8A] whitespace-nowrap">{ownerName}</p>
+        </button>
+      }
+    >
+      <ContactsPopover prop={propWithContacts} />
+    </Popover>
   );
 }
 
@@ -448,7 +653,7 @@ function dbRowToProperty(row: Record<string, any>): Property {
   return {
     id: row.id,
     ref: row.property_ref as string || undefined,
-    unit: row.unit || row.property_ref || '',
+    unit: row.unit || row.block || '',
     building: row.building_name || row.area || row.tower || row.village || 'Discovery Bay',
     shortCode: row.short_code || undefined,
     district: row.village || 'Discovery Bay',
@@ -472,7 +677,9 @@ function dbRowToProperty(row: Record<string, any>): Property {
     additionalFeatures: additionalFeatures.length > 0 ? additionalFeatures : undefined,
     monthlyRent: row.asking_rent ?? null,
     salePrice: row.asking_price ?? null,
-    listingDate: row.publish_dt || undefined,
+    listingDate: row.publish_dt ? (() => { const d = new Date(row.publish_dt); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; })() : undefined,
+    publishDt: row.publish_dt ?? undefined,
+    vacantDate: row.vacant_date ? (() => { const d = new Date(row.vacant_date); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; })() : undefined,
     owner: row.landlord_name || undefined,
     landlord: {
       name: row.landlord_name || '',
@@ -497,7 +704,9 @@ function dbRowToProperty(row: Record<string, any>): Property {
       ? new Date(row.updated_at).toLocaleDateString('en-GB')
       : '',
     updatedBy: '',
-    agentNotes: row.notes || row.p_english || row.p_eng_res || '',
+    agentNotes: row.notes || row.p_eng_res || '',
+    engRemark: row.p_english || '',
+    chiRemark: row.p_chinese || '',
     photos: [],
     hasFloorPlan: false,
     comments: [],
@@ -510,6 +719,25 @@ function dbRowToProperty(row: Record<string, any>): Property {
     floorNumber: (row.floor as import('./mockData').FloorNumber) || undefined,
     listingType: listingTypeNorm,
     contactStatusCode: row.contact_status_code ?? undefined,
+    keyLocation: row.key_location
+      ? {
+          type: (row.key_location as Record<string, string>).type as import('./mockData').KeyLocationType,
+          keyNumber: (row.key_location as Record<string, string>).keyNumber ?? undefined,
+          agentName: (row.key_location as Record<string, string>).agentName ?? undefined,
+          agentPhone: (row.key_location as Record<string, string>).agentPhone ?? undefined,
+        }
+      : undefined,
+    contacts: Array.isArray(row._contacts)
+      ? (row._contacts as Record<string, unknown>[]).map((c) => ({
+          id: String(c.id ?? ''),
+          name: String(c.contact_person ?? ''),
+          relationship: String(c.contact_role ?? 'Owner'),
+          mobile: String(c.contact_number ?? ''),
+          email: String(c.contact_email ?? ''),
+          telephone: '',
+          customerCode: undefined,
+        }))
+      : [],
   } as Property & { listingType: string; contactStatusCode: number | undefined };
 }
 
@@ -698,7 +926,7 @@ function BatchEditModal({ selectedIds, properties, onClose, onSuccess }: BatchEd
     setSubmitting(true);
     try {
       // Build rows: one per selected property, using property_ref as pid
-      const rows = selectedProps
+      let rows = selectedProps
         .filter((p) => p.ref)
         .map((p) => {
           const row: Record<string, unknown> = { pid: p.ref };
@@ -1026,6 +1254,7 @@ export default function PropertyManagementClient() {
   const [quickViewingProp, setQuickViewingProp] = useState<Property | null>(null);
   const [batchEditOpen, setBatchEditOpen] = useState(false);
   const [bulkViewingOpen, setBulkViewingOpen] = useState(false);
+  const [addPropertyOpen, setAddPropertyOpen] = useState(false);
   const [assignAgentOpen, setAssignAgentOpen] = useState(false);
   const [agents, setAgents] = useState<Array<{ id: string; full_name: string; email: string; role: string }>>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
@@ -1064,7 +1293,44 @@ export default function PropertyManagementClient() {
         if (data.length < pageSize) break;
         from += pageSize;
       }
+
+      // Fetch all property_contacts and attach to matching property rows
+      const { data: contactRows } = await supabase
+        .from('property_contacts')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (contactRows && contactRows.length > 0) {
+        // Build lookup maps: by property_ref and by short_code
+        const contactsByRef: Record<string, typeof contactRows> = {};
+        const contactsByShortCode: Record<string, typeof contactRows> = {};
+        for (const c of contactRows) {
+          if (c.property_ref) {
+            if (!contactsByRef[c.property_ref]) contactsByRef[c.property_ref] = [];
+            contactsByRef[c.property_ref].push(c);
+          }
+          if (c.short_code) {
+            if (!contactsByShortCode[c.short_code]) contactsByShortCode[c.short_code] = [];
+            contactsByShortCode[c.short_code].push(c);
+          }
+        }
+        // Attach contacts to each property row
+        allRows = allRows.map((row) => {
+          const ref = row.property_ref as string | undefined;
+          const sc = row.short_code as string | undefined;
+          const matched = (ref && contactsByRef[ref]) || (sc && contactsByShortCode[sc]) || [];
+          return { ...row, _contacts: matched };
+        });
+      }
+
       setDbProperties(allRows.map(dbRowToProperty));
+
+      // Keep selectedProperty in sync so the modal reflects the latest saved values
+      setSelectedProperty((prev) => {
+        if (!prev) return prev;
+        const updated = allRows.find((r) => r.id === prev.id);
+        return updated ? dbRowToProperty(updated) : prev;
+      });
 
       // Fetch import history batches for filter dropdown
       const { data: batchData } = await supabase
@@ -1136,6 +1402,7 @@ export default function PropertyManagementClient() {
           p.district.toLowerCase().includes(q) ||
           p.landlord.name.toLowerCase().includes(q) ||
           (p.shortCode ?? '').toLowerCase().includes(q) ||
+          (p.ref ?? '').toLowerCase().includes(q) ||
           (p.keyLocation?.keyNumber ?? '').toLowerCase().includes(q) ||
           (p.contacts ?? []).some((c) => (c.customerCode ?? '').toLowerCase().includes(q))
       );
@@ -1185,12 +1452,14 @@ export default function PropertyManagementClient() {
     if (sSizeMax) data = data.filter((p) => (p.sqft ?? 0) <= Number(sSizeMax));
     if (floorFrom) data = data.filter((p) => {
       const parsed = parseFlatFromShortCode(p.shortCode);
-      const floorNum = parsed ? parseInt(parsed.floor, 10) : parseInt(p.floor ?? '0', 10);
+      const rawFloor = p.floor ?? '0';
+      const floorNum = parsed ? parseInt(parsed.floor, 10) : (/^[1-9]\d{2}$/.test(rawFloor.trim()) ? parseInt(rawFloor.trim().slice(1), 10) : parseInt(rawFloor, 10));
       return !isNaN(floorNum) && floorNum >= Number(floorFrom);
     });
     if (floorTo) data = data.filter((p) => {
       const parsed = parseFlatFromShortCode(p.shortCode);
-      const floorNum = parsed ? parseInt(parsed.floor, 10) : parseInt(p.floor ?? '0', 10);
+      const rawFloor = p.floor ?? '0';
+      const floorNum = parsed ? parseInt(parsed.floor, 10) : (/^[1-9]\d{2}$/.test(rawFloor.trim()) ? parseInt(rawFloor.trim().slice(1), 10) : parseInt(rawFloor, 10));
       return !isNaN(floorNum) && floorNum <= Number(floorTo);
     });
     if (highlightFilter) data = data.filter((p) => (p.highlight ?? '').toLowerCase().includes(highlightFilter.toLowerCase()));
@@ -1239,7 +1508,7 @@ export default function PropertyManagementClient() {
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-    const rows = selectedProps.map((p) => `
+    let rows = selectedProps.map((p) => `
       <tr>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;">${p.shortCode ?? '—'}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;font-size:12px;">${p.unit ?? ''} ${p.building ?? ''}</td>
@@ -1378,7 +1647,7 @@ export default function PropertyManagementClient() {
       return str;
     };
 
-    const rows = filtered.map((p) => {
+    let rows = filtered.map((p) => {
       const c1 = p.contacts?.[0];
       const c2 = p.contacts?.[1];
       return [
@@ -1463,6 +1732,13 @@ export default function PropertyManagementClient() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            className="btn-primary py-1 text-xs"
+            onClick={() => setAddPropertyOpen(true)}
+          >
+            <Icon name="PlusIcon" size={13} />
+            Add Property
+          </button>
           {isAdmin && (
           <button className="btn-secondary py-1 text-xs" onClick={exportToCSV}>
             <Icon name="DownloadIcon" size={13} />
@@ -1508,34 +1784,33 @@ export default function PropertyManagementClient() {
         {/* Search fields grid */}
         <div className="bg-white divide-y divide-[hsl(36,25%,88%)]">
           {/* Row 1: Keyword, S.Price Min/Max, Availability, Directions, Beds, Unit */}
-          <div className="grid grid-cols-7 divide-x divide-[hsl(36,25%,88%)]">
+          <div className="grid grid-cols-9 divide-x divide-[hsl(36,25%,88%)]">
             {/* Keyword / Fast Key */}
             <div className="flex items-center gap-1.5 px-3 py-2">
               <input
                 type="text"
-                placeholder="Keyword / Fast Key"
+                placeholder="Keyword"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
               />
-              <Icon name="SearchIcon" size={13} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
             </div>
             {/* S.Price Min / Max */}
-            <div className="flex items-center gap-1 px-3 py-2 col-span-1">
+            <div className="flex items-stretch gap-1 px-3 py-2 col-span-3">
               <input
                 type="number"
-                placeholder="S.Price Min"
+                placeholder="Sale Price Min"
                 value={sPriceMin}
                 onChange={(e) => { setSPriceMin(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
+              <span className="flex items-center self-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
-                placeholder="S.Price Max"
+                placeholder="Sale Price Max"
                 value={sPriceMax}
                 onChange={(e) => { setSPriceMax(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-right text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Availability */}
@@ -1589,7 +1864,7 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* Unit */}
-            <div className="flex items-center gap-1.5 px-3 py-2 col-span-2">
+            <div className="flex items-center gap-1.5 px-3 py-2 col-span-1">
               <input
                 type="text"
                 placeholder="Unit"
@@ -1602,7 +1877,7 @@ export default function PropertyManagementClient() {
           </div>
 
           {/* Row 2: Active, L.Price Min/Max, Features, Views, Bathrooms, Contact Person */}
-          <div className="grid grid-cols-7 divide-x divide-[hsl(36,25%,88%)]">
+          <div className="grid grid-cols-9 divide-x divide-[hsl(36,25%,88%)]">
             {/* Active */}
             <div className="flex items-center px-3 py-2">
               <select
@@ -1621,21 +1896,21 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* Range 20-30 */}
-            <div className="flex items-center gap-1 px-3 py-2">
+            <div className="flex items-stretch gap-1 px-3 py-2 col-span-3">
               <input
                 type="number"
-                placeholder="L.Price Min"
+                placeholder="Lease Price Min"
                 value={lPriceMin}
                 onChange={(e) => { setLPriceMin(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
+              <span className="flex items-center self-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
-                placeholder="L.Price Max"
+                placeholder="Lease Price Max"
                 value={lPriceMax}
                 onChange={(e) => { setLPriceMax(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-right text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Features */}
@@ -1680,7 +1955,7 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* Contact Person */}
-            <div className="flex items-center gap-1.5 px-3 py-2 col-span-2">
+            <div className="flex items-center gap-1.5 px-3 py-2 col-span-1">
               <input
                 type="text"
                 placeholder="Contact Person"
@@ -1693,7 +1968,7 @@ export default function PropertyManagementClient() {
           </div>
 
           {/* Row 3: Rent, G.Size Min/Max, Furnishing, Property Type, Decorations, Phone Number */}
-          <div className="grid grid-cols-7 divide-x divide-[hsl(36,25%,88%)]">
+          <div className="grid grid-cols-9 divide-x divide-[hsl(36,25%,88%)]">
             {/* Rent type */}
             <div className="flex items-center px-3 py-2">
               <select
@@ -1710,21 +1985,21 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* G.Size Min / Max */}
-            <div className="flex items-center gap-1 px-3 py-2">
+            <div className="flex items-stretch gap-1 px-3 py-2 col-span-3">
               <input
                 type="number"
-                placeholder="G.Size Min"
+                placeholder="Gross Size Min"
                 value={gSizeMin}
                 onChange={(e) => { setGSizeMin(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
+              <span className="flex items-center self-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
-                placeholder="G.Size Max"
+                placeholder="Gross Size Max"
                 value={gSizeMax}
                 onChange={(e) => { setGSizeMax(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-right text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Furnishing */}
@@ -1771,7 +2046,7 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* Phone Number */}
-            <div className="flex items-center gap-1.5 px-3 py-2 col-span-2">
+            <div className="flex items-center gap-1.5 px-3 py-2 col-span-1">
               <input
                 type="text"
                 placeholder="Phone Number"
@@ -1784,7 +2059,7 @@ export default function PropertyManagementClient() {
           </div>
 
           {/* Row 4: Villages, S.Size Min/Max, Floor From/To, Highlight */}
-          <div className="grid grid-cols-5 divide-x divide-[hsl(36,25%,88%)]">
+          <div className="grid grid-cols-7 divide-x divide-[hsl(36,25%,88%)]">
             {/* Villages */}
             <div className="flex items-center px-3 py-2">
               <select
@@ -1800,39 +2075,39 @@ export default function PropertyManagementClient() {
               <Icon name="ChevronUpDownIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0 -ml-1 pointer-events-none" />
             </div>
             {/* S.Size Min / Max */}
-            <div className="flex items-center gap-1 px-3 py-2">
+            <div className="flex items-stretch gap-1 px-3 py-2 col-span-2">
               <input
                 type="number"
-                placeholder="S.Size Min"
+                placeholder="Sale Size Min"
                 value={sSizeMin}
                 onChange={(e) => { setSSizeMin(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
+              <span className="flex items-center self-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
-                placeholder="S.Size Max"
+                placeholder="Sale Size Max"
                 value={sSizeMax}
                 onChange={(e) => { setSSizeMax(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-right text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Floor From / To */}
-            <div className="flex items-center gap-1 px-3 py-2">
+            <div className="flex items-stretch gap-1 px-3 py-2 col-span-2">
               <input
                 type="number"
-                placeholder="Floor (From)"
+                placeholder="Floor From"
                 value={floorFrom}
                 onChange={(e) => { setFloorFrom(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
-              <Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] flex-shrink-0" />
+              <span className="flex items-center self-center flex-shrink-0"><Icon name="ArrowsRightLeftIcon" size={12} className="text-[hsl(215,15%,60%)] block" /></span>
               <input
                 type="number"
-                placeholder="Floor (To)"
+                placeholder="Floor To"
                 value={floorTo}
                 onChange={(e) => { setFloorTo(e.target.value); setPage(1); }}
-                className="w-0 flex-1 text-xs text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none"
+                className="min-w-0 flex-1 text-xs text-right text-[hsl(215,25%,30%)] placeholder-[hsl(215,15%,65%)] bg-transparent outline-none self-center"
               />
             </div>
             {/* Highlight */}
@@ -1928,7 +2203,6 @@ export default function PropertyManagementClient() {
                   { label: 'Rental Price', key: 'monthlyRent' as SortKey },
                   { label: 'Key', key: 'none' as SortKey },
                   { label: 'Owner', key: 'none' as SortKey },
-                  { label: 'Contacts', key: 'none' as SortKey },
                   { label: 'sq ft', key: 'sqft' as SortKey },
                   { label: 'Lease End', key: 'none' as SortKey },
                   { label: 'Highlight / Comments', key: 'none' as SortKey },
@@ -1996,12 +2270,11 @@ export default function PropertyManagementClient() {
                           {/* Flat / Unit number */}
                           {(() => {
                             const parsed = parseFlatFromShortCode(prop.shortCode);
+                            const buildingPrefix = (prop as any).buildingName ? `${(prop as any).buildingName}, ` : '';
                             if (parsed) {
                               return (
                                 <p className="text-xs font-bold text-[hsl(215,25%,18%)] leading-tight">
-                                  {parsed.floor && (prop as any).buildingType === 'High Rise'
-                                    ? `Floor ${parsed.floor}, Unit ${parsed.flat}`
-                                    : `Unit ${parsed.flat}`}
+                                  {`${buildingPrefix}Unit ${parsed.flat}`}
                                 </p>
                               );
                             }
@@ -2009,18 +2282,13 @@ export default function PropertyManagementClient() {
                             if (prop.unit) {
                               return (
                                 <p className="text-xs font-bold text-[hsl(215,25%,18%)] leading-tight">
-                                  {prop.floor && (prop as any).buildingType === 'High Rise'
-                                    ? `Floor ${prop.floor}, Unit ${prop.unit}`
-                                    : `Unit ${prop.unit}`}
+                                  {`${buildingPrefix}Unit ${prop.unit}`}
                                 </p>
                               );
                             }
                             return null;
                           })()}
-                          {/* Building Name */}
-                          {(prop as any).buildingName && (
-                            <p className="text-[11px] font-semibold text-[#1B4F8A] leading-tight">{(prop as any).buildingName}</p>
-                          )}
+                          {/* Building Name — now shown inline in main label above */}
                           {/* Village */}
                           {prop.village && (
                             <p className="text-[11px] text-[hsl(215,15%,52%)] leading-tight">{prop.village}</p>
@@ -2068,7 +2336,7 @@ export default function PropertyManagementClient() {
                       <td className="px-3 py-2 whitespace-nowrap">
                         {prop.salePrice ? (
                           <span className="text-xs font-mono font-semibold text-violet-700 tabular-nums">
-                            HK${(prop.salePrice / 1000000).toFixed(1)}M
+                            HK${((v) => v % 1 === 0 ? v.toFixed(0) : v.toFixed(1))(prop.salePrice / 1000000)}M
                           </span>
                         ) : (
                           <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>
@@ -2083,68 +2351,24 @@ export default function PropertyManagementClient() {
                           <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>
                         )}
                       </td>
-                      {/* Key Location — icon + popover */}
+                      {/* Key Location — icon + popover (always shown, loads key log on hover) */}
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                        {prop.keyLocation ? (
-                          <Popover
-                            trigger={
-                              <button
-                                className="p-1.5 rounded-lg hover:bg-[hsl(210,15%,92%)] transition-colors group/key"
-                                title="View key location"
-                              >
-                                <Icon name="KeyIcon" size={15} className="text-amber-600 group-hover/key:text-amber-700" />
-                              </button>
-                            }
-                          >
-                            <KeyLocationPopover prop={prop} />
-                          </Popover>
-                        ) : (
-                          <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        <p className="text-xs text-[hsl(215,25%,18%)] whitespace-nowrap">{prop.owner ?? prop.landlord.name}</p>
-                      </td>
-                      {/* Contacts — inline display + popover for full details */}
-                      <td className="px-3 py-2 min-w-[140px]" onClick={(e) => e.stopPropagation()}>
-                        {(() => {
-                          const contacts = prop.contacts ?? [];
-                          const landlord = prop.landlord;
-                          const primaryContact = contacts.length > 0 ? contacts[0] : null;
-                          const displayName = primaryContact?.name || landlord.name;
-                          const displayPhone = primaryContact?.mobile || landlord.phone;
-                          const displayEmail = primaryContact?.email || landlord.email;
-                          const hasAnyContact = displayName || displayPhone || displayEmail;
-                          return hasAnyContact ? (
-                            <Popover
-                              trigger={
-                                <button className="text-left hover:bg-[hsl(210,15%,92%)] rounded-lg px-1 py-0.5 transition-colors w-full" title="View all contacts">
-                                  <div className="flex flex-col gap-0.5">
-                                    {displayName && (
-                                      <p className="text-[11px] font-semibold text-[hsl(215,25%,18%)] leading-tight truncate max-w-[130px]">{displayName}</p>
-                                    )}
-                                    {displayPhone && (
-                                      <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1 leading-tight">
-                                        <Icon name="PhoneIcon" size={9} className="text-[#1B4F8A] flex-shrink-0" />
-                                        {displayPhone}
-                                      </p>
-                                    )}
-                                    {displayEmail && (
-                                      <p className="text-[10px] text-[hsl(215,15%,52%)] flex items-center gap-1 leading-tight truncate max-w-[130px]">
-                                        <Icon name="MailIcon" size={9} className="text-[hsl(215,15%,62%)] flex-shrink-0" />
-                                        <span className="truncate">{displayEmail}</span>
-                                      </p>
-                                    )}
-                                  </div>
-                                </button>
-                              }
+                        <Popover
+                          trigger={
+                            <button
+                              className="p-1.5 rounded-lg hover:bg-[hsl(210,15%,92%)] transition-colors group/key"
+                              title="View key info"
                             >
-                              <ContactsPopover prop={prop} />
-                            </Popover>
-                          ) : (
-                            <span className="text-[11px] text-[hsl(215,15%,62%)] italic">—</span>
-                          );
-                        })()}
+                              <Icon name="KeyIcon" size={15} className={prop.keyLocation ? 'text-amber-600 group-hover/key:text-amber-700' : 'text-[hsl(215,15%,72%)] group-hover/key:text-amber-500'} />
+                            </button>
+                          }
+                        >
+                          <KeyLocationPopover prop={prop} />
+                        </Popover>
+                      </td>
+                      {/* Owner — looked up directly from ownerMap by property_ref / short_code */}
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <OwnerCell prop={prop} />
                       </td>
                       <td className="px-3 py-2 text-xs font-mono tabular-nums text-[hsl(215,25%,18%)] whitespace-nowrap">
                         {prop.sqft ? prop.sqft.toLocaleString() : '—'}
@@ -2288,6 +2512,7 @@ export default function PropertyManagementClient() {
         <PropertyDetailModal
           property={selectedProperty}
           onClose={() => setSelectedProperty(null)}
+          onSaved={fetchProperties}
         />
       )}
 
@@ -2383,6 +2608,17 @@ export default function PropertyManagementClient() {
           onSuccess={() => {
             setBatchEditOpen(false);
             setSelectedRows(new Set());
+            fetchProperties();
+          }}
+        />
+      )}
+
+      {/* Add Property Modal */}
+      {addPropertyOpen && (
+        <AddPropertyModal
+          onClose={() => setAddPropertyOpen(false)}
+          onSuccess={() => {
+            setAddPropertyOpen(false);
             fetchProperties();
           }}
         />

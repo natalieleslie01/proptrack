@@ -115,6 +115,17 @@ interface PreImportSummary {
   duplicates: DuplicateSummary;
 }
 
+// ─── Pricing CSV row type ─────────────────────────────────────────────────────
+
+interface PricingUpdateRow {
+  short_code: string;
+  publish_dt?: string;
+  asking_price?: number | null;   // null = explicitly blank (was 0/NULL)
+  asking_rent?: number | null;    // null = explicitly blank (was 0/NULL)
+  p_english?: string;
+  status?: string;
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function mapIRemStatus(
@@ -439,9 +450,9 @@ function sanitizeRow(raw: Record<string, string>): DbPropertyRow | null {
   if (publishDt !== undefined) row.publish_dt = publishDt;
 
   // Prices — CSV uses s_price, r_price
-  const askingPrice = parseFloatSafe(raw['s_price'] || raw['sale_price'] || raw['asking_price']);
+  let askingPrice = parseFloatSafe(raw['s_price'] || raw['sale_price'] || raw['asking_price']);
   if (askingPrice !== undefined) row.asking_price = askingPrice;
-  const askingRent = parseFloatSafe(raw['r_price'] || raw['rent_price'] || raw['asking_rent']);
+  let askingRent = parseFloatSafe(raw['r_price'] || raw['rent_price'] || raw['asking_rent']);
   if (askingRent !== undefined) row.asking_rent = askingRent;
 
   if (directionViewId !== undefined) row.direction_view_id = directionViewId;
@@ -486,7 +497,7 @@ function sanitizeRow(raw: Record<string, string>): DbPropertyRow | null {
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 type UploadStep = 'idle' | 'preview' | 'summary' | 'importing' | 'done';
-type ImportMode = 'upsert' | 'skip' | 'replace';
+type ImportMode = 'upsert' | 'skip' | 'replace' | 'pricing-update' | 'update-by-shortcode';
 
 const BATCH_SIZE = 50;
 
@@ -511,6 +522,8 @@ export default function CSVUploadClient() {
   const [parsedRowsPage, setParsedRowsPage] = useState(0);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [pricingRows, setPricingRows] = useState<PricingUpdateRow[]>([]);
+  const [isPricingCsv, setIsPricingCsv] = useState(false);
 
   // ── File handling ──────────────────────────────────────────────────────────
 
@@ -522,6 +535,8 @@ export default function CSVUploadClient() {
     setFile(f);
     setParseErrors([]);
     setParsedRows([]);
+    setPricingRows([]);
+    setIsPricingCsv(false);
     setSummary(null);
     setBatches([]);
     setCurrentBatch(0);
@@ -541,7 +556,7 @@ export default function CSVUploadClient() {
 
         // Detect if this looks like a short-code CSV (has Short Code column but no pid/property_ref)
         const hasShortCodeCol = headers.some(h =>
-          ['short code', 'shortcode', 'short_code'].includes(h.trim().toLowerCase())
+          ['short code', 'shortcode', 'short_code', 'short-code'].includes(h.trim().toLowerCase())
         );
         const hasPidCol = headers.some(h =>
           ['pid', 'property_ref', 'property ref'].includes(h.trim().toLowerCase())
@@ -562,6 +577,69 @@ export default function CSVUploadClient() {
           return;
         }
 
+        // ── Detect pricing/status update CSV ──────────────────────────────
+        // A pricing CSV has short_code + at least one of: s_price, r_price, p_eng_remark, publish_dt, status
+        // AND does NOT have full property columns like bedrooms, bathrooms, saleable_size etc.
+        const hasPricingCols = headers.some(h => ['s_price', 'r_price', 'p_eng_remark'].includes(h.trim().toLowerCase()));
+        const hasFullPropertyCols = headers.some(h => ['bedroom', 'bedrooms', 'room', 'saleable_size', 's_size', 'gross_size', 'g_size'].includes(h.trim().toLowerCase()));
+        const looksLikePricingCsv = hasShortCodeCol && hasPricingCols && !hasFullPropertyCols && !hasPidCol;
+
+        if (looksLikePricingCsv) {
+          // Parse as pricing update rows
+          const pRows: PricingUpdateRow[] = [];
+          results.data.forEach((raw, idx) => {
+            const sc = (
+              raw['short-code'] || raw['short_code'] || raw['short code'] || raw['short  code'] || ''
+            ).trim();
+            if (!sc) {
+              errors.push(`Row ${idx + 2}: Missing short_code — skipped`);
+              return;
+            }
+
+            // s_price: in millions → multiply by 1,000,000; 0 or NULL → null (blank)
+            let askingPrice: number | null | undefined = undefined;
+            const sPriceRaw = (raw['s_price'] || '').trim();
+            if (sPriceRaw !== '' && sPriceRaw.toUpperCase() !== 'NULL') {
+              const v = parseFloat(sPriceRaw);
+              askingPrice = (!isNaN(v) && v > 0) ? Math.round(v * 1_000_000) : null;
+            }
+
+            // r_price: in thousands → multiply by 1,000; 0 or NULL → null (blank)
+            let askingRent: number | null | undefined = undefined;
+            const rPriceRaw = (raw['r_price'] || '').trim();
+            if (rPriceRaw !== '' && rPriceRaw.toUpperCase() !== 'NULL') {
+              const v = parseFloat(rPriceRaw);
+              askingRent = (!isNaN(v) && v > 0) ? Math.round(v * 1_000) : null;
+            }
+
+            // p_eng_remark → p_english (advertising remarks)
+            const pEngRemark = (raw['p_eng_remark'] || '').trim() || undefined;
+
+            // publish_dt
+            const publishDt = normaliseDateStr(raw['publish_dt'] || raw['publish dt']);
+
+            // status
+            const listTypeRaw = (raw['list_type'] || raw['list type'] || '').trim() || undefined;
+            const { status } = mapIRemStatus(raw['status'] || raw['Status'], listTypeRaw);
+
+            const pRow: PricingUpdateRow = { short_code: sc };
+            if (askingPrice !== undefined) pRow.asking_price = askingPrice;
+            if (askingRent !== undefined) pRow.asking_rent = askingRent;
+            if (pEngRemark !== undefined) pRow.p_english = pEngRemark;
+            if (publishDt !== undefined) pRow.publish_dt = publishDt;
+            if (status !== undefined) pRow.status = status;
+
+            pRows.push(pRow);
+          });
+
+          results.errors.slice(0, 5).forEach((e) => errors.push(`Parse error row ${e.row}: ${e.message}`));
+          setPricingRows(pRows);
+          setIsPricingCsv(true);
+          setImportMode('pricing-update');
+          setParseErrors(errors);
+          return;
+        }
+
         results.data.forEach((raw, idx) => {
           const row = sanitizeRow(raw);
           if (!row) {
@@ -573,6 +651,12 @@ export default function CSVUploadClient() {
         results.errors.slice(0, 5).forEach((e) => errors.push(`Parse error row ${e.row}: ${e.message}`));
         setParsedRows(rows);
         setParseErrors(errors);
+
+        // ── Auto-select update-by-shortcode mode when CSV has short_code but no pid ──
+        // This prevents duplicate creation — only updates existing records matched by short_code
+        if (hasShortCodeCol && !hasPidCol) {
+          setImportMode('update-by-shortcode');
+        }
       },
       error: (err) => {
         setParseErrors([`Failed to parse file: ${err.message}`]);
@@ -841,6 +925,72 @@ export default function CSVUploadClient() {
     const errors: string[] = [];
     const startTime = Date.now();
 
+    // ── update-by-shortcode mode: UPDATE only via server API (bypasses RLS) ──
+    if (importMode === 'update-by-shortcode') {
+      // Build rows for the API: each row needs short_code + update fields
+      const apiRows = parsedRows.map((row) => {
+        const { property_ref: _ref, ...rest } = row;
+        // Remove undefined values
+        const cleaned: Record<string, unknown> = {};
+        Object.entries(rest).forEach(([k, v]) => {
+          if (v !== undefined) cleaned[k] = v;
+        });
+        return cleaned;
+      }).filter((r) => r.short_code);
+
+      for (let i = 0; i < totalBatches; i++) {
+        if (abortRef.aborted) break;
+        const batchRows = apiRows.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+        setCurrentBatch(i + 1);
+        setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'processing' } : b));
+
+        try {
+          const res = await fetch('/api/csv-bulk-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows: batchRows, mode: 'update-by-shortcode' }),
+          });
+          const result = await res.json();
+
+          if (!res.ok || !result.success) {
+            const msg = result.error || `Batch ${i + 1} failed`;
+            errors.push(`Batch ${i + 1}: ${msg}`);
+            skipped += batchRows.length;
+            setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: msg } : b));
+          } else {
+            success += result.successCount ?? 0;
+            skipped += result.skippedCount ?? 0;
+            if (result.errors && result.errors.length > 0) {
+              errors.push(...result.errors.slice(0, 5));
+              if (result.errorCount > 5) errors.push(`…and ${result.errorCount - 5} more in batch ${i + 1}`);
+              setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: `${result.errorCount} row(s) skipped` } : b));
+            } else {
+              setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'success' } : b));
+            }
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Unexpected error';
+          errors.push(`Batch ${i + 1}: ${msg}`);
+          skipped += batchRows.length;
+          setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: msg } : b));
+        }
+      }
+
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      setSummary({ totalRows, success, skipped, errors, duration });
+      setStep('done');
+      trackEvent('csv_upload', {
+        total_rows: totalRows,
+        success_rows: success,
+        skipped_rows: skipped,
+        error_count: errors.length,
+        duration_seconds: duration,
+        import_mode: importMode,
+        file_name: file?.name ?? null,
+      });
+      return;
+    }
+
     for (let i = 0; i < totalBatches; i++) {
       if (abortRef.aborted) break;
       const batch = parsedRows.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
@@ -938,6 +1088,92 @@ export default function CSVUploadClient() {
     });
   }, [file, parsedRows, importMode, supabase, abortRef]);
 
+  // ── Pricing & Status Update import ────────────────────────────────────────
+
+  const handlePricingUpdate = useCallback(async () => {
+    if (!file || pricingRows.length === 0) return;
+    abortRef.aborted = false;
+    setStep('importing');
+    setSummary(null);
+
+    const totalRows = pricingRows.length;
+    const totalBatches = Math.ceil(totalRows / BATCH_SIZE);
+    const initialBatches: BatchStatus[] = Array.from({ length: totalBatches }, (_, i) => ({
+      batchNum: i + 1,
+      start: i * BATCH_SIZE + 1,
+      end: Math.min((i + 1) * BATCH_SIZE, totalRows),
+      status: 'pending',
+      count: Math.min(BATCH_SIZE, totalRows - i * BATCH_SIZE),
+    }));
+    setBatches(initialBatches);
+
+    let success = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+    const startTime = Date.now();
+
+    for (let i = 0; i < totalBatches; i++) {
+      if (abortRef.aborted) break;
+      const batch = pricingRows.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+      setCurrentBatch(i + 1);
+      setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'processing' } : b));
+
+      try {
+        // Build API rows: include only fields that are present in each pricing row
+        const apiRows = batch.map((pRow) => {
+          const rowPayload: Record<string, unknown> = { short_code: pRow.short_code };
+          if ('asking_price' in pRow) rowPayload.asking_price = pRow.asking_price; // null clears it
+          if ('asking_rent' in pRow) rowPayload.asking_rent = pRow.asking_rent;   // null clears it
+          if (pRow.p_english !== undefined) rowPayload.p_english = pRow.p_english;
+          if (pRow.publish_dt !== undefined) rowPayload.publish_dt = pRow.publish_dt;
+          if (pRow.status !== undefined) rowPayload.status = pRow.status;
+          return rowPayload;
+        });
+
+        const res = await fetch('/api/csv-bulk-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: apiRows, mode: 'pricing-update' }),
+        });
+        const result = await res.json();
+
+        if (!res.ok || !result.success) {
+          const msg = result.error || `Batch ${i + 1} failed`;
+          errors.push(`Batch ${i + 1}: ${msg}`);
+          skipped += batch.length;
+          setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: msg } : b));
+        } else {
+          success += result.successCount ?? 0;
+          skipped += result.skippedCount ?? 0;
+          if (result.errors && result.errors.length > 0) {
+            errors.push(...result.errors.slice(0, 5));
+            if (result.errorCount > 5) errors.push(`…and ${result.errorCount - 5} more in batch ${i + 1}`);
+            setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: `${result.errorCount} row(s) failed` } : b));
+          } else {
+            setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'success' } : b));
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unexpected error';
+        errors.push(`Batch ${i + 1}: ${msg}`);
+        skipped += batch.length;
+        setBatches((prev) => prev.map((b) => b.batchNum === i + 1 ? { ...b, status: 'error', error: msg } : b));
+      }
+    }
+
+    const duration = Math.round((Date.now() - startTime) / 1000);
+    setSummary({ totalRows, success, skipped, errors, duration });
+    setStep('done');
+    trackEvent('csv_pricing_update', {
+      total_rows: totalRows,
+      success_rows: success,
+      skipped_rows: skipped,
+      error_count: errors.length,
+      duration_seconds: duration,
+      file_name: file?.name ?? null,
+    });
+  }, [file, pricingRows, abortRef]);
+
   // ── Clear all properties then import ──────────────────────────────────────
 
   const handleClearAndImport = useCallback(async () => {
@@ -965,6 +1201,8 @@ export default function CSVUploadClient() {
     setStep('idle');
     setFile(null);
     setParsedRows([]);
+    setPricingRows([]);
+    setIsPricingCsv(false);
     setParseErrors([]);
     setBatches([]);
     setCurrentBatch(0);
@@ -1080,9 +1318,13 @@ export default function CSVUploadClient() {
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-[hsl(215,25%,18%)] truncate">{file?.name}</p>
                 <p className="text-sm text-[hsl(215,15%,52%)]">
-                  {parsedRows.length > 0
-                    ? `${parsedRows.length.toLocaleString()} valid rows ready to import`
-                    : 'Parsing…'}
+                  {isPricingCsv
+                    ? pricingRows.length > 0
+                      ? `${pricingRows.length.toLocaleString()} pricing/status rows detected`
+                      : 'Parsing…'
+                    : parsedRows.length > 0
+                      ? `${parsedRows.length.toLocaleString()} valid rows ready to import`
+                      : 'Parsing…'}
                   {parseErrors.length > 0 && ` · ${parseErrors.length} parse error${parseErrors.length > 1 ? 's' : ''}`}
                 </p>
               </div>
@@ -1090,6 +1332,20 @@ export default function CSVUploadClient() {
                 <Icon name="XIcon" size={16} className="text-[hsl(215,15%,52%)]" />
               </button>
             </div>
+
+            {/* Pricing CSV detected banner */}
+            {isPricingCsv && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+                <Icon name="CurrencyDollarIcon" size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-blue-800 mb-1">Pricing &amp; Status Update CSV detected</p>
+                  <p className="text-xs text-blue-700">
+                    This file will update <strong>publish date, sale price, rent price, advertising remarks, and status</strong> on existing properties matched by <strong>short code</strong>.
+                    Sale prices (s_price) are in millions — e.g. 5.35 → HK$5,350,000. Rent prices (r_price) are in thousands — e.g. 21 → HK$21,000. Zero or blank values will clear the field.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Parse errors */}
             {parseErrors.length > 0 && (
@@ -1107,10 +1363,30 @@ export default function CSVUploadClient() {
               </div>
             )}
 
-            {/* Import options */}
+            {/* Import options — hide for pricing-update mode */}
+            {!isPricingCsv && (
             <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl p-5">
               <h3 className="text-sm font-semibold text-[hsl(215,25%,18%)] mb-3">Import Mode</h3>
-              <div className="grid grid-cols-3 gap-3">
+              {importMode === 'update-by-shortcode' && (
+                <div className="mb-3 flex items-start gap-2 px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+                  <Icon name="InformationCircleIcon" size={14} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700">
+                    <strong>Update by Short Code mode auto-selected:</strong> This CSV has a <code className="font-mono bg-blue-100 px-1 rounded">short_code</code> column but no <code className="font-mono bg-blue-100 px-1 rounded">pid</code>. Only existing properties matched by short code will be updated — no new properties will be created.
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setImportMode('update-by-shortcode')}
+                  className={`p-4 rounded-xl border-2 text-left transition-all ${importMode === 'update-by-shortcode' ? 'border-[#8B1A2B] bg-[#8B1A2B]/5' : 'border-[hsl(214,20%,88%)] hover:border-[#8B1A2B]/30'}`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon name="PencilSquareIcon" size={15} className={importMode === 'update-by-shortcode' ? 'text-[#8B1A2B]' : 'text-[hsl(215,15%,52%)]'} />
+                    <span className={`text-sm font-semibold ${importMode === 'update-by-shortcode' ? 'text-[#8B1A2B]' : 'text-[hsl(215,25%,18%)]'}`}>Update by Short Code</span>
+                    {importMode === 'update-by-shortcode' && <span className="ml-auto text-xs font-medium px-1.5 py-0.5 rounded-full bg-[#8B1A2B] text-white">Recommended</span>}
+                  </div>
+                  <p className="text-xs text-[hsl(215,15%,52%)]">Updates existing properties matched by <strong>short_code</strong> only. <strong className="text-[hsl(215,25%,18%)]">Never creates new properties.</strong> Unmatched rows are skipped.</p>
+                </button>
                 <button
                   onClick={() => setImportMode('upsert')}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${importMode === 'upsert' ? 'border-[#8B1A2B] bg-[#8B1A2B]/5' : 'border-[hsl(214,20%,88%)] hover:border-[#8B1A2B]/30'}`}
@@ -1118,7 +1394,6 @@ export default function CSVUploadClient() {
                   <div className="flex items-center gap-2 mb-1">
                     <Icon name="RefreshCwIcon" size={15} className={importMode === 'upsert' ? 'text-[#8B1A2B]' : 'text-[hsl(215,15%,52%)]'} />
                     <span className={`text-sm font-semibold ${importMode === 'upsert' ? 'text-[#8B1A2B]' : 'text-[hsl(215,25%,18%)]'}`}>Upsert — Merge &amp; Update</span>
-                    {importMode === 'upsert' && <span className="ml-auto text-xs font-medium px-1.5 py-0.5 rounded-full bg-[#8B1A2B] text-white">Recommended</span>}
                   </div>
                   <p className="text-xs text-[hsl(215,15%,52%)]">Merges new data into existing properties and inserts any new ones. <strong className="text-[hsl(215,25%,18%)]">Does not delete anything.</strong></p>
                 </button>
@@ -1153,9 +1428,59 @@ export default function CSVUploadClient() {
                 </div>
               )}
             </div>
+            )}
 
-            {/* Preview table */}
-            {parsedRows.length > 0 && (
+            {/* Pricing preview table */}
+            {isPricingCsv && pricingRows.length > 0 && (
+              <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
+                <div className="px-5 py-3 border-b border-[hsl(214,20%,88%)] flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-[hsl(215,25%,18%)]">Preview (first 10 rows)</h3>
+                  <span className="text-xs text-[hsl(215,15%,52%)]">{pricingRows.length.toLocaleString()} total rows</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-[hsl(210,15%,97%)]">
+                        {['Short Code', 'Publish Date', 'Sale Price', 'Rent Price', 'Status', 'Adv. Remarks'].map((col) => (
+                          <th key={col} className="px-4 py-2.5 text-left font-semibold text-[hsl(215,15%,52%)] whitespace-nowrap">{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pricingRows.slice(0, 10).map((row, i) => (
+                        <tr key={i} className="border-t border-[hsl(214,20%,88%)] hover:bg-[hsl(210,15%,97%)]">
+                          <td className="px-4 py-2.5 font-mono font-semibold text-[hsl(215,25%,18%)]">{row.short_code}</td>
+                          <td className="px-4 py-2.5 text-[hsl(215,15%,52%)]">{row.publish_dt ?? '—'}</td>
+                          <td className="px-4 py-2.5 text-[hsl(215,15%,52%)]">
+                            {row.asking_price === null
+                              ? <span className="text-[hsl(215,15%,70%)] italic">clear</span>
+                              : row.asking_price !== undefined
+                                ? `HK$${row.asking_price.toLocaleString()}`
+                                : '—'}
+                          </td>
+                          <td className="px-4 py-2.5 text-[hsl(215,15%,52%)]">
+                            {row.asking_rent === null
+                              ? <span className="text-[hsl(215,15%,70%)] italic">clear</span>
+                              : row.asking_rent !== undefined
+                                ? `HK$${row.asking_rent.toLocaleString()}`
+                                : '—'}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {row.status ? (
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#8B1A2B]/10 text-[#8B1A2B]">{row.status}</span>
+                            ) : '—'}
+                          </td>
+                          <td className="px-4 py-2.5 text-[hsl(215,15%,52%)] max-w-[200px] truncate">{row.p_english ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Standard preview table */}
+            {!isPricingCsv && parsedRows.length > 0 && (
               <div className="bg-white border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
                 <div className="px-5 py-3 border-b border-[hsl(214,20%,88%)] flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-[hsl(215,25%,18%)]">Preview (first 5 rows)</h3>
@@ -1195,20 +1520,34 @@ export default function CSVUploadClient() {
             {/* Action */}
             <div className="flex items-center justify-between">
               <p className="text-sm text-[hsl(215,15%,52%)]">
-                Will process <strong className="text-[hsl(215,25%,18%)]">{parsedRows.length.toLocaleString()}</strong> rows in <strong className="text-[hsl(215,25%,18%)]">{Math.ceil(parsedRows.length / BATCH_SIZE)}</strong> batch{Math.ceil(parsedRows.length / BATCH_SIZE) !== 1 ? 'es' : ''} of {BATCH_SIZE}
+                {isPricingCsv
+                  ? <>Will update <strong className="text-[hsl(215,25%,18%)]">{pricingRows.length.toLocaleString()}</strong> properties matched by short code</>
+                  : <>Will process <strong className="text-[hsl(215,25%,18%)]">{parsedRows.length.toLocaleString()}</strong> rows in <strong className="text-[hsl(215,25%,18%)]">{Math.ceil(parsedRows.length / BATCH_SIZE)}</strong> batch{Math.ceil(parsedRows.length / BATCH_SIZE) !== 1 ? 'es' : ''} of {BATCH_SIZE}</>
+                }
               </p>
-              <button
-                onClick={handleReviewSummary}
-                disabled={parsedRows.length === 0 || summaryLoading}
-                className="flex items-center gap-2 px-6 py-2.5 bg-[#8B1A2B] text-white text-sm font-semibold rounded-lg hover:bg-[#7a1726] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {summaryLoading ? (
-                  <Icon name="LoaderIcon" size={16} className="animate-spin" />
-                ) : (
-                  <Icon name="ClipboardListIcon" size={16} />
-                )}
-                {summaryLoading ? 'Analysing…' : 'Review Summary'}
-              </button>
+              {isPricingCsv ? (
+                <button
+                  onClick={handlePricingUpdate}
+                  disabled={pricingRows.length === 0}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-[#8B1A2B] text-white text-sm font-semibold rounded-lg hover:bg-[#7a1726] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Icon name="ArrowUpCircleIcon" size={16} />
+                  Update Pricing &amp; Status
+                </button>
+              ) : (
+                <button
+                  onClick={handleReviewSummary}
+                  disabled={parsedRows.length === 0 || summaryLoading}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-[#8B1A2B] text-white text-sm font-semibold rounded-lg hover:bg-[#7a1726] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {summaryLoading ? (
+                    <Icon name="LoaderIcon" size={16} className="animate-spin" />
+                  ) : (
+                    <Icon name="ClipboardListIcon" size={16} />
+                  )}
+                  {summaryLoading ? 'Analysing…' : 'Review Summary'}
+                </button>
+              )}
             </div>
           </div>
         )}

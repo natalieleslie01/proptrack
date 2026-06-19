@@ -1,5 +1,6 @@
 import React from 'react';
 import AppLayout from '@/components/AppLayout';
+import { PropertiesRealtimeProvider } from '@/contexts/PropertiesRealtimeContext';
 import MetricsBentoGrid from './components/MetricsBentoGrid';
 import RentalIncomeChart from './components/RentalIncomeChart';
 import PropertyStatusChart from './components/PropertyStatusChart';
@@ -13,6 +14,7 @@ import KeyLog from './components/KeyLog';
 export default function DashboardPage() {
   return (
     <AppLayout>
+      <PropertiesRealtimeProvider>
       <div className="space-y-6">
         {/* Page Header */}
         <div className="flex items-center justify-between">
@@ -74,6 +76,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      </PropertiesRealtimeProvider>
     </AppLayout>
   );
 }

@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Icon from '@/components/ui/AppIcon';
 import { Property, agentNames, agentProfiles, AgentProfile } from './mockData';
 import { COMPANY } from '@/lib/company';
 import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
 
 interface BulkViewingScheduleProps {
   properties: Property[];
@@ -15,30 +16,16 @@ interface BulkViewingScheduleProps {
 interface ClientInfo {
   name: string;
   mobile: string;
+  email: string;
 }
 
 interface TimeValue {
-  hour: number;   // 1–12
-  minute: number; // 0–59
+  hour: number;
+  minute: number;
   period: 'AM' | 'PM';
 }
 
 type ScheduleMode = 'full-address' | 'village-only';
-
-const AVATAR_COLORS = [
-  'bg-[#1B4F8A]', 'bg-emerald-600', 'bg-violet-600',
-  'bg-rose-600', 'bg-amber-600', 'bg-cyan-600',
-];
-
-function agentInitials(name: string): string {
-  return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
-}
-
-function agentAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
 
 function formatTime(t: TimeValue): string {
   const mm = String(t.minute).padStart(2, '0');
@@ -49,6 +36,28 @@ function defaultTime(): TimeValue {
   return { hour: 9, minute: 0, period: 'AM' };
 }
 
+function hasMaidsRoom(property: Property): boolean {
+  if (!property.additionalFeatures) return false;
+  return property.additionalFeatures.some((f) => f.toLowerCase().includes('maid'));
+}
+
+function getCarParking(property: Property): string {
+  if (!property.additionalFeatures) return 'N/A';
+  const carFeature = property.additionalFeatures.find((f) =>
+    f.toLowerCase().includes('car') || f.toLowerCase().includes('parking') || f.toLowerCase().includes('garage')
+  );
+  return carFeature ? '1' : 'N/A';
+}
+
+function parseAdvertisingRemarks(text: string): string[] {
+  if (!text) return [];
+  const lines = text
+    .split(/\n|\r\n|\r|\*(?=\s)|•/)
+    .map((l) => l.replace(/^\s*[\*•\-]\s*/, '').trim())
+    .filter((l) => l.length > 3);
+  return lines;
+}
+
 // ─── Structured Time Picker ───────────────────────────────────────────────────
 interface TimePickerProps {
   value: TimeValue;
@@ -56,468 +65,754 @@ interface TimePickerProps {
 }
 
 function TimePicker({ value, onChange }: TimePickerProps) {
-  function incHour() {
-    onChange({ ...value, hour: value.hour === 12 ? 1 : value.hour + 1 });
-  }
-  function decHour() {
-    onChange({ ...value, hour: value.hour === 1 ? 12 : value.hour - 1 });
-  }
-  function incMinute() {
-    onChange({ ...value, minute: value.minute === 55 ? 0 : value.minute + 5 });
-  }
-  function decMinute() {
-    onChange({ ...value, minute: value.minute === 0 ? 55 : value.minute - 5 });
-  }
-  function togglePeriod() {
-    onChange({ ...value, period: value.period === 'AM' ? 'PM' : 'AM' });
-  }
-
+  function incHour() { onChange({ ...value, hour: value.hour === 12 ? 1 : value.hour + 1 }); }
+  function decHour() { onChange({ ...value, hour: value.hour === 1 ? 12 : value.hour - 1 }); }
+  function incMinute() { onChange({ ...value, minute: value.minute === 55 ? 0 : value.minute + 5 }); }
+  function decMinute() { onChange({ ...value, minute: value.minute === 0 ? 55 : value.minute - 5 }); }
+  function togglePeriod() { onChange({ ...value, period: value.period === 'AM' ? 'PM' : 'AM' }); }
   const mm = String(value.minute).padStart(2, '0');
 
   return (
     <div className="flex items-center gap-1 select-none">
-      {/* Hour */}
       <div className="flex flex-col items-center">
-        <button
-          type="button"
-          onClick={incHour}
-          className="w-6 h-5 flex items-center justify-center rounded hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors"
-          tabIndex={-1}
-        >
+        <button type="button" onClick={incHour} className="w-6 h-5 flex items-center justify-center rounded hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors" tabIndex={-1}>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 5L5 1L9 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
-        <span className="text-xs font-mono font-bold text-[hsl(215,25%,18%)] w-6 text-center leading-none py-0.5">
-          {value.hour}
-        </span>
-        <button
-          type="button"
-          onClick={decHour}
-          className="w-6 h-5 flex items-center justify-center rounded hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors"
-          tabIndex={-1}
-        >
+        <span className="text-xs font-mono font-bold text-[hsl(215,25%,18%)] w-6 text-center leading-none py-0.5">{value.hour}</span>
+        <button type="button" onClick={decHour} className="w-6 h-5 flex items-center justify-center rounded hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors" tabIndex={-1}>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       </div>
-
       <span className="text-xs font-bold text-[hsl(215,25%,18%)] leading-none mb-0.5">:</span>
-
-      {/* Minute */}
       <div className="flex flex-col items-center">
-        <button
-          type="button"
-          onClick={incMinute}
-          className="w-6 h-5 flex items-center justify-center rounded hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors"
-          tabIndex={-1}
-        >
+        <button type="button" onClick={incMinute} className="w-6 h-5 flex items-center justify-center rounded hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors" tabIndex={-1}>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 5L5 1L9 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
-        <span className="text-xs font-mono font-bold text-[hsl(215,25%,18%)] w-6 text-center leading-none py-0.5">
-          {mm}
-        </span>
-        <button
-          type="button"
-          onClick={decMinute}
-          className="w-6 h-5 flex items-center justify-center rounded hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors"
-          tabIndex={-1}
-        >
+        <span className="text-xs font-mono font-bold text-[hsl(215,25%,18%)] w-6 text-center leading-none py-0.5">{mm}</span>
+        <button type="button" onClick={decMinute} className="w-6 h-5 flex items-center justify-center rounded hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors" tabIndex={-1}>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         </button>
       </div>
-
-      {/* AM/PM toggle */}
-      <button
-        type="button"
-        onClick={togglePeriod}
-        className="ml-1 text-[10px] font-bold px-1.5 py-1 rounded border border-[#1B4F8A]/30 bg-[#1B4F8A]/8 text-[#1B4F8A] hover:bg-[#1B4F8A]/20 transition-colors leading-none"
-        tabIndex={-1}
-      >
+      <button type="button" onClick={togglePeriod} className="ml-1 text-[10px] font-bold px-1.5 py-1 rounded border border-[#1B4F8A]/30 bg-[#1B4F8A]/8 text-[#1B4F8A] hover:bg-[#1B4F8A]/20 transition-colors leading-none" tabIndex={-1}>
         {value.period}
       </button>
     </div>
   );
 }
 
+// ─── Calendar Date Picker ─────────────────────────────────────────────────────
+interface CalendarPickerProps {
+  value: string; // DD/MM/YYYY
+  onChange: (val: string) => void;
+}
+
+function CalendarPicker({ value, onChange }: CalendarPickerProps) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Parse DD/MM/YYYY → Date (or today)
+  function parseValue(): Date {
+    if (value && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+      const [d, m, y] = value.split('/').map(Number);
+      const dt = new Date(y, m - 1, d);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+    return new Date();
+  }
+
+  const parsed = parseValue();
+  const [viewYear, setViewYear] = useState(parsed.getFullYear());
+  const [viewMonth, setViewMonth] = useState(parsed.getMonth()); // 0-indexed
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  // Sync view to value when it changes externally
+  useEffect(() => {
+    const p = parseValue();
+    setViewYear(p.getFullYear());
+    setViewMonth(p.getMonth());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+  function getDaysInMonth(y: number, m: number) {
+    return new Date(y, m + 1, 0).getDate();
+  }
+  function getFirstDayOfMonth(y: number, m: number) {
+    return new Date(y, m, 1).getDay();
+  }
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+    else setViewMonth(m => m - 1);
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
+    else setViewMonth(m => m + 1);
+  }
+
+  function selectDay(day: number) {
+    const dd = String(day).padStart(2, '0');
+    const mm = String(viewMonth + 1).padStart(2, '0');
+    onChange(`${dd}/${mm}/${viewYear}`);
+    setOpen(false);
+  }
+
+  // Selected day in current view
+  let selectedDay: number | null = null;
+  if (value && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+    const [d, m, y] = value.split('/').map(Number);
+    if (m - 1 === viewMonth && y === viewYear) selectedDay = d;
+  }
+
+  const totalDays = getDaysInMonth(viewYear, viewMonth);
+  const firstDay = getFirstDayOfMonth(viewYear, viewMonth);
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= totalDays; d++) cells.push(d);
+  // Pad to complete last row
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const today = new Date();
+  const todayDay = today.getDate();
+  const todayMonth = today.getMonth();
+  const todayYear = today.getFullYear();
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      {/* Input trigger */}
+      <div
+        className="input-base w-full font-mono flex items-center justify-between cursor-pointer select-none"
+        onClick={() => setOpen(o => !o)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setOpen(o => !o); }}
+      >
+        <span className={value ? 'text-[hsl(215,25%,18%)]' : 'text-[hsl(215,15%,65%)]'}>
+          {value || 'DD/MM/YYYY'}
+        </span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[#1B4F8A] flex-shrink-0 ml-2">
+          <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+          <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+        </svg>
+      </div>
+
+      {/* Calendar dropdown */}
+      {open && (
+        <div className="absolute z-[200] top-full left-0 mt-1 bg-white border border-[hsl(214,20%,88%)] rounded-xl shadow-xl p-3 w-64">
+          {/* Month/Year navigation */}
+          <div className="flex items-center justify-between mb-2">
+            <button
+              type="button"
+              onClick={prevMonth}
+              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M6.5 1.5L3 5l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+            <span className="text-xs font-bold text-[hsl(215,25%,18%)]">
+              {MONTHS[viewMonth]} {viewYear}
+            </span>
+            <button
+              type="button"
+              onClick={nextMonth}
+              className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#1B4F8A]/10 text-[#1B4F8A] transition-colors"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3.5 1.5L7 5l-3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+          </div>
+
+          {/* Day headers */}
+          <div className="grid grid-cols-7 mb-1">
+            {DAYS.map(d => (
+              <div key={d} className="text-center text-[10px] font-bold text-[hsl(215,15%,52%)] py-0.5">{d}</div>
+            ))}
+          </div>
+
+          {/* Day cells */}
+          <div className="grid grid-cols-7 gap-y-0.5">
+            {cells.map((day, idx) => {
+              if (day === null) return <div key={idx} />;
+              const isSelected = day === selectedDay;
+              const isToday = day === todayDay && viewMonth === todayMonth && viewYear === todayYear;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => selectDay(day)}
+                  className={`w-8 h-8 mx-auto flex items-center justify-center rounded-lg text-xs font-medium transition-colors
+                    ${isSelected
+                      ? 'bg-[#1B4F8A] text-white font-bold'
+                      : isToday
+                      ? 'border border-[#1B4F8A] text-[#1B4F8A] font-bold hover:bg-[#1B4F8A]/10'
+                      : 'text-[hsl(215,25%,25%)] hover:bg-[#1B4F8A]/10 hover:text-[#1B4F8A]'
+                    }`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Today shortcut */}
+          <div className="mt-2 pt-2 border-t border-[hsl(214,20%,88%)] flex justify-between items-center">
+            <button
+              type="button"
+              onClick={() => {
+                const dd = String(todayDay).padStart(2, '0');
+                const mm = String(todayMonth + 1).padStart(2, '0');
+                onChange(`${dd}/${mm}/${todayYear}`);
+                setOpen(false);
+              }}
+              className="text-[10px] font-semibold text-[#1B4F8A] hover:underline"
+            >
+              Today
+            </button>
+            {value && (
+              <button
+                type="button"
+                onClick={() => { onChange(''); setOpen(false); }}
+                className="text-[10px] font-semibold text-red-400 hover:underline"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Printable Schedule Content (rendered once, outside modal) ────────────────
+interface PrintableScheduleProps {
+  properties: Property[];
+  mode: ScheduleMode;
+  selectedAgent: string;
+  client: ClientInfo;
+  viewingDate: string;
+  clientComments: string;
+  propertyTimes: Record<string, TimeValue>;
+  photoUrls: Record<string, string>;
+}
+
+function PrintableSchedule({
+  properties,
+  mode,
+  selectedAgent,
+  client,
+  viewingDate,
+  clientComments,
+  propertyTimes,
+  photoUrls,
+}: PrintableScheduleProps) {
+  const agentProfile: AgentProfile | undefined = agentProfiles.find((a) => a.name === selectedAgent);
+
+  return (
+    <div id="bulk-print-content" className="p-7 bg-white font-sans">
+      {/* ── PAGE HEADER: Logo left | Agent right ── */}
+      <div className="flex items-start justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className="relative w-12 h-12 flex-shrink-0">
+            <Image
+              src="/assets/images/image-1780466751353.png"
+              alt="Homes R Us logo"
+              fill
+              className="object-contain"
+              unoptimized
+            />
+          </div>
+          <div>
+            <p className="text-[18px] font-black text-[hsl(215,25%,12%)] leading-none tracking-tight">{COMPANY.name}</p>
+            <p className="text-[9px] font-semibold text-[hsl(215,15%,45%)] uppercase tracking-widest mt-0.5">Property</p>
+          </div>
+        </div>
+        <div className="text-right">
+          {agentProfile ? (
+            <>
+              <p className="text-[12px] font-bold text-[hsl(215,25%,18%)] leading-tight">{agentProfile.name}</p>
+              <p className="text-[10px] text-[hsl(215,15%,45%)] italic">
+                {agentProfile.name === 'Natalie Leslie' ? 'Principal Director' :
+                 agentProfile.name === 'Nicola Baird' ? 'Senior Consultant' : 'Property Consultant'}
+              </p>
+              <p className="text-[10px] text-[hsl(215,15%,40%)] font-mono mt-0.5">☎ {agentProfile.mobile}</p>
+              <p className="text-[10px] text-[hsl(215,15%,40%)]">{agentProfile.email}</p>
+              <p className="text-[9px] text-[hsl(215,15%,55%)] font-mono mt-0.5">{agentProfile.licenceNumber}</p>
+            </>
+          ) : (
+            <p className="text-[10px] text-[hsl(215,15%,52%)]">—</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── DIVIDER ── */}
+      <div className="border-t border-[hsl(215,15%,75%)] mb-4" />
+
+      {/* ── CLIENT INFO ── */}
+      {(client.name || viewingDate) && (
+        <div className="mb-4 flex flex-wrap gap-x-6 gap-y-1">
+          {client.name && (
+            <div>
+              <span className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">Client: </span>
+              <span className="text-[10px] font-semibold text-[hsl(215,25%,18%)]">{client.name}</span>
+              {client.mobile && <span className="text-[10px] text-[hsl(215,15%,45%)] font-mono ml-2">{client.mobile}</span>}
+            </div>
+          )}
+          {viewingDate && (
+            <div>
+              <span className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">Date: </span>
+              <span className="text-[10px] font-semibold text-[hsl(215,25%,18%)] font-mono">{viewingDate}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── PROPERTIES LIST ── */}
+      <div className="space-y-6">
+        {properties.map((property, idx) => {
+          const bedroomsLabel = property.bedrooms != null ? (property.bedrooms >= 5 ? '5+' : String(property.bedrooms)) : '—';
+          const bathroomsLabel = property.bathrooms != null ? (property.bathrooms >= 4 ? '4+' : String(property.bathrooms)) : '—';
+          const maidsRoom = hasMaidsRoom(property) ? 'Yes' : 'N/A';
+          const carParking = getCarParking(property);
+          const propertyHeading = mode === 'full-address'
+            ? `${property.building}${property.unit ? `, ${property.unit}` : ''}`
+            : (property.village ?? property.building);
+          const propTime = propertyTimes[property.id];
+          const propertyPhoto = photoUrls[property.id] || (property.photos && property.photos.length > 0 ? property.photos[0] : null);
+          const priceDisplay = property.monthlyRent
+            ? `HK$${property.monthlyRent.toLocaleString()}/mo`
+            : property.salePrice
+            ? `HK$${(property.salePrice / 1000000).toFixed(3)}M`
+            : '—';
+          const saleableArea = property.sqft ? `${property.sqft.toLocaleString()} sq.ft` : '—';
+          const pricePerSqft = property.salePrice && property.sqft
+            ? `$${Math.round(property.salePrice / property.sqft).toLocaleString()} sq.ft`
+            : property.monthlyRent && property.sqft
+            ? `$${Math.round(property.monthlyRent / property.sqft).toLocaleString()}/sqft`
+            : '—';
+          const features = property.additionalFeatures ?? [];
+          const extProp = property as Property & { engRemark?: string; chiRemark?: string };
+          const advertisingText = extProp.engRemark || property.agentNotes || '';
+          const advertisingBullets = parseAdvertisingRemarks(advertisingText);
+
+          return (
+            <div key={property.id} className={idx > 0 ? 'pt-4' : ''}>
+              {/* Property heading row */}
+              <div className="flex items-start justify-between mb-1">
+                <div>
+                  <h2 className="text-[18px] font-black text-[hsl(215,25%,12%)] leading-tight tracking-tight">
+                    {propertyHeading}
+                  </h2>
+                  {mode === 'full-address' && (
+                    <p className="text-[11px] text-[hsl(215,15%,40%)] mt-0.5 flex items-center gap-1">
+                      <span className="text-[#1B4F8A]">📍</span>
+                      {property.street}{property.district ? `, ${property.district}` : ''}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right flex-shrink-0 ml-4 flex items-center gap-3">
+                  {propTime && (
+                    <span className="text-[10px] font-mono font-bold text-[#1B4F8A] bg-[#1B4F8A]/10 px-2 py-0.5 rounded-full border border-[#1B4F8A]/20">
+                      {formatTime(propTime)}
+                    </span>
+                  )}
+                  <p className="text-[15px] font-black text-[hsl(215,25%,12%)]">{priceDisplay}</p>
+                </div>
+              </div>
+
+              {/* Specs + Photo */}
+              <div className="flex gap-4 mt-2 mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="border border-[hsl(215,15%,80%)] rounded-sm overflow-hidden mb-2">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(215,15%,80%)]">
+                          <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">BEDS</th>
+                          <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">BATHS</th>
+                          <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">CAR</th>
+                          <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">PRICE</th>
+                          <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">SALEABLE AREA</th>
+                          <th className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-1.5 py-1">PRICE/S.F.</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="text-[11px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">{bedroomsLabel}</td>
+                          <td className="text-[11px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">{bathroomsLabel}</td>
+                          <td className="text-[11px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 border-r border-[hsl(215,15%,80%)]">{carParking}</td>
+                          <td className="text-[10px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 border-r border-[hsl(215,15%,80%)] font-mono">{priceDisplay}</td>
+                          <td className="text-[10px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 border-r border-[hsl(215,15%,80%)] font-mono">{saleableArea}</td>
+                          <td className="text-[10px] font-bold text-[hsl(215,25%,18%)] px-1.5 py-1 font-mono">{pricePerSqft}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex gap-5 mb-1.5">
+                    <div>
+                      <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">YEAR BUILT</p>
+                      <p className="text-[10px] font-bold text-[hsl(215,25%,18%)]">{property.yearBuilt ?? '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">HELPERS ROOM</p>
+                      <p className="text-[10px] font-bold text-[hsl(215,25%,18%)]">{maidsRoom}</p>
+                    </div>
+                    {property.view && (
+                      <div>
+                        <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">VIEW</p>
+                        <p className="text-[10px] font-bold text-[hsl(215,25%,18%)]">{property.view}</p>
+                      </div>
+                    )}
+                    {property.direction && (
+                      <div>
+                        <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">FACING</p>
+                        <p className="text-[10px] font-bold text-[hsl(215,25%,18%)]">{property.direction}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {features.length > 0 && (
+                    <div className="mb-1.5">
+                      <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider mb-0.5">FEATURES</p>
+                      <p className="text-[9px] text-[hsl(215,25%,25%)] leading-relaxed">{features.join(', ')}</p>
+                    </div>
+                  )}
+
+                  {advertisingBullets.length > 0 && (
+                    <ul className="space-y-0.5 mt-1">
+                      {advertisingBullets.slice(0, 6).map((bullet, i) => (
+                        <li key={i} className="text-[9px] text-[hsl(215,25%,25%)] leading-snug flex items-start gap-1.5">
+                          <span className="flex-shrink-0 mt-0.5">*</span>
+                          <span>{bullet}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {/* RIGHT: Large property photo */}
+                <div className="flex-shrink-0 w-[190px]">
+                  {propertyPhoto ? (
+                    <div className="relative w-full h-[170px] border border-[hsl(215,15%,80%)] overflow-hidden">
+                      <Image
+                        src={propertyPhoto}
+                        alt={`${property.building} ${property.unit}`}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full h-[170px] border border-[hsl(215,15%,80%)] bg-[hsl(210,20%,95%)] flex flex-col items-center justify-center gap-2">
+                      <Icon name="HomeIcon" size={24} className="text-[hsl(215,15%,65%)]" />
+                      <p className="text-[9px] text-[hsl(215,15%,55%)]">No photo available</p>
+                    </div>
+                  )}
+                  <div className="flex justify-end mt-0.5">
+                    <p className="text-[8px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">
+                      PROPERTY ID &nbsp;<span className="text-[hsl(215,25%,18%)]">{property.ref || property.id}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {idx < properties.length - 1 && (
+                <div className="border-t border-[hsl(215,15%,80%)] mt-4" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── CLIENT COMMENTS BOX ── */}
+      {clientComments && (
+        <div className="mt-4 mb-3">
+          <p className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider mb-1">CLIENT NOTES</p>
+          <p className="text-[10px] text-[hsl(215,25%,25%)] leading-relaxed whitespace-pre-wrap">{clientComments}</p>
+        </div>
+      )}
+
+      {/* ── FOOTER ── */}
+      <div className="mt-4 pt-3 border-t border-[hsl(215,15%,75%)]">
+        <p className="text-[8px] text-[hsl(215,15%,50%)] leading-relaxed">
+          A standard agency fee of 50% of one month&apos;s total rent is payable by both landlord and tenant upon signing a tenancy agreement. For sales, a 1% agency fee of the total purchase price is payable by both vendor and purchaser on completion. These particulars are for guidance only and do not form part of any offer or contract. All property details (including price, fees, rates, descriptions, and floor areas) are subject to change and should be verified by your solicitor before entering into any agreement. EA Licence {COMPANY.eaaLicense} · {COMPANY.name} · {COMPANY.address}
+        </p>
+        <div className="flex items-center justify-between mt-1.5">
+          <p className="text-[8px] text-[hsl(215,15%,50%)]">{COMPANY.name} is a leading specialist in Hong Kong property.</p>
+          <p className="text-[8px] text-[hsl(215,15%,50%)] font-mono">Printed Date: {new Date().toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function BulkViewingSchedule({ properties, onClose }: BulkViewingScheduleProps) {
   const [mode, setMode] = useState<ScheduleMode>('full-address');
   const [selectedAgent, setSelectedAgent] = useState<string>(agentNames[0]);
-  const [client, setClient] = useState<ClientInfo>({ name: '', mobile: '' });
+  const [client, setClient] = useState<ClientInfo>({ name: '', mobile: '', email: '' });
   const [viewingDate, setViewingDate] = useState<string>('');
+  const [clientComments, setClientComments] = useState<string>('');
   const [propertyTimes, setPropertyTimes] = useState<Record<string, TimeValue>>(() =>
     Object.fromEntries(properties.map((p) => [p.id, defaultTime()]))
   );
-  const printRef = useRef<HTMLDivElement>(null);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
 
-  const agentProfile: AgentProfile | undefined = agentProfiles.find((a) => a.name === selectedAgent);
+  // Fetch primary photo for each property
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchPhotos() {
+      const supabase = createClient();
+      const results: Record<string, string> = {};
+      await Promise.all(
+        properties.map(async (p) => {
+          try {
+            if (p.ref) {
+              const { data: rows } = await supabase
+                .from('property_photos')
+                .select('public_url')
+                .eq('property_ref', p.ref)
+                .order('display_order', { ascending: true })
+                .limit(1);
+              if (rows && rows.length > 0) {
+                results[p.id] = rows[0].public_url;
+                return;
+              }
+            }
+            const { data: files } = await supabase.storage
+              .from('property-documents')
+              .list(`property-photos/${p.id}`, { limit: 1, sortBy: { column: 'created_at', order: 'asc' } });
+            if (files && files.length > 0) {
+              const { data: urlData } = supabase.storage
+                .from('property-documents')
+                .getPublicUrl(`property-photos/${p.id}/${files[0].name}`);
+              if (urlData?.publicUrl) results[p.id] = urlData.publicUrl;
+            }
+          } catch {
+            // silently ignore
+          }
+        })
+      );
+      if (!cancelled) setPhotoUrls(results);
+    }
+    fetchPhotos();
+    return () => { cancelled = true; };
+  }, [properties]);
 
   function handlePrint() {
     if (!client.name.trim()) {
       toast.error('Please enter the client name before printing');
       return;
     }
-    window.print();
+    // Serialize all schedule data and pass via URL parameter (base64-encoded JSON)
+    const printData = {
+      properties,
+      mode,
+      selectedAgent,
+      client,
+      viewingDate,
+      clientComments,
+      propertyTimes,
+      photoUrls,
+    };
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(printData))));
+    window.open(`/print-viewing-schedule?data=${encoded}`, '_blank');
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      {/* Print Styles */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden !important; }
-          #bulk-viewing-schedule-print, #bulk-viewing-schedule-print * { visibility: visible !important; }
-          #bulk-viewing-schedule-print { position: fixed; inset: 0; padding: 28px; background: white; }
-          .no-print { display: none !important; }
-        }
-      `}</style>
-
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(214,20%,88%)] flex-shrink-0 no-print">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#1B4F8A]/10 flex items-center justify-center">
-              <Icon name="CalendarIcon" size={20} className="text-[#1B4F8A]" />
+    <>
+      {/* ─── SCREEN MODAL ONLY — no print CSS tricks ─────────────────────── */}
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
+          {/* Modal Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-[hsl(214,20%,88%)] flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#1B4F8A]/10 flex items-center justify-center">
+                <Icon name="CalendarIcon" size={20} className="text-[#1B4F8A]" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-[hsl(215,25%,18%)]">Bulk Viewing Schedule</h2>
+                <p className="text-xs text-[hsl(215,15%,52%)]">{properties.length} propert{properties.length === 1 ? 'y' : 'ies'} selected</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-base font-bold text-[hsl(215,25%,18%)]">Bulk Viewing Schedule</h2>
-              <p className="text-xs text-[hsl(215,15%,52%)]">{properties.length} propert{properties.length === 1 ? 'y' : 'ies'} selected</p>
-            </div>
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-[hsl(210,15%,94%)] transition-colors">
+              <Icon name="XIcon" size={18} className="text-[hsl(215,15%,52%)]" />
+            </button>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-[hsl(210,15%,94%)] transition-colors">
-            <Icon name="XIcon" size={18} className="text-[hsl(215,15%,52%)]" />
-          </button>
-        </div>
 
-        {/* Controls */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin">
-          <div className="px-6 py-4 border-b border-[hsl(214,20%,88%)] space-y-4 no-print">
-            {/* Mode Toggle */}
-            <div>
-              <p className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-2">Schedule Version</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setMode('full-address')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    mode === 'full-address' ?'border-[#1B4F8A] bg-[#1B4F8A]/8 text-[#1B4F8A]' :'border-[hsl(214,20%,88%)] text-[hsl(215,15%,52%)] hover:border-[#1B4F8A]/40'
-                  }`}
-                >
-                  <Icon name="MapPinIcon" size={15} />
-                  Full Address
-                </button>
-                <button
-                  onClick={() => setMode('village-only')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    mode === 'village-only' ?'border-[#1B4F8A] bg-[#1B4F8A]/8 text-[#1B4F8A]' :'border-[hsl(214,20%,88%)] text-[hsl(215,15%,52%)] hover:border-[#1B4F8A]/40'
-                  }`}
-                >
-                  <Icon name="EyeOffIcon" size={15} />
-                  Village Only (Hide Address)
-                </button>
-              </div>
-              {mode === 'village-only' && (
-                <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
-                  <Icon name="InfoIcon" size={12} />
-                  Full address will be hidden — only village/area name shown
-                </p>
-              )}
-            </div>
-
-            {/* Form Fields */}
-            <div className="grid grid-cols-2 gap-4">
+          {/* Controls */}
+          <div className="flex-1 overflow-y-auto scrollbar-thin">
+            <div className="px-6 py-4 border-b border-[hsl(214,20%,88%)] space-y-4">
+              {/* Mode Toggle */}
               <div>
-                <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Agent</label>
-                <select
-                  value={selectedAgent}
-                  onChange={(e) => setSelectedAgent(e.target.value)}
-                  className="input-base w-full"
-                >
-                  {agentNames.map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Viewing Date</label>
-                <input
-                  type="text"
-                  value={viewingDate}
-                  onChange={(e) => setViewingDate(e.target.value)}
-                  placeholder="DD/MM/YYYY"
-                  className="input-base w-full font-mono"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Client Name *</label>
-                <input
-                  type="text"
-                  value={client.name}
-                  onChange={(e) => setClient({ ...client, name: e.target.value })}
-                  placeholder="Client full name"
-                  className="input-base w-full"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Client Mobile</label>
-                <input
-                  type="text"
-                  value={client.mobile}
-                  onChange={(e) => setClient({ ...client, mobile: e.target.value })}
-                  placeholder="+852 9xxx xxxx"
-                  className="input-base w-full font-mono"
-                />
-              </div>
-            </div>
-
-            {/* Selected Properties with Individual Times */}
-            <div>
-              <p className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-2">Properties &amp; Viewing Times</p>
-              <div className="space-y-2">
-                {properties.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[hsl(210,20%,97%)] border border-[hsl(214,20%,88%)]"
+                <p className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-2">Schedule Version</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setMode('full-address')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
+                      mode === 'full-address' ? 'border-[#1B4F8A] bg-[#1B4F8A]/8 text-[#1B4F8A]' : 'border-[hsl(214,20%,88%)] text-[hsl(215,15%,52%)] hover:border-[#1B4F8A]/40'
+                    }`}
                   >
-                    <Icon name="HomeIcon" size={13} className="text-[#1B4F8A] flex-shrink-0" />
-                    <span className="text-xs font-semibold text-[#1B4F8A] flex-1 min-w-0 truncate">
-                      {p.unit}, {p.building}
-                    </span>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Icon name="ClockIcon" size={12} className="text-[hsl(215,15%,52%)]" />
-                      <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2 py-1">
-                        <TimePicker
-                          value={propertyTimes[p.id] ?? defaultTime()}
-                          onChange={(v) =>
-                            setPropertyTimes((prev) => ({ ...prev, [p.id]: v }))
-                          }
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    <Icon name="MapPinIcon" size={15} />
+                    Full Address
+                  </button>
+                  <button
+                    onClick={() => setMode('village-only')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
+                      mode === 'village-only' ? 'border-[#1B4F8A] bg-[#1B4F8A]/8 text-[#1B4F8A]' : 'border-[hsl(214,20%,88%)] text-[hsl(215,15%,52%)] hover:border-[#1B4F8A]/40'
+                    }`}
+                  >
+                    <Icon name="EyeOffIcon" size={15} />
+                    Village Only (Hide Address)
+                  </button>
+                </div>
+                {mode === 'village-only' && (
+                  <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                    <Icon name="InfoIcon" size={12} />
+                    Full address will be hidden — only village/area name shown
+                  </p>
+                )}
               </div>
-            </div>
-          </div>
 
-          {/* ─── PRINTABLE SCHEDULE ─────────────────────────────────────────── */}
-          <div id="bulk-viewing-schedule-print" ref={printRef} className="p-6 bg-white">
-
-            {/* ── TOP HEADER: Logo + Company Info ── */}
-            <div className="flex items-center justify-between mb-5 pb-4 border-b-2 border-[#1B4F8A]">
-              <div className="flex items-center gap-3">
-                <div className="relative w-14 h-14 flex-shrink-0">
-                  <Image
-                    src="/assets/images/image-1780466751353.png"
-                    alt="Homes R Us logo"
-                    fill
-                    className="object-contain"
-                    unoptimized
+              {/* Form Fields */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Agent</label>
+                  <select
+                    value={selectedAgent}
+                    onChange={(e) => setSelectedAgent(e.target.value)}
+                    className="input-base w-full"
+                  >
+                    {agentNames.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Viewing Date</label>
+                  <CalendarPicker value={viewingDate} onChange={setViewingDate} />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Client Name *</label>
+                  <input
+                    type="text"
+                    value={client.name}
+                    onChange={(e) => setClient({ ...client, name: e.target.value })}
+                    placeholder="Client full name"
+                    className="input-base w-full"
                   />
                 </div>
                 <div>
-                  <p className="text-lg font-extrabold text-[#1B4F8A] leading-tight">{COMPANY.name}</p>
-                  <p className="text-[10px] text-[hsl(215,15%,52%)]">{COMPANY.address}</p>
-                  <p className="text-[10px] text-[hsl(215,15%,52%)] font-mono">{COMPANY.phones[0]}</p>
+                  <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Client Mobile</label>
+                  <input
+                    type="text"
+                    value={client.mobile}
+                    onChange={(e) => setClient({ ...client, mobile: e.target.value })}
+                    placeholder="+852 9xxx xxxx"
+                    className="input-base w-full font-mono"
+                  />
                 </div>
-              </div>
-              <div className="text-right">
-                <h1 className="text-xl font-bold text-[hsl(215,25%,18%)] tracking-tight">Viewing Schedule</h1>
-                {(viewingDate) && (
-                  <p className="text-xs text-[hsl(215,15%,52%)] mt-0.5 font-mono">
-                    {viewingDate}
-                  </p>
-                )}
-                <p className="text-[10px] text-[hsl(215,15%,62%)] mt-0.5">
-                  EAA Lic: {COMPANY.eaaLicense} · Co: {COMPANY.companyLicense}
-                </p>
-              </div>
-            </div>
-
-            {/* ── CLIENT + AGENT ROW ── */}
-            <div className="grid grid-cols-2 gap-5 mb-5">
-              {/* Client */}
-              <div>
-                <p className="text-[10px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[hsl(214,20%,88%)]">Client Details</p>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-[hsl(215,15%,52%)] w-14 flex-shrink-0">Name</span>
-                    <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{client.name || '—'}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-[hsl(215,15%,52%)] w-14 flex-shrink-0">Mobile</span>
-                    <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">{client.mobile || '—'}</span>
-                  </div>
-                  {(viewingDate) && (
-                    <div className="mt-2 bg-[#1B4F8A]/6 border border-[#1B4F8A]/20 rounded-lg p-2.5">
-                      <p className="text-[10px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-1">Appointment</p>
-                      {viewingDate && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-[hsl(215,15%,52%)] w-10 flex-shrink-0">Date</span>
-                          <span className="text-xs font-bold text-[#1B4F8A] font-mono">{viewingDate}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                <div>
+                  <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Client Email</label>
+                  <input
+                    type="text"
+                    value={client.email}
+                    onChange={(e) => setClient({ ...client, email: e.target.value })}
+                    placeholder="client@email.com"
+                    className="input-base w-full"
+                  />
                 </div>
               </div>
 
-              {/* Agent */}
+              {/* Client Comments */}
               <div>
-                <p className="text-[10px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[hsl(214,20%,88%)]">Your Agent</p>
-                {agentProfile ? (
-                  <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white font-bold text-sm ${agentAvatarColor(agentProfile.name)}`}>
-                      {agentInitials(agentProfile.name)}
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-bold text-[hsl(215,25%,18%)] leading-tight">{agentProfile.name}</p>
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-[hsl(215,15%,52%)] w-14 flex-shrink-0">Licence</span>
-                          <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">{agentProfile.licenceNumber}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-[hsl(215,15%,52%)] w-14 flex-shrink-0">Mobile</span>
-                          <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">{agentProfile.mobile}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-[hsl(215,15%,52%)] w-14 flex-shrink-0">Email</span>
-                          <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)] break-all">{agentProfile.email}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-[hsl(215,15%,52%)]">Agent details not found</p>
-                )}
+                <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Client Comments / Notes</label>
+                <textarea
+                  value={clientComments}
+                  onChange={(e) => setClientComments(e.target.value)}
+                  placeholder="Client feedback, notes, or comments after viewing..."
+                  rows={3}
+                  className="input-base w-full resize-none"
+                />
               </div>
-            </div>
 
-            {/* ── PROPERTIES LIST ── */}
-            <div>
-              <p className="text-[10px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-3 pb-1 border-b border-[hsl(214,20%,88%)]">
-                Properties to View ({properties.length})
-              </p>
-              <div className="space-y-3">
-                {properties.map((property, idx) => {
-                  const bedroomsLabel = property.bedrooms != null ? (property.bedrooms >= 5 ? '5+' : String(property.bedrooms)) : '—';
-                  const bathroomsLabel = property.bathrooms != null ? (property.bathrooms >= 4 ? '4+' : String(property.bathrooms)) : '—';
-                  const addressLine =
-                    mode === 'full-address'
-                      ? `${property.unit}, ${property.building}, ${property.street}, ${property.district}`
-                      : (property.village ?? property.district);
-                  const propTime = propertyTimes[property.id];
-
-                  return (
+              {/* Selected Properties with Individual Times */}
+              <div>
+                <p className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-2">Properties &amp; Viewing Times</p>
+                <div className="space-y-2">
+                  {properties.map((p) => (
                     <div
-                      key={property.id}
-                      className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden"
+                      key={p.id}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[hsl(210,20%,97%)] border border-[hsl(214,20%,88%)]"
                     >
-                      <div className="flex items-center gap-3 px-3 py-2 bg-[hsl(210,20%,97%)] border-b border-[hsl(214,20%,88%)]">
-                        <span className="w-5 h-5 rounded-full bg-[#1B4F8A] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                          {idx + 1}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-[hsl(215,25%,18%)] truncate">
-                            {mode === 'village-only'
-                              ? (property.village ?? property.building)
-                              : `${property.unit}, ${property.building}`}
-                          </p>
-                          <p className="text-[10px] text-[hsl(215,15%,52%)] truncate">{addressLine}</p>
+                      <Icon name="HomeIcon" size={13} className="text-[#1B4F8A] flex-shrink-0" />
+                      <span className="text-xs font-semibold text-[#1B4F8A] flex-1 min-w-0 truncate">
+                        {p.unit}, {p.building}
+                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Icon name="ClockIcon" size={12} className="text-[hsl(215,15%,52%)]" />
+                        <div className="bg-white border border-[hsl(214,20%,88%)] rounded-lg px-2 py-1">
+                          <TimePicker
+                            value={propertyTimes[p.id] ?? defaultTime()}
+                            onChange={(v) => setPropertyTimes((prev) => ({ ...prev, [p.id]: v }))}
+                          />
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {propTime && (
-                            <span className="text-[10px] font-mono font-bold text-[#1B4F8A] bg-[#1B4F8A]/10 px-2 py-0.5 rounded-full">
-                              {formatTime(propTime)}
-                            </span>
-                          )}
-                          {property.ref && (
-                            <span className="text-[10px] font-mono font-semibold text-[#1B4F8A] bg-[#1B4F8A]/10 px-1.5 py-0.5 rounded-full">
-                              {property.ref}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="px-3 py-2 grid grid-cols-4 gap-x-4 gap-y-1">
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-[hsl(215,15%,52%)]">Beds</span>
-                          <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{bedroomsLabel}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-[hsl(215,15%,52%)]">Baths</span>
-                          <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{bathroomsLabel}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-[hsl(215,15%,52%)]">Size</span>
-                          <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">{property.sqft.toLocaleString()} sf</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-[hsl(215,15%,52%)]">Built</span>
-                          <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{property.yearBuilt}</span>
-                        </div>
-                        {property.monthlyRent && (
-                          <div className="flex items-center gap-1 col-span-2">
-                            <span className="text-[10px] text-[hsl(215,15%,52%)]">Rent</span>
-                            <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">HK${property.monthlyRent.toLocaleString()}/mo</span>
-                          </div>
-                        )}
-                        {property.salePrice && (
-                          <div className="flex items-center gap-1 col-span-2">
-                            <span className="text-[10px] text-[hsl(215,15%,52%)]">Sale</span>
-                            <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">HK${(property.salePrice / 1000000).toFixed(2)}M</span>
-                          </div>
-                        )}
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* ── FOOTER ── */}
-            <div className="mt-5 pt-3 border-t border-[hsl(214,20%,88%)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="relative w-8 h-8 flex-shrink-0">
-                  <Image
-                    src="/assets/images/image-1780466751353.png"
-                    alt="Homes R Us"
-                    fill
-                    className="object-contain"
-                    unoptimized
-                  />
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold text-[hsl(215,25%,18%)]">{COMPANY.name} · {COMPANY.website}</p>
-                  <p className="text-[9px] text-[hsl(215,15%,62%)]">
-                    {mode === 'village-only' ? 'Full address available upon confirmed appointment. ' : ''}
-                    EAA Lic: {COMPANY.eaaLicense}
-                  </p>
-                </div>
+            {/* Preview of printable content inside modal (screen only) */}
+            <div className="px-6 py-4">
+              <p className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-3">Print Preview</p>
+              <div className="border border-[hsl(214,20%,88%)] rounded-xl overflow-hidden">
+                <PrintableSchedule
+                  properties={properties}
+                  mode={mode}
+                  selectedAgent={selectedAgent}
+                  client={client}
+                  viewingDate={viewingDate}
+                  clientComments={clientComments}
+                  propertyTimes={propertyTimes}
+                  photoUrls={photoUrls}
+                />
               </div>
-              <p className="text-[9px] text-[hsl(215,15%,62%)] font-mono">
-                Generated {new Date().toLocaleDateString('en-GB')}
-              </p>
             </div>
           </div>
-        </div>
 
-        {/* Modal Footer Actions */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-[hsl(214,20%,88%)] bg-[hsl(210,20%,98%)] flex-shrink-0 no-print">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${mode === 'full-address' ? 'bg-[#1B4F8A]' : 'bg-amber-500'}`} />
-            <span className="text-xs text-[hsl(215,15%,52%)]">
-              {mode === 'full-address' ? 'Full address version' : 'Village-only version (address hidden)'}
-              {' · '}{properties.length} propert{properties.length === 1 ? 'y' : 'ies'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={onClose} className="btn-ghost py-1.5 text-xs">
-              Cancel
-            </button>
-            <button onClick={handlePrint} className="btn-primary py-1.5 text-xs">
-              <Icon name="PrinterIcon" size={13} />
-              Print Schedule
-            </button>
+          {/* Modal Footer Actions */}
+          <div className="flex items-center justify-between px-6 py-4 border-t border-[hsl(214,20%,88%)] bg-[hsl(210,20%,98%)] flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${mode === 'full-address' ? 'bg-[#1B4F8A]' : 'bg-amber-500'}`} />
+              <span className="text-xs text-[hsl(215,15%,52%)]">
+                {mode === 'full-address' ? 'Full address version' : 'Village-only version (address hidden)'}
+                {' · '}{properties.length} propert{properties.length === 1 ? 'y' : 'ies'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={onClose} className="btn-ghost py-1.5 text-xs">
+                Cancel
+              </button>
+              <button onClick={handlePrint} className="btn-primary py-1.5 text-xs">
+                <Icon name="PrinterIcon" size={13} />
+                Print Schedule
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

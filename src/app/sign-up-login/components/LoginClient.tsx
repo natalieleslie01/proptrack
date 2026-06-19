@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import AppLogo from '@/components/ui/AppLogo';
 import Icon from '@/components/ui/AppIcon';
-import StatusBadge from '@/components/ui/StatusBadge';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface LoginFormData {
@@ -22,38 +21,11 @@ interface SignUpFormData {
   confirmPassword: string;
 }
 
-const demoCredentials = [
-  {
-    id: 'cred-natalie',
-    role: 'admin' as const,
-    name: 'Natalie Leslie',
-    email: 'natalie@homesrus.hk',
-    password: 'Agent@PropHK2026',
-    initials: 'NL',
-  },
-  {
-    id: 'cred-nicky',
-    role: 'agent' as const,
-    name: 'Nicola Baird',
-    email: 'nicky@homesrus.hk',
-    password: 'Agent@PropHK2026',
-    initials: 'NB',
-  },
-  {
-    id: 'cred-cris',
-    role: 'agent' as const,
-    name: 'Cris Yan',
-    email: 'cris@homesrus.hk',
-    password: 'Agent@PropHK2026',
-    initials: 'CY',
-  },
-];
-
 const hkDistricts = ['Central', 'Wan Chai', 'Causeway Bay', 'Tsim Sha Tsui', 'Mong Kok', 'Admiralty', 'Mid-Levels', 'West Kowloon'];
 
 export default function LoginClient() {
   const router = useRouter();
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, loading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -62,38 +34,18 @@ export default function LoginClient() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
-
-  // Cooldown state for rate-limit UX
-  const [loginCooldown, setLoginCooldown] = useState(0);
-  const [forgotCooldown, setForgotCooldown] = useState(0);
+  const [loginSuccess, setLoginSuccess] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    // Only seed demo users once per browser session to avoid Supabase rate limits
-    if (typeof window !== 'undefined' && !sessionStorage.getItem('demo_seeded')) {
-      fetch('/api/admin/seed-demo-users', { method: 'POST' })
-        .then(() => {
-          sessionStorage.setItem('demo_seeded', '1');
-        })
-        .catch(() => {
-          // Silent fail — demo users may already exist
-        });
-    }
   }, []);
 
-  // Login cooldown countdown
+  // When loginSuccess is true and user is populated (session committed), navigate
   useEffect(() => {
-    if (loginCooldown <= 0) return;
-    const timer = setTimeout(() => setLoginCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [loginCooldown]);
-
-  // Forgot password cooldown countdown
-  useEffect(() => {
-    if (forgotCooldown <= 0) return;
-    const timer = setTimeout(() => setForgotCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [forgotCooldown]);
+    if (loginSuccess && !loading && user) {
+      window.location.replace('/dashboard');
+    }
+  }, [loginSuccess, loading, user]);
 
   const {
     register,
@@ -113,26 +65,15 @@ export default function LoginClient() {
     defaultValues: { fullName: '', email: '', password: '', confirmPassword: '' },
   });
 
-  function autofill(cred: typeof demoCredentials[0]) {
-    setValue('email', cred.email, { shouldValidate: true });
-    setValue('password', cred.password, { shouldValidate: true });
-    toast.info(`Demo credentials loaded — ${cred.name} (${cred.role})`);
-  }
-
-  async function onSubmit(data: LoginFormData) {
-    if (loginCooldown > 0) return;
+    async function onSubmit(data: LoginFormData) {
     setIsLoading(true);
     try {
       await signIn(data.email, data.password);
-      const matched = demoCredentials.find((c) => c.email === data.email);
-      toast.success(`Welcome back${matched ? `, ${matched.name}` : ''}!`);
-      window.location.href = '/dashboard';
+      toast.success(`Welcome back!`);
+      setLoginSuccess(true);
     } catch (err: any) {
       const msg: string = err?.message || '';
-      if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many') || msg.toLowerCase().includes('request rate limit')) {
-        setLoginCooldown(60);
-        toast.error('Too many attempts — please wait 60 seconds before trying again.');
-      } else if (msg.toLowerCase().includes('email not confirmed')) {
+      if (msg.toLowerCase().includes('email not confirmed')) {
         toast.error('Please confirm your email address before signing in. Check your inbox.');
       } else if (msg.toLowerCase().includes('invalid login credentials') || msg.toLowerCase().includes('invalid credentials')) {
         toast.error('Incorrect email or password. Please try again.');
@@ -159,15 +100,13 @@ export default function LoginClient() {
 
   async function handleForgotPassword(e: React.FormEvent) {
     e.preventDefault();
-    if (!forgotEmail || forgotCooldown > 0) return;
+    if (!forgotEmail) return;
     setForgotLoading(true);
     try {
       const { createClient } = await import('@/lib/supabase/client');
       const supabase = createClient();
-      // Always use the published site URL so the reset link works on the correct domain.
-      // window.location.origin may return the preview URL (proptrack7151.builtwithrocket.new)
-      // which is not in Supabase's allowed redirect list, causing "Invalid path" errors.
-      const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://homesrus-proptrack.com').replace(/\/$/, '');
+      const envUrl = (process.env.NEXT_PUBLIC_SITE_URL || '').replace(/\/$/, '');
+      const siteUrl = (envUrl && !envUrl.includes('builtwithrocket.new')) ? envUrl : 'https://homesrus-proptrack.com';
       const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
         redirectTo: `${siteUrl}/auth/callback?type=recovery`,
       });
@@ -175,12 +114,7 @@ export default function LoginClient() {
       setForgotSent(true);
     } catch (err: any) {
       const msg: string = err?.message || '';
-      if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many') || msg.toLowerCase().includes('request rate limit')) {
-        setForgotCooldown(60);
-        toast.error('Too many attempts — please wait 60 seconds before trying again.');
-      } else {
-        toast.error(msg || 'Failed to send reset email. Please try again.');
-      }
+      toast.error(msg || 'Failed to send reset email. Please try again.');
     } finally {
       setForgotLoading(false);
     }
@@ -419,7 +353,7 @@ export default function LoginClient() {
                     {/* Submit */}
                     <button
                       type="submit"
-                      disabled={isLoading || loginCooldown > 0}
+                      disabled={isLoading}
                       className="btn-primary w-full justify-center py-2.5 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                       style={{ minHeight: '42px' }}
                     >
@@ -427,11 +361,6 @@ export default function LoginClient() {
                         <>
                           <Icon name="Loader2Icon" size={16} className="animate-spin" />
                           Signing in…
-                        </>
-                      ) : loginCooldown > 0 ? (
-                        <>
-                          <Icon name="ClockIcon" size={16} />
-                          Too many attempts — wait {loginCooldown}s
                         </>
                       ) : (
                         <>
@@ -441,54 +370,6 @@ export default function LoginClient() {
                       )}
                     </button>
                   </form>
-
-                  {/* Divider */}
-                  <div className="flex items-center gap-3 my-6">
-                    <div className="flex-1 h-px bg-[hsl(214,20%,88%)]" />
-                    <span className="text-xs text-[hsl(215,15%,52%)]">Demo Accounts</span>
-                    <div className="flex-1 h-px bg-[hsl(214,20%,88%)]" />
-                  </div>
-
-                  {/* Demo credentials */}
-                  <div className="card overflow-hidden">
-                    <div className="px-4 py-2.5 bg-[hsl(210,20%,97%)] border-b border-[hsl(214,20%,88%)]">
-                      <p className="text-xs font-semibold text-[hsl(215,15%,52%)]">
-                        Click any row to autofill credentials
-                      </p>
-                    </div>
-                    <div className="divide-y divide-[hsl(214,20%,92%)]">
-                      {demoCredentials.map((cred) => (
-                        <button
-                          key={cred.id}
-                          type="button"
-                          onClick={() => autofill(cred)}
-                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[hsl(210,15%,97%)] transition-colors text-left"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-[#8B1A2B] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                            {cred.initials}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold text-[hsl(215,25%,18%)]">{cred.name}</p>
-                              <StatusBadge status={cred.role} />
-                            </div>
-                            <p className="text-xs text-[hsl(215,15%,52%)] font-mono truncate">{cred.email}</p>
-                          </div>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <Icon name="CornerDownLeftIcon" size={13} className="text-[#8B1A2B]" />
-                            <span className="text-xs text-[#8B1A2B] font-medium">Use</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Role permissions note */}
-                  <div className="mt-4 p-3 bg-[hsl(210,20%,97%)] rounded-lg border border-[hsl(214,20%,88%)]">
-                    <p className="text-xs text-[hsl(215,15%,52%)] leading-relaxed">
-                      <strong className="text-[hsl(215,25%,18%)]">Role permissions:</strong> Agents and managers can view and edit all properties. Only admins can delete records and manage user accounts.
-                    </p>
-                  </div>
                 </>
               ) : (
                 /* Sign Up Form */
@@ -712,7 +593,7 @@ export default function LoginClient() {
                   </div>
                   <button
                     type="submit"
-                    disabled={forgotLoading || forgotCooldown > 0}
+                    disabled={forgotLoading}
                     className="btn-primary w-full justify-center py-2.5 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{ minHeight: '42px' }}
                   >
@@ -720,11 +601,6 @@ export default function LoginClient() {
                       <>
                         <Icon name="Loader2Icon" size={16} className="animate-spin" />
                         Sending…
-                      </>
-                    ) : forgotCooldown > 0 ? (
-                      <>
-                        <Icon name="ClockIcon" size={16} />
-                        Too many attempts — wait {forgotCooldown}s
                       </>
                     ) : (
                       <>

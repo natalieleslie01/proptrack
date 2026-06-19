@@ -23,24 +23,22 @@ export default function ResetPasswordClient() {
   }, []);
 
   useEffect(() => {
-    // Supabase sets the session automatically when the recovery link is clicked
-    // We just need to verify there is an active session
     const supabase = createClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setIsValidSession(true);
-      } else {
-        setIsValidSession(false);
-      }
-      setCheckingSession(false);
-    });
 
-    // Listen for the PASSWORD_RECOVERY event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+    // Listen for the PASSWORD_RECOVERY event first (fires when verifyOtp sets the session)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
         setIsValidSession(true);
         setCheckingSession(false);
       }
+    });
+
+    // Also check if a session already exists (e.g. page reload after verifyOtp)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setIsValidSession(true);
+      }
+      setCheckingSession(false);
     });
 
     return () => subscription.unsubscribe();

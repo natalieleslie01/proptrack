@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Icon from '@/components/ui/AppIcon';
 import { Property, agentNames, agentProfiles, AgentProfile } from './mockData';
 import { COMPANY } from '@/lib/company';
 import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
 
 interface ViewingScheduleProps {
   property: Property;
@@ -15,49 +16,109 @@ interface ViewingScheduleProps {
 interface ClientInfo {
   name: string;
   mobile: string;
+  email: string;
 }
 
 type ScheduleMode = 'full-address' | 'village-only';
 
-// Agent avatar colours for initials fallback
-const AVATAR_COLORS = [
-  'bg-[#1B4F8A]',
-  'bg-emerald-600',
-  'bg-violet-600',
-  'bg-amber-600',
-  'bg-rose-600',
-  'bg-teal-600',
-];
-
-function agentInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
+function hasMaidsRoom(property: Property): boolean {
+  if (!property.additionalFeatures) return false;
+  return property.additionalFeatures.some((f) =>
+    f.toLowerCase().includes('maid')
+  );
 }
 
-function agentAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+function getCarParking(property: Property): string {
+  if (!property.additionalFeatures) return 'N/A';
+  const carFeature = property.additionalFeatures.find((f) =>
+    f.toLowerCase().includes('car') || f.toLowerCase().includes('parking') || f.toLowerCase().includes('garage')
+  );
+  return carFeature ? '1' : 'N/A';
+}
+
+function parseAdvertisingRemarks(text: string): string[] {
+  if (!text) return [];
+  // Split by common bullet/newline patterns
+  const lines = text
+    .split(/\n|\r\n|\r|\*(?=\s)|•/)
+    .map((l) => l.replace(/^\s*[\*•\-]\s*/, '').trim())
+    .filter((l) => l.length > 3);
+  return lines;
 }
 
 export default function ViewingSchedule({ property, onClose }: ViewingScheduleProps) {
   const [mode, setMode] = useState<ScheduleMode>('full-address');
   const [selectedAgent, setSelectedAgent] = useState<string>(agentNames[0]);
-  const [client, setClient] = useState<ClientInfo>({ name: '', mobile: '' });
+  const [client, setClient] = useState<ClientInfo>({ name: '', mobile: '', email: '' });
   const [viewingDate, setViewingDate] = useState<string>('');
   const [viewingTime, setViewingTime] = useState<string>('');
+  const [clientComments, setClientComments] = useState<string>('');
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Fetch primary property photo
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchPhoto() {
+      try {
+        const supabase = createClient();
+        // First try property_photos table
+        if (property.ref) {
+          const { data: rows } = await supabase
+            .from('property_photos')
+            .select('public_url')
+            .eq('property_ref', property.ref)
+            .order('display_order', { ascending: true })
+            .limit(1);
+          if (!cancelled && rows && rows.length > 0) {
+            setPhotoUrl(rows[0].public_url);
+            return;
+          }
+        }
+        // Fallback: storage bucket
+        const { data: files } = await supabase.storage
+          .from('property-documents')
+          .list(`property-photos/${property.id}`, { limit: 1, sortBy: { column: 'created_at', order: 'asc' } });
+        if (!cancelled && files && files.length > 0) {
+          const { data: urlData } = supabase.storage
+            .from('property-documents')
+            .getPublicUrl(`property-photos/${property.id}/${files[0].name}`);
+          if (urlData?.publicUrl) setPhotoUrl(urlData.publicUrl);
+        }
+      } catch {
+        // silently ignore
+      }
+    }
+    fetchPhoto();
+    return () => { cancelled = true; };
+  }, [property.id, property.ref]);
 
   const agentProfile: AgentProfile | undefined = agentProfiles.find((a) => a.name === selectedAgent);
 
   const bedroomsLabel = property.bedrooms != null ? (property.bedrooms >= 5 ? '5+' : String(property.bedrooms)) : '—';
   const bathroomsLabel = property.bathrooms != null ? (property.bathrooms >= 4 ? '4+' : String(property.bathrooms)) : '—';
+  const maidsRoom = hasMaidsRoom(property) ? 'Yes' : 'N/A';
+  const carParking = getCarParking(property);
 
-  const propertyPhoto = property.photos && property.photos.length > 0 ? property.photos[0] : null;
+  const propertyPhoto = photoUrl || (property.photos && property.photos.length > 0 ? property.photos[0] : null);
+
+  // Extended fields from DB mapping
+  const extProp = property as Property & { engRemark?: string; chiRemark?: string };
+  const advertisingText = extProp.engRemark || property.agentNotes || '';
+  const advertisingBullets = parseAdvertisingRemarks(advertisingText);
+
+  const saleableArea = property.sqft ? `${property.sqft.toLocaleString()} sq.ft` : '—';
+  const priceDisplay = property.monthlyRent
+    ? `HK$${property.monthlyRent.toLocaleString()}/mo`
+    : property.salePrice
+    ? `HK$${(property.salePrice / 1000000).toFixed(3)}M`
+    : '—';
+
+  const pricePerSqft = property.salePrice && property.sqft
+    ? `$${Math.round(property.salePrice / property.sqft).toLocaleString()} sq.ft`
+    : property.monthlyRent && property.sqft
+    ? `$${Math.round(property.monthlyRent / property.sqft).toLocaleString()}/sqft`
+    : '—';
 
   function handlePrint() {
     if (!client.name.trim()) {
@@ -72,16 +133,25 @@ export default function ViewingSchedule({ property, onClose }: ViewingSchedulePr
       ? `${property.unit}, ${property.building}, ${property.street}, ${property.district}`
       : (property.village ?? property.district);
 
-  const addressLabel = mode === 'full-address' ? 'Full Address' : 'Village';
+  const propertyHeading = mode === 'full-address'
+    ? `${property.building}${property.unit ? `, ${property.unit}` : ''}`
+    : (property.village ?? property.building);
+
+  const features = property.additionalFeatures ?? [];
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      {/* Print Styles */}
+      {/* Print Styles — Portrait A4 */}
       <style>{`
         @media print {
+          @page { size: A4 portrait; margin: 12mm 12mm; }
           body * { visibility: hidden !important; }
           #viewing-schedule-print, #viewing-schedule-print * { visibility: visible !important; }
-          #viewing-schedule-print { position: fixed; inset: 0; padding: 28px; background: white; }
+          #viewing-schedule-print {
+            position: fixed; inset: 0;
+            background: white;
+            width: 100%;
+          }
           .no-print { display: none !important; }
         }
       `}</style>
@@ -113,7 +183,7 @@ export default function ViewingSchedule({ property, onClose }: ViewingSchedulePr
                 <button
                   onClick={() => setMode('full-address')}
                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    mode === 'full-address' ?'border-[#1B4F8A] bg-[#1B4F8A]/8 text-[#1B4F8A]' :'border-[hsl(214,20%,88%)] text-[hsl(215,15%,52%)] hover:border-[#1B4F8A]/40'
+                    mode === 'full-address' ? 'border-[#1B4F8A] bg-[#1B4F8A]/8 text-[#1B4F8A]' : 'border-[hsl(214,20%,88%)] text-[hsl(215,15%,52%)] hover:border-[#1B4F8A]/40'
                   }`}
                 >
                   <Icon name="MapPinIcon" size={15} />
@@ -122,7 +192,7 @@ export default function ViewingSchedule({ property, onClose }: ViewingSchedulePr
                 <button
                   onClick={() => setMode('village-only')}
                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border-2 text-sm font-medium transition-all ${
-                    mode === 'village-only' ?'border-[#1B4F8A] bg-[#1B4F8A]/8 text-[#1B4F8A]' :'border-[hsl(214,20%,88%)] text-[hsl(215,15%,52%)] hover:border-[#1B4F8A]/40'
+                    mode === 'village-only' ? 'border-[#1B4F8A] bg-[#1B4F8A]/8 text-[#1B4F8A]' : 'border-[hsl(214,20%,88%)] text-[hsl(215,15%,52%)] hover:border-[#1B4F8A]/40'
                   }`}
                 >
                   <Icon name="EyeOffIcon" size={15} />
@@ -182,6 +252,16 @@ export default function ViewingSchedule({ property, onClose }: ViewingSchedulePr
                 />
               </div>
               <div>
+                <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Client Email</label>
+                <input
+                  type="text"
+                  value={client.email}
+                  onChange={(e) => setClient({ ...client, email: e.target.value })}
+                  placeholder="client@email.com"
+                  className="input-base w-full"
+                />
+              </div>
+              <div>
                 <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Viewing Time</label>
                 <input
                   type="text"
@@ -192,16 +272,28 @@ export default function ViewingSchedule({ property, onClose }: ViewingSchedulePr
                 />
               </div>
             </div>
+
+            {/* Client Comments */}
+            <div>
+              <label className="text-xs font-semibold text-[hsl(215,15%,52%)] uppercase tracking-wider mb-1.5 block">Client Comments / Notes</label>
+              <textarea
+                value={clientComments}
+                onChange={(e) => setClientComments(e.target.value)}
+                placeholder="Client feedback, notes, or comments after viewing..."
+                rows={3}
+                className="input-base w-full resize-none"
+              />
+            </div>
           </div>
 
-          {/* ─── PRINTABLE SCHEDULE ─────────────────────────────────────────── */}
-          <div id="viewing-schedule-print" ref={printRef} className="p-6 bg-white">
+          {/* ─── PRINTABLE SCHEDULE — Habitat-style Portrait A4 ─────────────── */}
+          <div id="viewing-schedule-print" ref={printRef} className="p-7 bg-white font-sans">
 
-            {/* ── TOP HEADER: Logo + Company Info ── */}
-            <div className="flex items-center justify-between mb-5 pb-4 border-b-2 border-[#1B4F8A]">
-              {/* Logo */}
+            {/* ── PAGE HEADER: Logo left | Agent right ── */}
+            <div className="flex items-start justify-between mb-5">
+              {/* LEFT: Company branding */}
               <div className="flex items-center gap-3">
-                <div className="relative w-14 h-14 flex-shrink-0">
+                <div className="relative w-12 h-12 flex-shrink-0">
                   <Image
                     src="/assets/images/image-1780466751353.png"
                     alt="Homes R Us logo"
@@ -211,219 +303,186 @@ export default function ViewingSchedule({ property, onClose }: ViewingSchedulePr
                   />
                 </div>
                 <div>
-                  <p className="text-lg font-extrabold text-[#1B4F8A] leading-tight">{COMPANY.name}</p>
-                  <p className="text-[10px] text-[hsl(215,15%,52%)]">{COMPANY.address}</p>
-                  <p className="text-[10px] text-[hsl(215,15%,52%)] font-mono">{COMPANY.phones[0]}</p>
+                  <p className="text-[18px] font-black text-[hsl(215,25%,12%)] leading-none tracking-tight">{COMPANY.name}</p>
+                  <p className="text-[9px] font-semibold text-[hsl(215,15%,45%)] uppercase tracking-widest mt-0.5">Property</p>
                 </div>
               </div>
-              {/* Schedule Title */}
+
+              {/* RIGHT: Agent details */}
               <div className="text-right">
-                <h1 className="text-xl font-bold text-[hsl(215,25%,18%)] tracking-tight">Viewing Schedule</h1>
-                {(viewingDate || viewingTime) && (
-                  <p className="text-xs text-[hsl(215,15%,52%)] mt-0.5 font-mono">
-                    {viewingDate && `${viewingDate}`}{viewingDate && viewingTime && ' · '}{viewingTime && `${viewingTime}`}
-                  </p>
+                {agentProfile ? (
+                  <>
+                    <p className="text-[12px] font-bold text-[hsl(215,25%,18%)] leading-tight">{agentProfile.name}</p>
+                    <p className="text-[10px] text-[hsl(215,15%,45%)] italic">
+                      {agentProfile.name === 'Natalie Leslie' ? 'Principal Director' :
+                       agentProfile.name === 'Nicola Baird' ? 'Senior Consultant' : 'Property Consultant'}
+                    </p>
+                    <p className="text-[10px] text-[hsl(215,15%,40%)] font-mono mt-0.5">☎ {agentProfile.mobile}</p>
+                    <p className="text-[10px] text-[hsl(215,15%,40%)]">{agentProfile.email}</p>
+                    <p className="text-[9px] text-[hsl(215,15%,55%)] font-mono mt-0.5">{agentProfile.licenceNumber}</p>
+                  </>
+                ) : (
+                  <p className="text-[10px] text-[hsl(215,15%,52%)]">—</p>
                 )}
-                <p className="text-[10px] text-[hsl(215,15%,62%)] mt-0.5">
-                  EAA Lic: {COMPANY.eaaLicense} · Co: {COMPANY.companyLicense}
-                </p>
               </div>
             </div>
 
-            {/* ── PROPERTY PHOTO BANNER ── */}
-            {propertyPhoto && (
-              <div className="mb-5 rounded-xl overflow-hidden border border-[hsl(214,20%,88%)]">
-                <div className="relative w-full h-44">
-                  <Image
-                    src={propertyPhoto}
-                    alt={`${property.building} — ${property.unit}`}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
-                  {/* Overlay badge */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3">
-                    <p className="text-white font-bold text-sm leading-tight">
-                      {property.building}{property.unit ? `, ${property.unit}` : ''}
-                    </p>
-                    <p className="text-white/80 text-xs">
-                      {mode === 'full-address' ? addressLine : (property.village ?? property.district)}
-                    </p>
-                  </div>
-                  {/* Ref badge */}
-                  <div className="absolute top-3 right-3 bg-[#1B4F8A] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    Ref: {property.id}
-                  </div>
+            {/* ── DIVIDER ── */}
+            <div className="border-t border-[hsl(215,15%,75%)] mb-4" />
+
+            {/* ── PROPERTY HEADING: Name left | Price right ── */}
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h2 className="text-[20px] font-black text-[hsl(215,25%,12%)] leading-tight tracking-tight">
+                  {propertyHeading}
+                </h2>
+                {mode === 'full-address' && (
+                  <p className="text-[11px] text-[hsl(215,15%,40%)] mt-0.5 flex items-center gap-1">
+                    <span className="text-[#1B4F8A]">📍</span>
+                    {property.street}{property.district ? `, ${property.district}` : ''}
+                  </p>
+                )}
+              </div>
+              <div className="text-right flex-shrink-0 ml-4">
+                <p className="text-[16px] font-black text-[hsl(215,25%,12%)]">{priceDisplay}</p>
+              </div>
+            </div>
+
+            {/* ── SPECS ROW + PHOTO (side by side) ── */}
+            <div className="flex gap-4 mt-3 mb-3">
+              {/* LEFT: Specs + details */}
+              <div className="flex-1 min-w-0">
+                {/* Specs table row */}
+                <div className="border border-[hsl(215,15%,80%)] rounded-sm overflow-hidden mb-3">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-[hsl(215,15%,80%)]">
+                        <th className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-2 py-1.5 border-r border-[hsl(215,15%,80%)]">BEDS</th>
+                        <th className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-2 py-1.5 border-r border-[hsl(215,15%,80%)]">BATHS</th>
+                        <th className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-2 py-1.5 border-r border-[hsl(215,15%,80%)]">CAR</th>
+                        <th className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-2 py-1.5 border-r border-[hsl(215,15%,80%)]">PRICE</th>
+                        <th className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-2 py-1.5 border-r border-[hsl(215,15%,80%)]">SALEABLE AREA</th>
+                        <th className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider px-2 py-1.5">PRICE/S.F.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="text-[12px] font-bold text-[hsl(215,25%,18%)] px-2 py-1.5 border-r border-[hsl(215,15%,80%)]">{bedroomsLabel}</td>
+                        <td className="text-[12px] font-bold text-[hsl(215,25%,18%)] px-2 py-1.5 border-r border-[hsl(215,15%,80%)]">{bathroomsLabel}</td>
+                        <td className="text-[12px] font-bold text-[hsl(215,25%,18%)] px-2 py-1.5 border-r border-[hsl(215,15%,80%)]">{carParking}</td>
+                        <td className="text-[11px] font-bold text-[hsl(215,25%,18%)] px-2 py-1.5 border-r border-[hsl(215,15%,80%)] font-mono">{priceDisplay}</td>
+                        <td className="text-[11px] font-bold text-[hsl(215,25%,18%)] px-2 py-1.5 border-r border-[hsl(215,15%,80%)] font-mono">{saleableArea}</td>
+                        <td className="text-[11px] font-bold text-[hsl(215,25%,18%)] px-2 py-1.5 font-mono">{pricePerSqft}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
+
+                {/* Year Built + Helpers Room row */}
+                <div className="flex gap-6 mb-2">
+                  <div>
+                    <p className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">YEAR BUILT</p>
+                    <p className="text-[11px] font-bold text-[hsl(215,25%,18%)]">{property.yearBuilt ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">HELPERS ROOM</p>
+                    <p className="text-[11px] font-bold text-[hsl(215,25%,18%)]">{maidsRoom}</p>
+                  </div>
+                  {property.view && (
+                    <div>
+                      <p className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">VIEW</p>
+                      <p className="text-[11px] font-bold text-[hsl(215,25%,18%)]">{property.view}</p>
+                    </div>
+                  )}
+                  {property.direction && (
+                    <div>
+                      <p className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">FACING</p>
+                      <p className="text-[11px] font-bold text-[hsl(215,25%,18%)]">{property.direction}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Features */}
+                {features.length > 0 && (
+                  <div className="mb-2">
+                    <p className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider mb-1">FEATURES</p>
+                    <p className="text-[10px] text-[hsl(215,25%,25%)] leading-relaxed">
+                      {features.join(', ')}
+                    </p>
+                  </div>
+                )}
+
+                {/* Advertising Remarks as bullet points */}
+                {advertisingBullets.length > 0 && (
+                  <div className="mt-2">
+                    <ul className="space-y-0.5">
+                      {advertisingBullets.map((bullet, i) => (
+                        <li key={i} className="text-[10px] text-[hsl(215,25%,25%)] leading-snug flex items-start gap-1.5">
+                          <span className="text-[hsl(215,25%,25%)] mt-0.5 flex-shrink-0">*</span>
+                          <span>{bullet}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Viewing appointment info */}
+                {(viewingDate || viewingTime || client.name) && (
+                  <div className="mt-3 pt-2 border-t border-[hsl(215,15%,85%)]">
+                    <p className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider mb-1">VIEWING APPOINTMENT</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                      {client.name && <p className="text-[10px] text-[hsl(215,25%,18%)]"><span className="font-semibold">Client:</span> {client.name}</p>}
+                      {viewingDate && <p className="text-[10px] text-[hsl(215,25%,18%)] font-mono"><span className="font-semibold">Date:</span> {viewingDate}</p>}
+                      {viewingTime && <p className="text-[10px] text-[hsl(215,25%,18%)] font-mono"><span className="font-semibold">Time:</span> {viewingTime}</p>}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* RIGHT: Large property photo */}
+              <div className="flex-shrink-0 w-[220px]">
+                {propertyPhoto ? (
+                  <div className="relative w-full h-[200px] border border-[hsl(215,15%,80%)] overflow-hidden">
+                    <Image
+                      src={propertyPhoto}
+                      alt={`${property.building} — ${property.unit}`}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-[200px] border border-[hsl(215,15%,80%)] bg-[hsl(210,20%,95%)] flex flex-col items-center justify-center gap-2">
+                    <Icon name="HomeIcon" size={28} className="text-[hsl(215,15%,65%)]" />
+                    <p className="text-[9px] text-[hsl(215,15%,55%)]">No photo available</p>
+                  </div>
+                )}
+                {/* Property ID bottom right of photo */}
+                <div className="flex justify-end mt-1">
+                  <p className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider">
+                    PROPERTY ID &nbsp;<span className="text-[hsl(215,25%,18%)]">{property.ref || property.id}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* ── CLIENT COMMENTS BOX ── */}
+            {clientComments && (
+              <div className="mt-2 mb-3">
+                <p className="text-[9px] font-bold text-[hsl(215,15%,45%)] uppercase tracking-wider mb-1">CLIENT NOTES</p>
+                <p className="text-[10px] text-[hsl(215,25%,25%)] leading-relaxed whitespace-pre-wrap">{clientComments}</p>
               </div>
             )}
 
-            {/* ── MAIN CONTENT: Property + Agent + Client ── */}
-            <div className="grid grid-cols-2 gap-5 mb-5">
-
-              {/* LEFT: Property Details */}
-              <div>
-                <p className="text-[10px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[hsl(214,20%,88%)]">Property Details</p>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-start gap-2">
-                    <span className="text-[11px] text-[hsl(215,15%,52%)] flex-shrink-0">{addressLabel}</span>
-                    <span className="text-xs font-semibold text-[hsl(215,25%,18%)] text-right">{addressLine}</span>
-                  </div>
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-[11px] text-[hsl(215,15%,52%)]">Bedrooms</span>
-                    <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{bedroomsLabel}</span>
-                  </div>
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-[11px] text-[hsl(215,15%,52%)]">Bathrooms</span>
-                    <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{bathroomsLabel}</span>
-                  </div>
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-[11px] text-[hsl(215,15%,52%)]">Saleable Sq Ft</span>
-                    <span className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">{property.sqft.toLocaleString()} sq ft</span>
-                  </div>
-                  <div className="flex justify-between items-center gap-2">
-                    <span className="text-[11px] text-[hsl(215,15%,52%)]">Age of Building</span>
-                    <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">
-                      {new Date().getFullYear() - property.yearBuilt} yrs (Built {property.yearBuilt})
-                    </span>
-                  </div>
-                  {property.direction && (
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="text-[11px] text-[hsl(215,15%,52%)]">Direction</span>
-                      <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{property.direction}</span>
-                    </div>
-                  )}
-                  {property.outdoorArea && (
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="text-[11px] text-[hsl(215,15%,52%)]">Outdoor Area</span>
-                      <span className="text-xs font-semibold text-[hsl(215,25%,18%)]">{property.outdoorArea}</span>
-                    </div>
-                  )}
-                  {property.monthlyRent && (
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="text-[11px] text-[hsl(215,15%,52%)]">Monthly Rent</span>
-                      <span className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">HK${property.monthlyRent.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {property.salePrice && (
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="text-[11px] text-[hsl(215,15%,52%)]">Sale Price</span>
-                      <span className="text-xs font-semibold text-[hsl(215,25%,18%)] font-mono">HK${(property.salePrice / 1000000).toFixed(2)}M</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Additional Features */}
-                {property.additionalFeatures && property.additionalFeatures.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-[10px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-1.5 pb-1 border-b border-[hsl(214,20%,88%)]">Features</p>
-                    <div className="flex flex-wrap gap-1">
-                      {property.additionalFeatures.map((feat) => (
-                        <span key={feat} className="text-[10px] px-2 py-0.5 rounded-full bg-[#1B4F8A]/10 text-[#1B4F8A] font-medium border border-[#1B4F8A]/20">
-                          {feat}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* RIGHT: Agent + Client */}
-              <div className="space-y-4">
-
-                {/* Agent Card */}
-                <div>
-                  <p className="text-[10px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[hsl(214,20%,88%)]">Your Agent</p>
-                  {agentProfile ? (
-                    <div className="flex items-start gap-3">
-                      {/* Agent Avatar */}
-                      <div className={`w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center text-white font-bold text-sm ${agentAvatarColor(agentProfile.name)}`}>
-                        {agentInitials(agentProfile.name)}
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        <p className="text-sm font-bold text-[hsl(215,25%,18%)] leading-tight">{agentProfile.name}</p>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-[hsl(215,15%,52%)] w-14 flex-shrink-0">Licence</span>
-                            <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">{agentProfile.licenceNumber}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-[hsl(215,15%,52%)] w-14 flex-shrink-0">Mobile</span>
-                            <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">{agentProfile.mobile}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-[hsl(215,15%,52%)] w-14 flex-shrink-0">Email</span>
-                            <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)] break-all">{agentProfile.email}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-[hsl(215,15%,52%)]">Agent details not found</p>
-                  )}
-                </div>
-
-                {/* Client Details */}
-                <div>
-                  <p className="text-[10px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-2.5 pb-1 border-b border-[hsl(214,20%,88%)]">Client Details</p>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-[hsl(215,15%,52%)] w-14 flex-shrink-0">Name</span>
-                      <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)]">{client.name || '—'}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-[hsl(215,15%,52%)] w-14 flex-shrink-0">Mobile</span>
-                      <span className="text-[11px] font-semibold text-[hsl(215,25%,18%)] font-mono">{client.mobile || '—'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Viewing Appointment Box */}
-                {(viewingDate || viewingTime) && (
-                  <div className="bg-[#1B4F8A]/6 border border-[#1B4F8A]/20 rounded-xl p-3">
-                    <p className="text-[10px] font-bold text-[#1B4F8A] uppercase tracking-wider mb-1.5">Appointment</p>
-                    <div className="space-y-1">
-                      {viewingDate && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-[hsl(215,15%,52%)] w-10 flex-shrink-0">Date</span>
-                          <span className="text-xs font-bold text-[#1B4F8A] font-mono">{viewingDate}</span>
-                        </div>
-                      )}
-                      {viewingTime && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-[hsl(215,15%,52%)] w-10 flex-shrink-0">Time</span>
-                          <span className="text-xs font-bold text-[#1B4F8A] font-mono">{viewingTime}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* ── FOOTER ── */}
-            <div className="pt-3 border-t border-[hsl(214,20%,88%)] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="relative w-8 h-8 flex-shrink-0">
-                  <Image
-                    src="/assets/images/image-1780466751353.png"
-                    alt="Homes R Us"
-                    fill
-                    className="object-contain"
-                    unoptimized
-                  />
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold text-[hsl(215,25%,18%)]">{COMPANY.name} · {COMPANY.website}</p>
-                  <p className="text-[9px] text-[hsl(215,15%,62%)]">
-                    {mode === 'village-only' ? 'Full address available upon confirmed appointment. ' : ''}
-                    EAA Lic: {COMPANY.eaaLicense}
-                  </p>
-                </div>
-              </div>
-              <p className="text-[9px] text-[hsl(215,15%,62%)] font-mono">
-                Generated {new Date().toLocaleDateString('en-GB')}
+            <div className="mt-4 pt-3 border-t border-[hsl(215,15%,75%)]">
+              <p className="text-[8px] text-[hsl(215,15%,50%)] leading-relaxed">
+                A standard agency fee of 50% of one month&apos;s total rent is payable by both landlord and tenant upon signing a tenancy agreement. For sales, a 1% agency fee of the total purchase price is payable by both vendor and purchaser on completion. These particulars are for guidance only and do not form part of any offer or contract. All property details (including price, fees, rates, descriptions, and floor areas) are subject to change and should be verified by your solicitor before entering into any agreement. EA Licence {COMPANY.eaaLicense} · {COMPANY.name} · {COMPANY.address}
               </p>
+              <div className="flex items-center justify-between mt-1.5">
+                <p className="text-[8px] text-[hsl(215,15%,50%)]">{COMPANY.name} is a leading specialist in Hong Kong property.</p>
+                <p className="text-[8px] text-[hsl(215,15%,50%)] font-mono">Printed Date: {new Date().toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}</p>
+              </div>
             </div>
           </div>
         </div>

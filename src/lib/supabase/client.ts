@@ -90,11 +90,9 @@ if (typeof window !== 'undefined' && !(window as any).__sb_patched__) {
 }
 
 export function createClient() {
-  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\s+/g, '').replace(/\/+$/, '');
-  const supabaseAnonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').replace(/\s+/g, '');
   return createBrowserClient(
-    supabaseUrl,
-    supabaseAnonKey,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll: () => (canUseCookies() ? fromCookies() : fromStorage()),
